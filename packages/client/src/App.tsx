@@ -2,6 +2,8 @@ import { compileMap, type CompiledMap } from '@pixelwork/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, orgApi, type Me, type SpaceDetail, type SpaceSummary } from './api.ts';
 import { GameView } from './GameView.tsx';
+import { EditorController } from './editor/editor-controller.ts';
+import type { TiledDoc } from '@pixelwork/shared/editor';
 import type { ConnectionStatus } from './net/connection.ts';
 import { CreateSpaceModal } from './ui/CreateSpaceModal.tsx';
 import { CreditsPage } from './ui/CreditsPage.tsx';
@@ -67,6 +69,7 @@ export function App() {
   const [invite, setInvite] = useState(inviteToken);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [modal, setModal] = useState<'create' | 'invite' | 'map' | null>(null);
+  const [editor, setEditor] = useState<{ controller: EditorController; baseVersion: number } | null>(null);
 
   const fail = useCallback((error: unknown) => {
     setState({ kind: 'login', error: error instanceof Error ? error.message : 'Falha ao entrar.' });
@@ -149,7 +152,10 @@ export function App() {
 
   const select = (spaceId: string) => {
     openSpace(spaceId)
-      .then((next) => setState({ ...state, current: next }))
+      .then((next) => {
+        setEditor(null);
+        setState({ ...state, current: next });
+      })
       .catch(fail);
   };
 
@@ -170,6 +176,18 @@ export function App() {
         <span className="spacer" />
         {current?.space.role === 'admin' && (
           <>
+            <button
+              type="button"
+              disabled={editor !== null}
+              onClick={() =>
+                setEditor({
+                  controller: new EditorController(structuredClone(current.space.map) as TiledDoc),
+                  baseVersion: current.space.mapVersion,
+                })
+              }
+            >
+              Editar mapa
+            </button>
             <button type="button" onClick={() => setModal('map')}>
               Mapa
             </button>
@@ -208,6 +226,9 @@ export function App() {
             setStatus(next);
             if (next === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
           }}
+          editor={editor}
+          onEditorBaseVersion={(version) => setEditor((e) => (e ? { ...e, baseVersion: version } : e))}
+          onEditorClose={() => setEditor(null)}
           onMapUpdated={() => {
             openSpace(current.space.id)
               .then((next) => setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev)))

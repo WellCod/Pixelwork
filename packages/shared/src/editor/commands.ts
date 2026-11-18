@@ -87,6 +87,12 @@ export function prop(object: { properties?: TiledProperty[] }, name: string): un
   return object.properties?.find((p) => p.name === name)?.value;
 }
 
+/** Propriedade como texto (vazio se faltar ou não for string). */
+export function textProp(object: { properties?: TiledProperty[] }, name: string, fallback = ''): string {
+  const value = prop(object, name);
+  return typeof value === 'string' ? value : fallback;
+}
+
 export function apply(doc: TiledDoc, command: EditorCommand): { doc: TiledDoc; inverse: EditorCommand } {
   switch (command.kind) {
     case 'paint': {

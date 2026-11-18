@@ -665,6 +665,17 @@ Decisões da fase 7 (modelo do editor, `packages/shared/src/editor`):
   volta, para uma atribuição antiga não cair numa mesa nova. O `nextobjectid` do Tiled é mantido.
 - Um traço de pincel é um comando só; um comando novo limpa o refazer.
 
+Decisões da fase 7 (editor no app, `packages/client/src/editor`):
+
+- "Editar mapa" troca a cena do jogo pela `EditorScene`; conexão, mídia e chamadas continuam,
+  mas o avatar não anda. O `EditorController` guarda pilha, ferramenta, opções e seleção fora
+  do Phaser; a cena só desenha e traduz o mouse, o painel em React lê o mesmo estado.
+- A cena redesenha tudo a partir do documento a cada comando (mapas de até 100x100).
+- Editando, mapas que chegam por `map.updated` são ignorados; salvar usa a `baseVersion` do
+  início da edição e, no 409, o painel oferece descartar e recarregar o mapa atual.
+- O template para começar do zero é o JSON de `maps/templates/` importado no cliente, sem rota.
+- Renomear zona grava ao sair do campo: um comando por renomeação, não por tecla.
+
 ## 13. Convidados e coworking de demonstração
 
 - Seed cria a org "Demo" e o coworking `DEMO_SPACE_SLUG` a partir de um template.
