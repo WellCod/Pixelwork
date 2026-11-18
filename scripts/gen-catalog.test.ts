@@ -17,6 +17,7 @@ function input(overrides: Partial<CatalogInput> = {}): CatalogInput {
     },
     palette: new Set(['#111111', '#222222', '#333333', '#444444']),
     fileExists: () => true,
+    readTileset: () => ({ tilewidth: 16, tileheight: 16, columns: 8, tilecount: 8, tiles: [{ id: 2, properties: [{ name: 'collides', type: 'bool', value: true }] }] }),
     ...overrides,
   };
 }

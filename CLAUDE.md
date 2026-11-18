@@ -54,7 +54,10 @@ Para o Phaser, avalie 3.x vs 4 e registre a escolha em `docs/architecture.md`.
   o próprio banco).
 - `pnpm typecheck`, `pnpm lint`.
 - `pnpm db:generate`: gera migration a partir do schema em `packages/shared/src/schema.ts`.
-- `pnpm db:migrate`, `pnpm db:seed`.
+- `pnpm db:migrate`, `pnpm db:seed` (cria a org Demo e o coworking `DEMO_SPACE_SLUG`; pode rodar
+  de novo).
+- `pnpm maps:demo`: regera `maps/templates/small-office.json`. Só enquanto o mapa não for editado
+  no Tiled.
 - `pnpm assets:placeholders`: gera os placeholders que ainda não existem (`-- --force` regera).
 - `pnpm assets:catalog`: gera `packages/shared/src/catalog.generated.ts` do manifesto.
 - `pnpm assets:check`: confere se todo PNG usa só a paleta e as cores-chave.
