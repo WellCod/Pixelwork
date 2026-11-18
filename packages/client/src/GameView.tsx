@@ -61,6 +61,8 @@ export function GameView({ me, space, map, onLogout }: Props) {
     });
     setScene(created.scene);
     controller.start();
+    // Só em desenvolvimento: estado de assinatura e posição para scripts de verificação.
+    if (import.meta.env.DEV) Object.assign(window, { __pixelwork: { media, world, controller } });
     conn.open();
     return () => {
       controller.stop();
