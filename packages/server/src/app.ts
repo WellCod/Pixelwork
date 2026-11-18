@@ -10,6 +10,7 @@ import { attachGateway, type Gateway } from './realtime/gateway.ts';
 import { liveKitMedia, type MediaService } from './realtime/media.ts';
 import { registerDeskRoutes } from './spaces/desk-routes.ts';
 import { registerInviteRoutes } from './spaces/invite-routes.ts';
+import { registerMapRoutes } from './spaces/map-routes.ts';
 import { registerOrgRoutes } from './spaces/org-routes.ts';
 import { registerProfileRoutes } from './spaces/profile-routes.ts';
 import { registerSpaceRoutes } from './spaces/routes.ts';
@@ -67,6 +68,7 @@ export function buildApp({
   registerGitHubRoutes(app, { db, config, clock, github });
   registerOrgRoutes(app, { db, config, clock });
   registerInviteRoutes(app, { db, config, clock });
+  registerMapRoutes(app, { db, config, clock });
 
   const gateway = attachGateway(app.server, {
     db,

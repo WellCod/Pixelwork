@@ -16,6 +16,8 @@ export interface MediaService {
   token(identity: string, room: string, sources: readonly MediaSource[]): Promise<string>;
   /** Tira o participante da sala pelo servidor: cobre o cliente que ignora o `media.join`. */
   removeParticipant(room: string, identity: string): Promise<void>;
+  /** Encerra a sala inteira (zona que saiu do mapa). */
+  deleteRoom(room: string): Promise<void>;
 }
 
 export interface LiveKitConfig {
@@ -52,5 +54,6 @@ export function liveKitMedia(config: LiveKitConfig): MediaService {
       return token.toJwt();
     },
     removeParticipant: (room, identity) => rooms.removeParticipant(room, identity),
+    deleteRoom: (room) => rooms.deleteRoom(room),
   };
 }

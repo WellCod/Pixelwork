@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileMap, isWalkable, zoneAt, type MapError } from './map.ts';
+import { compileMap, isWalkable, relocate, zoneAt, type MapError } from './map.ts';
 import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testing.ts';
 
 type Mutate = (map: Record<string, unknown>) => void;
@@ -174,5 +174,42 @@ describe('compileMap: um erro por código', () => {
 
   it('entrada que não é objeto', () => {
     expect(compileMap('mapa')).toEqual({ ok: false, errors: [{ code: 'not_orthogonal' }] });
+  });
+});
+
+describe('relocate', () => {
+  const compiled = (options: TestMapOptions) => {
+    const result = compileMap(buildTestMap(options));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    return result.map;
+  };
+
+  it('fica onde está se o tile continua caminhável', () => {
+    expect(relocate(compiled({}), 3, 3)).toEqual({ x: 3, y: 3 });
+  });
+
+  it('vai para o tile caminhável mais próximo na mesma zona', () => {
+    const map = compiled({ walls: [[3, 3]] });
+    const to = relocate(map, 3, 3);
+    expect(Math.abs(to.x - 3) + Math.abs(to.y - 3)).toBe(1);
+    expect(isWalkable(map, to.x, to.y)).toBe(true);
+  });
+
+  it('não atravessa para outra zona mesmo que ela esteja mais perto', () => {
+    // Zona "a" é só a coluna x=4, toda parede menos (4,6); o tile livre mais perto de (4,2) fora dela não serve.
+    const map = compiled({
+      zones: [{ key: 'a', type: 'open', x: 4, y: 1, w: 1, h: 6 }],
+      walls: [[4, 1], [4, 2], [4, 3], [4, 4], [4, 5]],
+    });
+    expect(relocate(map, 4, 2)).toEqual({ x: 4, y: 6 });
+  });
+
+  it('sem tile livre na zona, vai para o spawn', () => {
+    const map = compiled({
+      zones: [{ key: 'ilha', type: 'open', x: 6, y: 5, w: 2, h: 2 }],
+      walls: [[6, 5], [7, 5], [6, 6], [7, 6]],
+      spawns: [[1, 1]],
+    });
+    expect(relocate(map, 6, 5)).toEqual({ x: 1, y: 1 });
   });
 });

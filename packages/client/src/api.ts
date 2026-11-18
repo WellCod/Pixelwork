@@ -1,4 +1,4 @@
-import type { AvatarSpec, DeskDecor } from '@pixelwork/shared';
+import type { AvatarSpec, DeskDecor, MapError } from '@pixelwork/shared';
 
 export interface Me {
   id: string;
@@ -98,4 +98,11 @@ export const orgApi = {
     request<{ spaceId: string }>('POST', `/invites/${encodeURIComponent(token)}/accept`, {}),
   removeMember: (spaceId: string, userId: string) =>
     request<undefined>('DELETE', space(spaceId, `/members/${encodeURIComponent(userId)}`), {}),
+};
+
+export const mapApi = {
+  validate: (spaceId: string, map: unknown) =>
+    request<{ errors: MapError[]; orphanDesks: string[] }>('POST', space(spaceId, '/map/validate'), { map }),
+  save: (spaceId: string, map: unknown, baseVersion: number) =>
+    request<{ version: number; orphanDesks: string[] }>('PUT', space(spaceId, '/map'), { map, baseVersion }),
 };
