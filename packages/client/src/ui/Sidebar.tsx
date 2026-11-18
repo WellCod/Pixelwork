@@ -1,6 +1,6 @@
 import { isSingleEmoji, type Player, type Status } from '@pixelwork/shared';
 import { useState, type SubmitEvent } from 'react';
-import { profileApi } from '../api.ts';
+import { orgApi, profileApi } from '../api.ts';
 import { seatedFacing } from '../game/presence.ts';
 import type { CallStore } from '../net/call-store.ts';
 import type { ClientWorld } from '../net/client-world.ts';
@@ -15,7 +15,14 @@ const STATUS_LABEL: Record<Status, string> = {
   away: 'Ausente',
 };
 
-export function Sidebar({ world, spaceId, calls }: { world: ClientWorld; spaceId: string; calls: CallStore }) {
+interface SidebarProps {
+  world: ClientWorld;
+  spaceId: string;
+  calls: CallStore;
+  isAdmin: boolean;
+}
+
+export function Sidebar({ world, spaceId, calls, isAdmin }: SidebarProps) {
   useWorld(world);
   useCalls(calls);
   // Chamada só sai da própria mesa (o servidor confere de novo).
@@ -49,6 +56,17 @@ export function Sidebar({ world, spaceId, calls }: { world: ClientWorld; spaceId
                   <div className="person-status">{p.activity === 'call' ? 'Em chamada' : 'Em reunião'}</div>
                 )}
               </div>
+              {isAdmin && p.id !== world.selfId && (
+                <button
+                  type="button"
+                  className="call-button"
+                  onClick={() => {
+                    if (confirm(`Remover ${p.name} deste coworking?`)) void orgApi.removeMember(spaceId, p.id);
+                  }}
+                >
+                  Remover
+                </button>
+              )}
               {canCall(p) && (
                 <button type="button" className="call-button" onClick={() => calls.call(p.id)}>
                   Ligar
@@ -147,6 +165,16 @@ function MePanel({ me, spaceId }: { me: Player; spaceId: string }) {
       </form>
 
       {message && <p className={message.kind === 'ok' ? 'ok' : 'error'}>{message.text}</p>}
+      <button
+        type="button"
+        className="link-button"
+        onClick={() => {
+          // A saída chega pelo tempo real (conexão fechada com o código de removido).
+          if (confirm('Sair deste coworking? Sua mesa fica livre.')) run(orgApi.removeMember(spaceId, me.id), '');
+        }}
+      >
+        Sair do coworking
+      </button>
       {editingAvatar && <AvatarEditor initial={me.avatar} onClose={() => setEditingAvatar(false)} />}
     </section>
   );

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { orgs, spaces } from '@pixelwork/shared/schema';
 import { and, eq } from 'drizzle-orm';
-import type { Db } from './db.ts';
+import type { Db, Tx } from './db.ts';
 import { uuidv7 } from './ids.ts';
 
 export const DEMO_ORG_SLUG = 'demo';
@@ -31,7 +31,7 @@ export async function seedDemo(db: Db, spaceSlug: string, map: unknown): Promise
   });
 }
 
-export async function findDemoSpaceId(db: Db, spaceSlug: string): Promise<string | null> {
+export async function findDemoSpaceId(db: Db | Tx, spaceSlug: string): Promise<string | null> {
   const rows = await db
     .select({ id: spaces.id })
     .from(spaces)
