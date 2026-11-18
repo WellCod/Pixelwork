@@ -415,6 +415,21 @@ Regras de chamada:
 - Sem resposta em 30 segundos, `call.ended` com `timeout`.
 - Chamada 1:1. Levantar da mesa não encerra a chamada; só `call.leave` ou desconexão.
 
+Decisões da fase 4:
+
+- Códigos de `error`: `not_in_zone` (trancar de fora), `not_locked` (bater em sala aberta),
+  `not_at_door` (bater longe da porta), `not_seated`, `call_unavailable` (destino offline ou o
+  próprio autor) e `already_in_call`.
+- Quem está dentro da sala trancada pode sair e voltar enquanto ela segue trancada; a simulação
+  só confere a lista na entrada.
+- A resposta à batida não é avisada aos outros ocupantes (o protocolo não tem a mensagem); o
+  cliente tira o pedido da tela no prazo de 30 segundos.
+- O autor não recebe confirmação com o `callId`: sabe que a chamada começou pelo `media.join`
+  da sala `call:` e pela atividade `call`. Quem recebe e sai antes de atender (`call.leave`)
+  conta como `declined`.
+- Desconexão encerra a chamada na hora; a tolerância de reconexão vale só para a presença.
+- Conexão nova sempre recebe o `media.join` da sala atual, mesmo que seja a mesma de antes.
+
 Regras de chat:
 
 - O servidor calcula os destinatários: na zona `open`, quem está na mesma zona e a até
@@ -522,6 +537,14 @@ Decisões da fase 3 (versões fixadas: `livekit-server-sdk` 2.20.0, `livekit-cli
   um `media.join` mais novo. Sessão substituída por outra aba também fecha a mídia.
 - Chat: `error` com `chat_invalid` (vazio ou acima de `CHAT_MAX_CHARS` depois do trim) ou
   `chat_rate` (balde de 3 fichas, 1 por segundo).
+
+Decisões da fase 4:
+
+- Remoção pelo `RoomServiceClient.removeParticipant`, que aceita a URL `ws://` e troca para
+  http sozinho. Erro na remoção (participante que já saiu) só vai para o log.
+- Os tokens de `zone:` e `call:` liberam câmera, microfone, tela e áudio da tela.
+- Nas salas `zone:` e `call:` o cliente assina tudo de todos, com volume cheio, e mostra uma
+  grade de câmeras com a tela compartilhada em destaque no lugar dos balões.
 
 Descartados: mesh P2P (upload multiplicado por participante); mediasoup (nível baixo demais,
 semanas de sinalização); vídeo como textura no canvas (upload de textura por frame sem ganho).

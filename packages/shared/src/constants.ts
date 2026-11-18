@@ -10,3 +10,5 @@ export const MAX_VIDEO_BUBBLES = 6;
 export const RECONNECT_GRACE_MS = 10_000;
 export const CHAT_MAX_CHARS = 280;
 export const CHAT_BUBBLE_MS = 6_000;
+export const KNOCK_TIMEOUT_MS = 30_000;
+export const CALL_RING_TIMEOUT_MS = 30_000;

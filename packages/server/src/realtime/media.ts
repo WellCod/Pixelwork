@@ -1,4 +1,4 @@
-import { AccessToken, TrackSource } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk';
 
 export type MediaSource = 'camera' | 'microphone' | 'screen_share' | 'screen_share_audio';
 
@@ -14,6 +14,8 @@ export interface MediaService {
   /** URL que o cliente usa para conectar (vai no `media.join`). */
   readonly url: string;
   token(identity: string, room: string, sources: readonly MediaSource[]): Promise<string>;
+  /** Tira o participante da sala pelo servidor: cobre o cliente que ignora o `media.join`. */
+  removeParticipant(room: string, identity: string): Promise<void>;
 }
 
 export interface LiveKitConfig {
@@ -23,13 +25,19 @@ export interface LiveKitConfig {
 }
 
 export const spaceRoom = (spaceId: string) => `space:${spaceId}`;
+export const zoneRoom = (spaceId: string, zoneKey: string) => `zone:${spaceId}:${zoneKey}`;
+export const callRoom = (callId: string) => `call:${callId}`;
 
 /** Na sala aberta só câmera e microfone: o token já impede compartilhar tela. */
 export const SPACE_SOURCES: readonly MediaSource[] = ['camera', 'microphone'];
+/** Sala de reunião e chamada: tela liberada. */
+export const PRIVATE_SOURCES: readonly MediaSource[] = ['camera', 'microphone', 'screen_share', 'screen_share_audio'];
 
 const TOKEN_TTL = '6h';
 
 export function liveKitMedia(config: LiveKitConfig): MediaService {
+  // O cliente aceita a URL ws:// e troca para http por conta própria.
+  const rooms = new RoomServiceClient(config.url, config.apiKey, config.apiSecret);
   return {
     url: config.url,
     token: async (identity, room, sources) => {
@@ -43,5 +51,6 @@ export function liveKitMedia(config: LiveKitConfig): MediaService {
       });
       return token.toJwt();
     },
+    removeParticipant: (room, identity) => rooms.removeParticipant(room, identity),
   };
 }

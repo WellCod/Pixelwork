@@ -7,6 +7,7 @@ import type { AppConfig } from '../config.ts';
 import { createDb, type Db } from '../db.ts';
 import { seedDemo } from '../demo.ts';
 import { createTestDatabase, type TestDatabase } from './database.ts';
+import type { MediaService } from '../realtime/media.ts';
 import { ManualClock } from './manual-clock.ts';
 
 export const TEST_ORIGIN = 'http://localhost:5173';
@@ -38,12 +39,23 @@ export interface TestServer {
   stop: () => Promise<void>;
 }
 
-export async function startTestServer(): Promise<TestServer> {
+export interface TestServerOptions {
+  map?: unknown;
+  media?: MediaService;
+}
+
+export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
   const database: TestDatabase = await createTestDatabase();
   const conn = createDb(database.url);
-  const spaceId = await seedDemo(conn.db, TEST_CONFIG.demoSpaceSlug, TEST_MAP);
+  const spaceId = await seedDemo(conn.db, TEST_CONFIG.demoSpaceSlug, options.map ?? TEST_MAP);
   const clock = new ManualClock();
-  const app = buildApp({ db: conn.db, config: TEST_CONFIG, clock, scheduler: clock });
+  const app = buildApp({
+    db: conn.db,
+    config: TEST_CONFIG,
+    clock,
+    scheduler: clock,
+    ...(options.media ? { media: options.media } : {}),
+  });
   const baseUrl = await app.listen({ port: 0, host: '127.0.0.1' });
   return {
     app,
