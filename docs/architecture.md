@@ -42,6 +42,18 @@ scripts/     geração do catálogo, checagem de paleta, placeholders, carga
 docker-compose.dev.yml
 ```
 
+Versões e escolhas da fase 0 (todas as dependências com versão fixa):
+
+- Phaser 4.2.1: estável desde abril de 2026, com três versões menores. Descartado o 3.90, sem
+  release desde maio de 2025.
+- TypeScript 6.0.3, não o 7: o typescript-eslint 8.73 exige TypeScript abaixo de 6.1.
+- Node 24. Driver `pg` (node-postgres) no Drizzle; descartado o postgres.js, sem ganho aqui.
+- `.env` lido pelo `--env-file` do Node e validado com Zod; descartado o `dotenv`.
+- Pacotes importados como fonte TypeScript (sem build entre eles): o servidor roda com `tsx`, o
+  cliente com Vite. Imports relativos com extensão `.ts`.
+- O Vite serve `assets/` como pasta pública; `packages/shared/src/assets.ts` é o único lugar que
+  traduz ID de catálogo em URL.
+
 ## 3. Ambiente de desenvolvimento
 
 ```yaml
@@ -57,7 +69,7 @@ services:
     volumes: [pgdata:/var/lib/postgresql/data]
 
   livekit:
-    image: livekit/livekit-server:<versão fixa>
+    image: livekit/livekit-server:v1.13.11
     # dentro do container, escutar só em 127.0.0.1 tornaria as portas inacessíveis pelo host
     command: --dev --bind 0.0.0.0
     ports:
@@ -91,7 +103,11 @@ GITHUB_CLIENT_ID
 GITHUB_CLIENT_SECRET
 SESSION_COOKIE_SECURE       # false em dev local, true em produção
 DEMO_SPACE_SLUG
+PORT                        # porta do servidor (3000); o Vite repassa as rotas da API para ela
 ```
+
+Em dev o app abre em `http://localhost:5173` (Vite), que repassa as rotas da API ao servidor. Assim
+cookie e `Origin` são da mesma origem.
 
 ## 4. Autenticação
 

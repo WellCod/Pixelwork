@@ -1,0 +1,35 @@
+{
+  "name": "pixelwork",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @pixelwork/server --filter @pixelwork/client dev",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "db:generate": "pnpm --filter @pixelwork/server db:generate",
+    "db:migrate": "pnpm --filter @pixelwork/server db:migrate",
+    "db:seed": "pnpm --filter @pixelwork/server db:seed",
+    "assets:placeholders": "tsx scripts/gen-placeholders.ts",
+    "assets:catalog": "tsx scripts/gen-catalog.ts",
+    "assets:check": "tsx scripts/check-palette.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "@types/pngjs": "6.0.5",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "pngjs": "7.0.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "5.1.0",
+    "zod": "4.6.7"
+  }
+}

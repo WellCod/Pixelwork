@@ -15,6 +15,7 @@ regras deste documento.
 
 - Uma única paleta fixa, com cerca de 32 cores, em `assets/palette.hex` (uma cor por linha). Ponto
   de partida sugerido: uma paleta do Lospec, como a Endesga 32. A escolha é sua; registre-a aqui.
+- Escolhida, provisoriamente: Endesga 32 (lospec.com/palette-list/endesga-32).
 - Todo PNG do repositório usa só cores da paleta, cores-chave (seção 3) e transparência total.
   `scripts/check-palette.ts` verifica isso e roda no CI.
 - Assets CC0 importados são recoloridos para a paleta antes de entrar no repositório. É isso que
@@ -56,7 +57,8 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 
 - Cada tileset é um PNG em `assets/tilesets/<id>.png` mais um `<id>.tsj` (tileset do Tiled em JSON).
 - Restrição: os mapas referenciam tiles pela posição. A largura do PNG (número de colunas) nunca
-  muda, e tiles novos só entram no fim. Nunca reordenar nem remover.
+  muda, e tiles novos só entram no fim. Nunca reordenar nem remover. Todos os tilesets têm 8
+  colunas (128 px de largura), fixadas pelos placeholders.
 - Propriedades de tile no `.tsj`:
   - `collides` (bool): o móvel bloqueia passagem.
   - `item_id` (string): ID de catálogo de um móvel ou item de decoração.

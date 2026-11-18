@@ -47,11 +47,17 @@ Para o Phaser, avalie 3.x vs 4 e registre a escolha em `docs/architecture.md`.
 
 ## Comandos
 
+- `cp .env.example .env`: primeira vez; os valores de dev já funcionam.
 - `docker compose -f docker-compose.dev.yml up -d`: sobe Postgres e LiveKit.
-- `pnpm dev`: client e server em modo watch.
-- `pnpm test`: unitários e integração.
+- `pnpm dev`: client (http://localhost:5173) e server (porta 3000) em modo watch.
+- `pnpm test`: unitários e integração (precisa do Postgres do compose; cada execução cria e apaga
+  o próprio banco).
 - `pnpm typecheck`, `pnpm lint`.
+- `pnpm db:generate`: gera migration a partir do schema em `packages/shared/src/schema.ts`.
 - `pnpm db:migrate`, `pnpm db:seed`.
+- `pnpm assets:placeholders`: gera os placeholders que ainda não existem (`-- --force` regera).
+- `pnpm assets:catalog`: gera `packages/shared/src/catalog.generated.ts` do manifesto.
+- `pnpm assets:check`: confere se todo PNG usa só a paleta e as cores-chave.
 - `pnpm load --bots 50`: teste de carga com bots (fase 8).
 
 Atualize esta seção quando os comandos mudarem.

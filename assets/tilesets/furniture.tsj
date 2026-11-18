@@ -1,0 +1,96 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "name": "furniture",
+  "image": "furniture.png",
+  "imagewidth": 128,
+  "imageheight": 16,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "columns": 8,
+  "tilecount": 8,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "desk"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "chair"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "plant"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "sofa"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "meeting-table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "door"
+        }
+      ]
+    }
+  ]
+}
