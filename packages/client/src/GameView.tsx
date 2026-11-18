@@ -17,7 +17,7 @@ import { DeskBar } from './ui/DeskBar.tsx';
 import { MediaControls } from './ui/MediaControls.tsx';
 import { RoomPanel } from './ui/RoomPanel.tsx';
 import { Sidebar } from './ui/Sidebar.tsx';
-import { VideoBubbles } from './ui/VideoBubbles.tsx';
+import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
 
 interface Props {
@@ -104,13 +104,14 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       world,
       mapJson: worldMapJson as Record<string, unknown>,
       send: (msg) => connection.current?.send(msg),
+      hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
     });
     scene.current = created.scene;
     return () => {
       scene.current = null;
       created.game.destroy(true);
     };
-  }, [editorController, worldMap, worldMapJson, world]);
+  }, [editorController, worldMap, worldMapJson, world, media, controller]);
 
   return (
       <div className="main">
