@@ -253,6 +253,9 @@ describe('multi-coworking', () => {
       'PUT /spaces/:spaceId/desks/:deskKey/decor': DECOR,
       'DELETE /spaces/:spaceId/desks/:deskKey': {},
       'POST /spaces/:spaceId/invites': {},
+      'POST /spaces/:spaceId/map/validate': { map: TEST_MAP },
+      'PUT /spaces/:spaceId/map': { map: TEST_MAP, baseVersion: 1 },
+      'GET /spaces/:spaceId/map/export': undefined,
     };
 
     it('toda rota /spaces/:spaceId/... responde 404 para quem não é membro', async () => {

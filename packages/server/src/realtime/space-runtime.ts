@@ -11,6 +11,7 @@ import {
   RECONNECT_GRACE_MS,
   TICK_MS,
   chatRecipients,
+  relocate,
   step,
   zoneAt,
   type Activity,
@@ -106,8 +107,8 @@ export class SpaceRuntime {
 
   constructor(
     readonly spaceId: string,
-    private readonly map: CompiledMap,
-    private readonly mapVersion: number,
+    private map: CompiledMap,
+    private mapVersion: number,
     private readonly deps: RuntimeDeps,
     assignments: readonly DeskState[] = [],
   ) {
@@ -308,6 +309,53 @@ export class SpaceRuntime {
     this.calls.clear();
     this.members.clear();
     this.world = { players: new Map() };
+  }
+
+  // ---- troca de mapa ----
+
+  /**
+   * Mapa novo gravado: realoca quem ficou em tile bloqueado, limpa trancas e batidas de zonas
+   * que sumiram, encerra as salas de mídia delas e avisa todos com map.updated.
+   */
+  replaceMap(map: CompiledMap, version: number): void {
+    const meetingKeys = new Set(map.zones.filter((z) => z.type === 'meeting').map((z) => z.key));
+    const removed = [...this.locks.keys()].filter((key) => !meetingKeys.has(key));
+    for (const [requestId, knock] of this.knocks) {
+      if (removed.includes(knock.zoneKey)) this.resolveKnock(requestId, false);
+    }
+    for (const key of removed) this.locks.delete(key);
+    for (const key of meetingKeys) if (!this.locks.has(key)) this.locks.set(key, { locked: false, allowed: new Set() });
+
+    const deskKeys = new Set(map.desks.map((d) => d.key));
+    for (const key of [...this.desks.keys()]) if (!deskKeys.has(key)) this.desks.delete(key);
+    for (const key of deskKeys) {
+      if (!this.desks.has(key)) this.desks.set(key, { deskKey: key, userId: null, ownerName: null, decor: null });
+    }
+
+    this.map = map;
+    this.mapVersion = version;
+    const players = new Map(this.world.players);
+    for (const [id, p] of players) {
+      const to = relocate(map, p.x, p.y);
+      if (to.x === p.x && to.y === p.y) continue;
+      players.set(id, { ...p, x: to.x, y: to.y });
+      this.moved.add(id);
+    }
+    this.world = { players };
+
+    this.broadcast({ t: 'map.updated', version });
+    for (const [id, member] of this.members) {
+      const p = this.world.players.get(id);
+      if (p) member.zoneKey = zoneAt(map, p.x, p.y).key;
+      this.refresh(id);
+    }
+    for (const key of this.locks.keys()) this.broadcast({ t: 'zone.state', zone: this.zoneState(key) });
+    // Quem estava numa zona removida já foi mandado para outra sala; a sala antiga fecha.
+    for (const key of removed) {
+      this.deps.media.deleteRoom(zoneRoom(this.spaceId, key)).catch((error: unknown) => {
+        this.deps.log.error({ error, zoneKey: key }, 'falha ao encerrar a sala de mídia da zona removida');
+      });
+    }
   }
 
   // ---- zonas de reunião ----

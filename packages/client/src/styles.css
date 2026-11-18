@@ -527,3 +527,24 @@ a.button {
   text-decoration: underline;
   font-size: 0.85em;
 }
+
+.bar a {
+  color: #8b9bb4;
+  font-size: 0.85em;
+}
+
+.map-errors {
+  margin: 0;
+  padding-left: 18px;
+  color: #f6757a;
+}
+
+.credits {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.credits a {
+  color: #2ce8f5;
+}
