@@ -7,6 +7,8 @@ reunião que podem ser trancadas e fazem chamadas a partir da mesa.
 Projeto de portfólio. O foco é o núcleo de tempo real: servidor autoritativo, predição no cliente,
 proximidade e autorização de mídia feitas no servidor.
 
+![Ana e Bruno conversando por vídeo na área aberta; Carla trabalha na mesa decorada](docs/prints/coworking.png)
+
 ## O que dá para fazer
 
 - Entrar como convidado (ou com o GitHub) e andar pelo coworking de demonstração, vendo os outros
@@ -21,6 +23,18 @@ proximidade e autorização de mídia feitas no servidor.
 - Várias empresas e coworkings por conta, convites com limite de usos e validade.
 - Mapas: upload do JSON do Tiled, export em zip que volta a abrir no Tiled, editor dentro do app
   com desfazer e refazer. Quem está online vê o mapa novo sem recarregar.
+
+## Telas
+
+| | |
+|---|---|
+| ![Sala de reunião trancada, com o pedido de entrada do Bruno](docs/prints/reuniao.png) | ![Editor de mapa com zonas, mesas e validação do contrato](docs/prints/editor.png) |
+| Sala trancada: quem bate na porta espera a aprovação de quem está dentro. | Editor de mapa no app, validado pelo mesmo `compileMap` do upload. |
+| ![Editor de avatar por camadas com troca de paleta](docs/prints/avatar.png) | ![Decoração da mesa ocupada](docs/prints/mesa-decorar.png) |
+| Avatar por camadas: corpo, roupa, cabelo e acessório, com as cores trocadas no cliente. | Mesa própria com variação, tela e itens por posição. |
+
+Os prints saem de `docs/prints/`, gerados com três convidados no coworking de demo e câmeras
+falsas do Chromium.
 
 ## Como rodar
 
