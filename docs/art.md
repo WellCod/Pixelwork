@@ -59,6 +59,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Restrição: os mapas referenciam tiles pela posição. A largura do PNG (número de colunas) nunca
   muda, e tiles novos só entram no fim. Nunca reordenar nem remover. Todos os tilesets têm 8
   colunas (128 px de largura), fixadas pelos placeholders.
+- Cada tileset tem 100 gids reservados no mapa (firstgid 1, 101, 201, 301). O Tiled atribui
+  firstgid contíguo, e um tileset que cresce invadiria os gids do seguinte; o `compileMap` recusa
+  mapa com tilesets sobrepostos (`tileset_overlap`).
 - Propriedades de tile no `.tsj`:
   - `collides` (bool): o móvel bloqueia passagem.
   - `item_id` (string): ID de catálogo de um móvel ou item de decoração.
