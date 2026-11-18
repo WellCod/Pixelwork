@@ -6,7 +6,9 @@ import {
   TICK_MS,
   step,
   zoneAt,
+  type CompiledDesk,
   type CompiledMap,
+  type DeskState,
   type Player,
   type ServerMsg,
   type SimPlayer,
@@ -49,13 +51,55 @@ export class SpaceRuntime {
   private readonly members = new Map<string, Member>();
   private readonly moved = new Set<string>();
   private ticker: Timer | null = null;
+  private readonly desks = new Map<string, DeskState>();
 
   constructor(
     readonly spaceId: string,
     private readonly map: CompiledMap,
     private readonly mapVersion: number,
     private readonly deps: RuntimeDeps,
-  ) {}
+    assignments: readonly DeskState[] = [],
+  ) {
+    // Toda mesa do mapa tem estado; atribuição de mesa que saiu do mapa é ignorada.
+    for (const desk of map.desks) {
+      this.desks.set(desk.key, { deskKey: desk.key, userId: null, ownerName: null, decor: null });
+    }
+    for (const assignment of assignments) {
+      if (this.desks.has(assignment.deskKey)) this.desks.set(assignment.deskKey, assignment);
+    }
+  }
+
+  /** Mesa do mapa compilado, para conferir a cadeira. */
+  mapDesk(deskKey: string): CompiledDesk | undefined {
+    return this.map.desks.find((d) => d.key === deskKey);
+  }
+
+  /** Posição autoritativa de quem está conectado agora. */
+  positionOf(userId: string): { x: number; y: number } | null {
+    if (!this.members.get(userId)?.conn) return null;
+    const p = this.world.players.get(userId);
+    return p ? { x: p.x, y: p.y } : null;
+  }
+
+  /** Grava o estado da mesa depois do REST e avisa todos. */
+  setDesk(desk: DeskState): void {
+    if (!this.desks.has(desk.deskKey)) return;
+    this.desks.set(desk.deskKey, desk);
+    this.broadcast({ t: 'desk.updated', desk });
+  }
+
+  /** Atualiza o perfil depois do REST: avisa quem está no coworking e corrige as plaquinhas. */
+  updateProfile(userId: string, patch: Partial<Omit<PlayerProfile, 'id'>>): void {
+    const member = this.members.get(userId);
+    if (member) {
+      Object.assign(member.profile, patch);
+      this.broadcast({ t: 'player.update', id: userId, patch });
+    }
+    if (patch.name === undefined) return;
+    for (const desk of this.desks.values()) {
+      if (desk.userId === userId) this.setDesk({ ...desk, ownerName: patch.name });
+    }
+  }
 
   get connectedCount(): number {
     let count = 0;
@@ -105,7 +149,7 @@ export class SpaceRuntime {
       mapVersion: this.mapVersion,
       players: [...this.members.keys()].map((id) => this.player(id)),
       zones: this.zoneStates(),
-      desks: [],
+      desks: [...this.desks.values()],
     });
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
   }

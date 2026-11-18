@@ -1,7 +1,7 @@
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
-import { compileMap } from '@pixelwork/shared';
-import { spaces } from '@pixelwork/shared/schema';
+import { DeskDecor, compileMap, type DeskState } from '@pixelwork/shared';
+import { deskAssignments, spaces, users } from '@pixelwork/shared/schema';
 import { eq } from 'drizzle-orm';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { SESSION_COOKIE, findSessionUser } from '../auth/sessions.ts';
@@ -22,6 +22,9 @@ export interface GatewayDeps {
 export interface Gateway {
   /** Conexões abertas em todos os coworkings; usado pelos testes para sincronizar. */
   connections(): number;
+  /** Runtime já carregado do coworking; não existe enquanto ninguém conectou. */
+  runtime(spaceId: string): SpaceRuntime | undefined;
+  forEachRuntime(fn: (runtime: SpaceRuntime) => void): void;
   close(): void;
 }
 
@@ -34,6 +37,7 @@ function reject(socket: Duplex, status: number, text: string): void {
 export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
   const runtimes = new Map<string, Promise<SpaceRuntime | null>>();
+  const loaded = new Map<string, SpaceRuntime>();
   const sockets = new Set<WebSocket>();
   const origin = new URL(deps.publicUrl).origin;
 
@@ -49,7 +53,22 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
       deps.log.error({ spaceId, errors: compiled.errors }, 'mapa salvo não compila');
       return null;
     }
-    return new SpaceRuntime(spaceId, compiled.map, row.mapVersion, deps);
+    const assignments = await deps.db
+      .select({
+        deskKey: deskAssignments.deskKey,
+        userId: deskAssignments.userId,
+        ownerName: users.displayName,
+        decor: deskAssignments.decor,
+      })
+      .from(deskAssignments)
+      .innerJoin(users, eq(users.id, deskAssignments.userId))
+      .where(eq(deskAssignments.spaceId, spaceId));
+    const desks = assignments.map(
+      (a): DeskState => ({ ...a, decor: DeskDecor.safeParse(a.decor).data ?? null }),
+    );
+    const runtime = new SpaceRuntime(spaceId, compiled.map, row.mapVersion, deps, desks);
+    loaded.set(spaceId, runtime);
+    return runtime;
   }
 
   function runtimeFor(spaceId: string): Promise<SpaceRuntime | null> {
@@ -130,6 +149,10 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
 
   return {
     connections: () => sockets.size,
+    runtime: (spaceId) => loaded.get(spaceId),
+    forEachRuntime: (fn) => {
+      for (const runtime of loaded.values()) fn(runtime);
+    },
     close: () => {
       for (const runtime of runtimes.values()) {
         void runtime.then((r) => r?.close());

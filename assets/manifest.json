@@ -1,20 +1,150 @@
 {
   "tilesets": [
-    { "id": "floors", "license": "own", "author": "Pixelwork", "source": null },
-    { "id": "walls", "license": "own", "author": "Pixelwork", "source": null },
-    { "id": "furniture", "license": "own", "author": "Pixelwork", "source": null },
-    { "id": "desk-decor", "license": "own", "author": "Pixelwork", "source": null }
+    {
+      "id": "floors",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "walls",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "furniture",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "desk-decor",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    }
   ],
   "characters": {
-    "body": [{ "id": "base", "license": "own", "author": "Pixelwork", "source": null }],
-    "hair": [{ "id": "short", "license": "own", "author": "Pixelwork", "source": null }],
-    "outfit": [{ "id": "basic", "license": "own", "author": "Pixelwork", "source": null }],
-    "accessory": [{ "id": "glasses", "license": "own", "author": "Pixelwork", "source": null }]
+    "body": [
+      {
+        "id": "base",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "hair": [
+      {
+        "id": "short",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "long",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "spiky",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "outfit": [
+      {
+        "id": "basic",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "hoodie",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "accessory": [
+      {
+        "id": "glasses",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "cap",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ]
   },
   "deskDecor": {
-    "variants": [{ "id": "basic", "license": "own", "author": "Pixelwork", "source": null }],
-    "decorItems": [{ "id": "mug", "license": "own", "author": "Pixelwork", "source": null }],
-    "wallItems": [{ "id": "poster", "license": "own", "author": "Pixelwork", "source": null }],
-    "floorItems": [{ "id": "plant-small", "license": "own", "author": "Pixelwork", "source": null }]
+    "variants": [
+      {
+        "id": "basic",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "dark",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "decorItems": [
+      {
+        "id": "mug",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "lamp",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "books",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "wallItems": [
+      {
+        "id": "poster",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "clock",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "floorItems": [
+      {
+        "id": "plant-small",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "bin",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ]
   }
 }

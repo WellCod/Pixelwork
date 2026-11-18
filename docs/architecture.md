@@ -423,6 +423,18 @@ Toda rota sob `/spaces/:spaceId` resolve `space_members` primeiro e responde 404
 for membro (não vaza a existência do coworking). Depois de gravar, a rota faz o broadcast pelo
 WebSocket.
 
+Decisões da fase 2:
+
+- Códigos: 400 corpo inválido (com a lista de problemas), 403 sem permissão (admin ou dono),
+  404 não membro ou recurso inexistente, 409 mesa ocupada (`desk_taken`) ou usuário que já tem
+  mesa (`already_has_desk`), 422 fora da cadeira (`not_on_chair`).
+- No claim, a posição vem do estado em memória do tempo real; quem não está conectado não ocupa
+  mesa. A corrida entre dois claims cai nas constraints únicas e vira 409.
+- A rota fala com o runtime do coworking já carregado (`app.realtime.runtime(spaceId)`); se
+  ninguém está conectado, só grava. O runtime guarda o estado das mesas e aplica as mudanças de
+  perfil, para o `welcome` seguinte sair certo.
+- Tamanhos de texto contados em code points, como o `char_length` do Postgres.
+
 ```
 POST   /auth/guest
 GET    /auth/github
@@ -527,6 +539,11 @@ export const DeskDecor = z.object({
 - Deslocamento de cada slot definido por `orientation`.
 - Mesa de dono offline mostra uma plaquinha com o nome.
 - Ocupar mesa: andar até a cadeira de uma mesa livre e confirmar. Uma mesa por pessoa por coworking.
+- Decisões da fase 2: esquerda e direita dos slots são as de quem está sentado; o fundo fica
+  atrás da mesa e o chão ao lado dela (tabela `SLOT_OFFSET` no cliente). Mesa livre aparece com a
+  variação padrão e um monitor. Sentado olha para a mesa (frame da linha 4 na direção oposta à
+  `orientation`). A composição do avatar é uma função só, usada pela textura do Phaser e pela
+  prévia do editor.
 
 Exibição no mapa:
 

@@ -1,16 +1,20 @@
 import {
   STEP_MS,
+  TILESETS,
   TILESET_IDS,
   TILE_PX,
   tilesetImageUrl,
   type ClientMsg,
+  type CompiledDesk,
   type Dir,
   type Player,
 } from '@pixelwork/shared';
 import * as Phaser from 'phaser';
 import type { ClientWorld, WorldEvent } from '../net/client-world.ts';
-import { ensureAvatarTexture, idleFrame, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
+import { idleFrame, seatedFrame } from './avatar-compose.ts';
+import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
 import { Mover } from './mover.ts';
+import { SLOT_OFFSET, isNear, seatedFacing, type Slot } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
 
 export interface WorldSceneOptions {
@@ -22,21 +26,28 @@ export interface WorldSceneOptions {
 interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
+  title: Phaser.GameObjects.Text;
   mover: Mover;
   textureKey: string;
   dir: Dir;
+  hovered: boolean;
 }
 
 const DESK_TILESET = 'desk-decor';
-const DESK_FRAME = 0;
-const MONITOR_FRAME = 1;
 const LABEL_DEPTH = 100_000;
+const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
 
 const sheetKey = (id: string) => `sheet:${id}`;
 const tilesKey = (id: string) => `tiles:${id}`;
 
+/** item_id do catálogo -> frame no tileset de decoração de mesa. */
+const DECOR_FRAMES = new Map(
+  Object.entries(TILESETS[DESK_TILESET].items).map(([frame, item]) => [item, Number(frame)]),
+);
+
 export class WorldScene extends Phaser.Scene {
   private readonly avatars = new Map<string, Avatar>();
+  private readonly deskObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
   private keys!: Record<Dir, Phaser.Input.Keyboard.Key[]>;
   private lastStepAt = -Infinity;
   private unsubscribe: (() => void) | null = null;
@@ -64,15 +75,7 @@ export class WorldScene extends Phaser.Scene {
     for (const object of objectLayer(mapJson, 'furniture')) {
       const tile = object.gid ? resolveGid(mapJson, object.gid) : null;
       if (!tile) continue;
-      this.add
-        .image(object.x, object.y, sheetKey(tile.id), tile.frame)
-        .setOrigin(0, 1)
-        .setDepth(object.y);
-    }
-    for (const object of objectLayer(mapJson, 'desks')) {
-      const bottom = object.y + TILE_PX;
-      this.add.image(object.x, bottom, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0, 1).setDepth(bottom);
-      this.add.image(object.x, bottom, sheetKey(DESK_TILESET), MONITOR_FRAME).setOrigin(0, 1).setDepth(bottom + 0.1);
+      this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
     }
     for (const object of objectLayer(mapJson, 'zones')) {
       const name = prop(object, 'name');
@@ -80,9 +83,7 @@ export class WorldScene extends Phaser.Scene {
       this.text(object.x + 3, object.y + 2, name, '#c0cbdc').setAlpha(0.8).setDepth(LABEL_DEPTH - 1);
     }
 
-    const width = tilemap.widthInPixels;
-    const height = tilemap.heightInPixels;
-    this.cameras.main.setBounds(0, 0, width, height).setRoundPixels(true);
+    this.cameras.main.setBounds(0, 0, tilemap.widthInPixels, tilemap.heightInPixels).setRoundPixels(true);
 
     const keyboard = this.input.keyboard;
     if (!keyboard) throw new Error('teclado indisponível');
@@ -93,11 +94,12 @@ export class WorldScene extends Phaser.Scene {
       left: [keyboard.addKey(k.LEFT), keyboard.addKey(k.A)],
       right: [keyboard.addKey(k.RIGHT), keyboard.addKey(k.D)],
     };
-
     // Toque rápido (soltar antes do próximo frame) também anda um tile.
     for (const [dir, keys] of Object.entries(this.keys) as [Dir, Phaser.Input.Keyboard.Key[]][]) {
       for (const key of keys) key.on('down', () => this.tryStep(dir));
     }
+    // Campos de texto da UI em React precisam das teclas de seta e WASD.
+    keyboard.disableGlobalCapture();
 
     this.rebuild();
     this.unsubscribe = this.options.world.subscribe((event) => {
@@ -108,22 +110,35 @@ export class WorldScene extends Phaser.Scene {
 
   override update(_time: number, delta: number): void {
     const { world } = this.options;
-    const held = (['up', 'down', 'left', 'right'] as const).find((dir) => this.keys[dir].some((key) => key.isDown));
+    const typing = isTyping();
+    const held = typing
+      ? undefined
+      : (['up', 'down', 'left', 'right'] as const).find((dir) => this.keys[dir].some((key) => key.isDown));
     if (held) this.tryStep(held);
 
+    const self = world.selfId ? this.avatars.get(world.selfId) : undefined;
     for (const [id, avatar] of this.avatars) {
       avatar.mover.update(delta);
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
       const y = avatar.mover.y * TILE_PX + TILE_PX;
       avatar.sprite.setPosition(x, y).setDepth(y);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
+      avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
+
+      const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
+      avatar.title.setVisible(avatar.title.text !== '' && (near || avatar.hovered));
+
       const walking = avatar.mover.moving || (id === world.selfId && held !== undefined);
+      const seated = walking
+        ? null
+        : seatedFacing(world.map, world.desks, id, Math.round(avatar.mover.x), Math.round(avatar.mover.y));
       if (walking) avatar.sprite.play(walkAnim(avatar.textureKey, avatar.dir), true);
-      else avatar.sprite.stop().setFrame(idleFrame(avatar.dir));
+      else avatar.sprite.stop().setFrame(seated ? seatedFrame(seated) : idleFrame(avatar.dir));
     }
   }
 
   private tryStep(dir: Dir): void {
+    if (isTyping()) return;
     const time = performance.now();
     const { world } = this.options;
     if (!world.selfId || time - this.lastStepAt < STEP_MS) return;
@@ -139,9 +154,19 @@ export class WorldScene extends Phaser.Scene {
         break;
       case 'join':
         this.addAvatar(event.player);
+        this.renderDesks();
         break;
       case 'leave':
         this.removeAvatar(event.id);
+        this.renderDesks();
+        break;
+      case 'update': {
+        const player = world.players.get(event.id);
+        if (player) this.refreshAvatar(player);
+        break;
+      }
+      case 'desk':
+        this.renderDesk(event.desk.deskKey);
         break;
       case 'remoteMove': {
         const avatar = this.avatars.get(event.id);
@@ -164,8 +189,8 @@ export class WorldScene extends Phaser.Scene {
 
   private rebuild(): void {
     for (const id of [...this.avatars.keys()]) this.removeAvatar(id);
-    const { world } = this.options;
-    for (const player of world.players.values()) this.addAvatar(player);
+    for (const player of this.options.world.players.values()) this.addAvatar(player);
+    this.renderDesks();
   }
 
   private addAvatar(player: Player): void {
@@ -175,9 +200,35 @@ export class WorldScene extends Phaser.Scene {
     const pos = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(pos.dir)).setOrigin(0.5, 1);
-    const label = this.text(0, 0, player.name, isSelf ? '#fee761' : '#ffffff').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
-    this.avatars.set(player.id, { sprite, label, mover: new Mover(pos.x, pos.y), textureKey, dir: pos.dir });
+    const label = this.text(0, 0, '', isSelf ? '#fee761' : '#ffffff').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
+    const title = this.text(0, 0, '', '#8b9bb4').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
+    const avatar: Avatar = {
+      sprite,
+      label,
+      title,
+      mover: new Mover(pos.x, pos.y),
+      textureKey,
+      dir: pos.dir,
+      hovered: false,
+    };
+    sprite.setInteractive();
+    sprite.on('pointerover', () => (avatar.hovered = true));
+    sprite.on('pointerout', () => (avatar.hovered = false));
+    this.avatars.set(player.id, avatar);
+    this.refreshAvatar(player);
     if (isSelf) this.cameras.main.startFollow(sprite, true);
+  }
+
+  private refreshAvatar(player: Player): void {
+    const avatar = this.avatars.get(player.id);
+    if (!avatar) return;
+    avatar.label.setText(player.statusEmoji ? `${player.name} ${player.statusEmoji}` : player.name);
+    avatar.title.setText(player.title ?? '');
+    const textureKey = ensureAvatarTexture(this, player.avatar);
+    if (textureKey !== avatar.textureKey) {
+      avatar.textureKey = textureKey;
+      avatar.sprite.setTexture(textureKey, idleFrame(avatar.dir));
+    }
   }
 
   private removeAvatar(id: string): void {
@@ -185,7 +236,56 @@ export class WorldScene extends Phaser.Scene {
     if (!avatar) return;
     avatar.sprite.destroy();
     avatar.label.destroy();
+    avatar.title.destroy();
     this.avatars.delete(id);
+  }
+
+  private renderDesks(): void {
+    for (const desk of this.options.world.map.desks) this.renderDesk(desk.key);
+  }
+
+  /** Variação, monitor e itens dos slots; plaquinha com o nome quando o dono está offline. */
+  private renderDesk(deskKey: string): void {
+    for (const object of this.deskObjects.get(deskKey) ?? []) object.destroy();
+    const { world } = this.options;
+    const desk = world.map.desks.find((d) => d.key === deskKey);
+    if (!desk) return;
+    const state = world.desks.get(deskKey);
+    const decor = state?.decor ?? null;
+    const objects: Phaser.GameObjects.GameObject[] = [];
+
+    const x = desk.x * TILE_PX;
+    const bottom = (desk.y + 1) * TILE_PX;
+    const item = (itemId: string | null, dx: number, dy: number, depth: number) => {
+      const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
+      if (frame === undefined) return;
+      objects.push(
+        this.add
+          .image(x + dx, bottom + dy, sheetKey(DESK_TILESET), frame)
+          .setOrigin(0, 1)
+          .setDepth(depth),
+      );
+    };
+
+    item(decor?.variant ?? 'basic', 0, 0, bottom);
+    item(`monitor-${decor?.monitor ?? 'single'}`, 0, -2, bottom + 0.1);
+    if (decor) {
+      for (const slot of SLOTS) {
+        const [dx, dy] = SLOT_OFFSET[desk.orientation][slot];
+        item(decor.slots[slot], dx, dy, bottom + (slot === 'back' ? -0.1 : 0.2));
+      }
+    }
+
+    if (state?.userId && state.ownerName && !world.players.has(state.userId)) {
+      objects.push(this.plaque(desk, state.ownerName));
+    }
+    this.deskObjects.set(deskKey, objects);
+  }
+
+  private plaque(desk: CompiledDesk, name: string): Phaser.GameObjects.Text {
+    const cx = desk.x * TILE_PX + TILE_PX / 2;
+    const cy = desk.y * TILE_PX - 9;
+    return this.text(cx, cy, name, '#feae34').setOrigin(0.5, 0).setDepth(LABEL_DEPTH - 2).setAlpha(0.9);
   }
 
   private text(x: number, y: number, value: string, color: string): Phaser.GameObjects.Text {
@@ -200,4 +300,9 @@ export class WorldScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
   }
+}
+
+function isTyping(): boolean {
+  const el = document.activeElement;
+  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 }
