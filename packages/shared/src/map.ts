@@ -43,6 +43,7 @@ export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
   | { code: 'missing_layer' | 'wrong_layer_type'; layer: string }
   | { code: 'unknown_tileset'; source: string }
+  | { code: 'tileset_overlap'; a: string; b: string }
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
@@ -146,6 +147,15 @@ export function compileMap(json: unknown): CompileResult {
       refs.push({ firstgid, id: id as TilesetId });
     }
   }
+
+  // Um tileset que cresceu depois de o mapa ser salvo invade os gids do seguinte.
+  const sorted = [...refs].sort((a, b) => a.firstgid - b.firstgid);
+  sorted.forEach((ref, i) => {
+    const next = sorted[i + 1];
+    if (next && ref.firstgid + TILESETS[ref.id].tilecount > next.firstgid) {
+      errors.push({ code: 'tileset_overlap', a: ref.id, b: next.id });
+    }
+  });
 
   // Sem estrutura válida não dá para seguir para a geometria.
   if (errors.length > 0) return { ok: false, errors };

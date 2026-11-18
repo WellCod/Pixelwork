@@ -4,11 +4,11 @@
   "name": "furniture",
   "image": "furniture.png",
   "imagewidth": 128,
-  "imageheight": 16,
+  "imageheight": 32,
   "tilewidth": 16,
   "tileheight": 16,
   "columns": 8,
-  "tilecount": 8,
+  "tilecount": 16,
   "margin": 0,
   "spacing": 0,
   "tiles": [
@@ -89,6 +89,91 @@
           "name": "item_id",
           "type": "string",
           "value": "door"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "bookshelf"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "water-cooler"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "coffee-machine"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "armchair"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "rug"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "plant-tall"
         }
       ]
     }

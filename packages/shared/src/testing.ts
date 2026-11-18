@@ -1,7 +1,9 @@
 // Construtor de mapas Tiled para testes. Não entra no bundle do app.
 import { TILE_PX } from './constants.ts';
 
-export const FIRSTGID = { floors: 1, walls: 9, furniture: 17, 'desk-decor': 25 } as const;
+// 100 gids por tileset: os tilesets só crescem (docs/art.md), e o firstgid contíguo do Tiled
+// faria um tileset que cresceu invadir os gids do seguinte.
+export const FIRSTGID = { floors: 1, walls: 101, furniture: 201, 'desk-decor': 301 } as const;
 /** Índices de tile no tileset `furniture` dos placeholders. */
 export const FURNITURE = { desk: 0, chair: 1, plant: 2 } as const;
 

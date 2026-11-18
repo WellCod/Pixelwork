@@ -100,6 +100,15 @@ describe('compileMap: um erro por código', () => {
       { code: 'unknown_tileset', source: '(embutido)' },
     ],
     [
+      'tilesets que dividem gids',
+      {},
+      (m) => {
+        const desk = (m.tilesets as { firstgid: number; source: string }[]).find((t) => t.source === 'desk-decor.tsj');
+        if (desk) desk.firstgid = FIRSTGID.furniture + 1;
+      },
+      { code: 'tileset_overlap', a: 'furniture', b: 'desk-decor' },
+    ],
+    [
       'zone_key repetido',
       {
         zones: [
