@@ -653,6 +653,18 @@ Decisões da fase 6:
 - O `CREDITS.txt` do export lista só os tilesets que o mapa usa; a página `/creditos` lista o
   catálogo inteiro.
 
+Decisões da fase 7 (modelo do editor, `packages/shared/src/editor`):
+
+- Comandos puros sobre o JSON do Tiled: `paint`, `addObject`, `removeObject`, `replaceObject`,
+  `setDocFields` e `batch`. Aplicar devolve o documento novo e o inverso; o inverso de
+  `replaceObject` guarda o objeto anterior inteiro, então desfazer reproduz o JSON byte a byte.
+- Operações de alto nível (pincel, móvel, zona, mesa, mover, girar, remover, spawn) montam os
+  comandos e devolvem `null` quando não há mudança.
+- `zone_key` e `desk_key` são geradas como `zona-N` e `mesa-N` a partir de contadores guardados
+  nas propriedades do mapa (`pixelwork_next_zone`, `pixelwork_next_desk`): uma chave apagada não
+  volta, para uma atribuição antiga não cair numa mesa nova. O `nextobjectid` do Tiled é mantido.
+- Um traço de pincel é um comando só; um comando novo limpa o refazer.
+
 ## 13. Convidados e coworking de demonstração
 
 - Seed cria a org "Demo" e o coworking `DEMO_SPACE_SLUG` a partir de um template.
