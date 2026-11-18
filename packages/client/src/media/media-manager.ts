@@ -1,0 +1,220 @@
+import {
+  LocalVideoTrack,
+  RemoteVideoTrack,
+  Room,
+  RoomEvent,
+  Track,
+  VideoQuality,
+  type RemoteParticipant,
+  type RemoteTrack,
+} from 'livekit-client';
+
+/**
+ * Uma única sala do LiveKit por vez; quem decide qual é o servidor, pelo `media.join`.
+ * A assinatura é manual: só entra o que a proximidade pede, e quem sai é desassinado.
+ */
+export class MediaManager {
+  private room: Room | null = null;
+  private generation = 0;
+  private audible = new Set<string>();
+  private visible = new Set<string>();
+  private volumes = new Map<string, number>();
+  private expanded: string | null = null;
+  private readonly audioElements = new Map<string, HTMLMediaElement[]>();
+  private readonly listeners = new Set<() => void>();
+
+  micOn = true;
+  camOn = false;
+  audioBlocked = false;
+  connected = false;
+  error: string | null = null;
+  version = 0;
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * Troca de sala. Um `media.join` pode chegar enquanto a conexão anterior ainda está sendo
+   * estabelecida: a geração descarta a conexão que terminar depois de ter sido substituída.
+   */
+  async join(url: string, token: string): Promise<void> {
+    const generation = ++this.generation;
+    const previous = this.room;
+    this.room = null;
+    this.setConnected(false);
+    await previous?.disconnect();
+
+    const room = new Room({ adaptiveStream: true, dynacast: true });
+    this.listen(room);
+    try {
+      await room.connect(url, token, { autoSubscribe: false });
+    } catch (error) {
+      if (generation === this.generation) this.fail(error);
+      await room.disconnect();
+      return;
+    }
+    if (generation !== this.generation) {
+      await room.disconnect();
+      return;
+    }
+    this.room = room;
+    this.error = null;
+    this.setConnected(true);
+    this.audioBlocked = !room.canPlaybackAudio;
+    await this.publishLocal(room);
+    this.apply();
+  }
+
+  /** Conjunto de quem ouvir (proximidade), de quem ver (balões) e o volume de cada um. */
+  setDesired(audible: Set<string>, visible: Set<string>, volumes: Map<string, number>): void {
+    this.audible = audible;
+    this.visible = visible;
+    this.volumes = volumes;
+    this.apply();
+  }
+
+  /** Balão expandido pede a camada de qualidade alta; os outros ficam na baixa. */
+  setExpanded(id: string | null): void {
+    this.expanded = id;
+    this.apply();
+    this.changed();
+  }
+
+  get expandedId(): string | null {
+    return this.expanded;
+  }
+
+  async setMic(on: boolean): Promise<void> {
+    this.micOn = on;
+    this.changed();
+    await this.room?.localParticipant.setMicrophoneEnabled(on).catch((e: unknown) => this.fail(e));
+  }
+
+  async setCamera(on: boolean): Promise<void> {
+    this.camOn = on;
+    this.changed();
+    await this.room?.localParticipant.setCameraEnabled(on).catch((e: unknown) => this.fail(e));
+  }
+
+  /** O navegador só toca áudio depois de um gesto do usuário. */
+  async enableAudio(): Promise<void> {
+    await this.room?.startAudio();
+    this.audioBlocked = !(this.room?.canPlaybackAudio ?? true);
+    this.changed();
+  }
+
+  hasCamera(id: string): boolean {
+    const publication = this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.Camera);
+    return publication !== undefined && !publication.isMuted;
+  }
+
+  remoteVideo(id: string): RemoteVideoTrack | undefined {
+    const track = this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.Camera)?.track;
+    return track instanceof RemoteVideoTrack ? track : undefined;
+  }
+
+  localVideo(): LocalVideoTrack | undefined {
+    const track = this.room?.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+    return track instanceof LocalVideoTrack ? track : undefined;
+  }
+
+  /** Estado de assinatura, exposto só para depuração e para o E2E da fase 8. */
+  debugState(): Record<string, { audio: boolean; video: boolean }> {
+    const state: Record<string, { audio: boolean; video: boolean }> = {};
+    for (const [id, p] of this.room?.remoteParticipants ?? []) {
+      state[id] = {
+        audio: p.getTrackPublication(Track.Source.Microphone)?.isSubscribed ?? false,
+        video: p.getTrackPublication(Track.Source.Camera)?.isSubscribed ?? false,
+      };
+    }
+    return state;
+  }
+
+  async close(): Promise<void> {
+    this.generation++;
+    const room = this.room;
+    this.room = null;
+    await room?.disconnect();
+  }
+
+  private async publishLocal(room: Room): Promise<void> {
+    try {
+      await room.localParticipant.setMicrophoneEnabled(this.micOn);
+      await room.localParticipant.setCameraEnabled(this.camOn);
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+
+  private apply(): void {
+    for (const [id, participant] of this.room?.remoteParticipants ?? []) this.applyTo(id, participant);
+    this.changed();
+  }
+
+  private applyTo(id: string, participant: RemoteParticipant): void {
+    const hearing = this.audible.has(id);
+    participant.getTrackPublication(Track.Source.Microphone)?.setSubscribed(hearing);
+    const camera = participant.getTrackPublication(Track.Source.Camera);
+    const seeing = hearing && this.visible.has(id);
+    camera?.setSubscribed(seeing);
+    if (seeing) camera?.setVideoQuality(this.expanded === id ? VideoQuality.HIGH : VideoQuality.LOW);
+    if (hearing) participant.setVolume(this.volumes.get(id) ?? 1);
+  }
+
+  private listen(room: Room): void {
+    const reapply = () => this.apply();
+    room
+      .on(RoomEvent.ParticipantConnected, reapply)
+      .on(RoomEvent.ParticipantDisconnected, reapply)
+      .on(RoomEvent.TrackPublished, reapply)
+      .on(RoomEvent.TrackUnpublished, reapply)
+      .on(RoomEvent.TrackMuted, reapply)
+      .on(RoomEvent.TrackUnmuted, reapply)
+      .on(RoomEvent.LocalTrackPublished, () => this.changed())
+      .on(RoomEvent.LocalTrackUnpublished, () => this.changed())
+      .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+        if (track.kind === Track.Kind.Audio) {
+          const element = track.attach();
+          element.hidden = true;
+          document.body.appendChild(element);
+          this.audioElements.set(track.sid ?? '', [element]);
+          participant.setVolume(this.volumes.get(participant.identity) ?? 1);
+        }
+        this.changed();
+      })
+      .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+        if (track.kind === Track.Kind.Audio) {
+          for (const element of track.detach()) element.remove();
+          this.audioElements.delete(track.sid ?? '');
+        }
+        this.changed();
+      })
+      .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        this.audioBlocked = !room.canPlaybackAudio;
+        this.changed();
+      })
+      .on(RoomEvent.Disconnected, () => {
+        if (this.room === room) {
+          this.room = null;
+          this.setConnected(false);
+        }
+      });
+  }
+
+  private fail(error: unknown): void {
+    this.error = error instanceof Error ? error.message : String(error);
+    this.changed();
+  }
+
+  private setConnected(connected: boolean): void {
+    this.connected = connected;
+    this.changed();
+  }
+
+  private changed(): void {
+    this.version++;
+    for (const listener of this.listeners) listener();
+  }
+}

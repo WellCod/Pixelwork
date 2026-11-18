@@ -1,4 +1,6 @@
 import {
+  CHAT_BUBBLE_MS,
+  RENDER_SCALE,
   STEP_MS,
   TILESETS,
   TILESET_IDS,
@@ -31,6 +33,8 @@ interface Avatar {
   textureKey: string;
   dir: Dir;
   hovered: boolean;
+  chat: Phaser.GameObjects.Text | null;
+  chatTimer: Phaser.Time.TimerEvent | null;
 }
 
 const DESK_TILESET = 'desk-decor';
@@ -124,6 +128,7 @@ export class WorldScene extends Phaser.Scene {
       avatar.sprite.setPosition(x, y).setDepth(y);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
       avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
+      avatar.chat?.setPosition(Math.round(x), Math.round(y) - 34);
 
       const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
       avatar.title.setVisible(avatar.title.text !== '' && (near || avatar.hovered));
@@ -168,6 +173,9 @@ export class WorldScene extends Phaser.Scene {
       case 'desk':
         this.renderDesk(event.desk.deskKey);
         break;
+      case 'chat':
+        this.showChat(event.from, event.text);
+        break;
       case 'remoteMove': {
         const avatar = this.avatars.get(event.id);
         if (!avatar) break;
@@ -210,6 +218,8 @@ export class WorldScene extends Phaser.Scene {
       textureKey,
       dir: pos.dir,
       hovered: false,
+      chat: null,
+      chatTimer: null,
     };
     sprite.setInteractive();
     sprite.on('pointerover', () => (avatar.hovered = true));
@@ -237,7 +247,43 @@ export class WorldScene extends Phaser.Scene {
     avatar.sprite.destroy();
     avatar.label.destroy();
     avatar.title.destroy();
+    avatar.chat?.destroy();
+    avatar.chatTimer?.remove();
     this.avatars.delete(id);
+  }
+
+  /** Posição em pixels de tela (CSS) do topo da cabeça, para os balões de vídeo em HTML. */
+  screenPosition(id: string): { x: number; y: number } | null {
+    const avatar = this.avatars.get(id);
+    if (!avatar) return null;
+    const view = this.cameras.main.worldView;
+    return {
+      x: (avatar.sprite.x - view.x) * RENDER_SCALE,
+      y: (avatar.sprite.y - avatar.sprite.height - view.y) * RENDER_SCALE,
+    };
+  }
+
+  private showChat(id: string, text: string): void {
+    const avatar = this.avatars.get(id);
+    if (!avatar) return;
+    avatar.chat?.destroy();
+    avatar.chatTimer?.remove();
+    avatar.chat = this.add
+      .text(0, 0, text, {
+        fontFamily: 'sans-serif',
+        fontSize: '8px',
+        color: '#181425',
+        backgroundColor: '#ffffff',
+        padding: { x: 3, y: 2 },
+        wordWrap: { width: 110 },
+        resolution: 4,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(LABEL_DEPTH + 1);
+    avatar.chatTimer = this.time.delayedCall(CHAT_BUBBLE_MS, () => {
+      avatar.chat?.destroy();
+      avatar.chat = null;
+    });
   }
 
   private renderDesks(): void {
