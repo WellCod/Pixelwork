@@ -91,7 +91,7 @@ describe('tempo real', () => {
     await a.bot.flush();
     server.clock.advance(TICK_MS);
     const tick = await a.bot.next('tick');
-    expect(tick).toEqual({ t: 'tick', ack: 1, moves: [[a.guest.id, 1, 1, 'up']] });
+    expect(tick).toEqual({ t: 'tick', ack: 1, moves: [[a.guest.id, 1, 1, 'up']], ts: server.clock.now() });
   });
 
   it('passo antes do intervalo mínimo é ignorado, mas confirmado no ack', async () => {

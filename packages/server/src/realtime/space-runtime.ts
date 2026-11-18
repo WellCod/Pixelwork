@@ -288,11 +288,12 @@ export class SpaceRuntime {
     }
     this.moved.clear();
     const movesJson = JSON.stringify(moves);
+    const ts = this.deps.clock.now();
 
     for (const member of this.members.values()) {
       if (!member.conn || (moves.length === 0 && !member.ackDirty)) continue;
       member.ackDirty = false;
-      member.conn.send(`{"t":"tick","ack":${member.lastSeq},"moves":${movesJson}}`);
+      member.conn.send(`{"t":"tick","ack":${member.lastSeq},"moves":${movesJson},"ts":${ts}}`);
     }
   }
 
@@ -309,6 +310,13 @@ export class SpaceRuntime {
     this.calls.clear();
     this.members.clear();
     this.world = { players: new Map() };
+  }
+
+  /** Libera todas as mesas de uma vez (reset da demo) e avisa todos. */
+  clearDesks(): void {
+    for (const desk of this.desks.values()) {
+      if (desk.userId) this.setDesk({ deskKey: desk.deskKey, userId: null, ownerName: null, decor: null });
+    }
   }
 
   // ---- troca de mapa ----
