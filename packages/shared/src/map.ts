@@ -311,3 +311,30 @@ export function zoneAt(map: CompiledMap, x: number, y: number): CompiledZone {
   if (!zone) throw new Error('mapa compilado sem zona implícita');
   return zone;
 }
+
+/**
+ * Para onde vai quem ficou num tile não caminhável depois de trocar o mapa: o tile caminhável
+ * mais próximo (busca em largura, 4 vizinhos) na mesma zona; sem nenhum na zona, o spawn.
+ */
+export function relocate(map: CompiledMap, x: number, y: number): { x: number; y: number } {
+  if (isWalkable(map, x, y)) return { x, y };
+  const zone = zoneAt(map, x, y).key;
+  const inside = (tx: number, ty: number) => tx >= 0 && ty >= 0 && tx < map.width && ty < map.height;
+  const start = { x: Math.min(Math.max(x, 0), map.width - 1), y: Math.min(Math.max(y, 0), map.height - 1) };
+  const seen = new Uint8Array(map.width * map.height);
+  const queue: { x: number; y: number }[] = [start];
+  seen[start.y * map.width + start.x] = 1;
+  for (let head = 0; head < queue.length; head++) {
+    const tile = queue[head];
+    if (!tile) break;
+    if (isWalkable(map, tile.x, tile.y) && zoneAt(map, tile.x, tile.y).key === zone) return tile;
+    for (const [dx, dy] of Object.values(DIR_DELTA)) {
+      const nx = tile.x + dx;
+      const ny = tile.y + dy;
+      if (!inside(nx, ny) || seen[ny * map.width + nx]) continue;
+      seen[ny * map.width + nx] = 1;
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return { ...map.spawn };
+}

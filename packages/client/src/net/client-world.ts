@@ -10,6 +10,7 @@ export type WorldEvent =
   | { type: 'chat'; from: string; text: string }
   | { type: 'error'; code: string }
   | { type: 'zone'; zone: ZoneState }
+  | { type: 'mapUpdated'; version: number }
   | { type: 'knockRequest'; requestId: string; zoneKey: string; from: string }
   | { type: 'knockResult'; zoneKey: string; allowed: boolean }
   | { type: 'callIncoming'; callId: string; from: string }
@@ -33,7 +34,12 @@ export class ClientWorld {
   private seq = 0;
   private readonly listeners = new Set<(event: WorldEvent) => void>();
 
-  constructor(readonly map: CompiledMap) {}
+  constructor(public map: CompiledMap) {}
+
+  /** Mapa novo depois de um `map.updated`; quem ficou em tile bloqueado chega pelo tick. */
+  setMap(map: CompiledMap): void {
+    this.map = map;
+  }
 
   subscribe(listener: (event: WorldEvent) => void): () => void {
     this.listeners.add(listener);
@@ -96,6 +102,9 @@ export class ClientWorld {
         break;
       case 'error':
         this.emit({ type: 'error', code: msg.code });
+        break;
+      case 'map.updated':
+        this.emit({ type: 'mapUpdated', version: msg.version });
         break;
       case 'zone.state':
         this.zones.set(msg.zone.zoneKey, msg.zone);

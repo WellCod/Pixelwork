@@ -5,6 +5,7 @@ export class FakeMedia implements MediaService {
   readonly url = 'ws://livekit.test';
   readonly tokens: { identity: string; room: string; sources: readonly MediaSource[] }[] = [];
   readonly removed: { room: string; identity: string }[] = [];
+  readonly deletedRooms: string[] = [];
 
   token(identity: string, room: string, sources: readonly MediaSource[]): Promise<string> {
     this.tokens.push({ identity, room, sources });
@@ -13,6 +14,11 @@ export class FakeMedia implements MediaService {
 
   removeParticipant(room: string, identity: string): Promise<void> {
     this.removed.push({ room, identity });
+    return Promise.resolve();
+  }
+
+  deleteRoom(room: string): Promise<void> {
+    this.deletedRooms.push(room);
     return Promise.resolve();
   }
 

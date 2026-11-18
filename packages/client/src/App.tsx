@@ -4,8 +4,10 @@ import { ApiError, api, orgApi, type Me, type SpaceDetail, type SpaceSummary } f
 import { GameView } from './GameView.tsx';
 import type { ConnectionStatus } from './net/connection.ts';
 import { CreateSpaceModal } from './ui/CreateSpaceModal.tsx';
+import { CreditsPage } from './ui/CreditsPage.tsx';
 import { InviteModal } from './ui/InviteModal.tsx';
 import { InvitePage } from './ui/InvitePage.tsx';
+import { MapModal } from './ui/MapModal.tsx';
 
 type Current = { space: SpaceDetail; map: CompiledMap };
 
@@ -64,7 +66,7 @@ export function App() {
   const [github, setGithub] = useState(false);
   const [invite, setInvite] = useState(inviteToken);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
-  const [modal, setModal] = useState<'create' | 'invite' | null>(null);
+  const [modal, setModal] = useState<'create' | 'invite' | 'map' | null>(null);
 
   const fail = useCallback((error: unknown) => {
     setState({ kind: 'login', error: error instanceof Error ? error.message : 'Falha ao entrar.' });
@@ -105,6 +107,7 @@ export function App() {
     void api.logout().finally(() => setState({ kind: 'login' }));
   };
 
+  if (location.pathname === '/creditos') return <CreditsPage />;
   if (state.kind === 'loading') return <main className="center">Carregando…</main>;
 
   if (state.kind === 'login') {
@@ -122,6 +125,7 @@ export function App() {
           </a>
         )}
         {state.error && <p className="error">{state.error}</p>}
+        <a href="/creditos">Créditos</a>
       </main>
     );
   }
@@ -165,10 +169,16 @@ export function App() {
         {current && <span className={`status status-${status}`}>{STATUS_TEXT[status]}</span>}
         <span className="spacer" />
         {current?.space.role === 'admin' && (
-          <button type="button" onClick={() => setModal('invite')}>
-            Convidar
-          </button>
+          <>
+            <button type="button" onClick={() => setModal('map')}>
+              Mapa
+            </button>
+            <button type="button" onClick={() => setModal('invite')}>
+              Convidar
+            </button>
+          </>
         )}
+        <a href="/creditos">Créditos</a>
         {!me.isGuest && (
           <button type="button" onClick={() => setModal('create')}>
             Novo coworking
@@ -198,6 +208,11 @@ export function App() {
             setStatus(next);
             if (next === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
           }}
+          onMapUpdated={() => {
+            openSpace(current.space.id)
+              .then((next) => setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev)))
+              .catch(fail);
+          }}
         />
       ) : (
         <main className="center">
@@ -223,6 +238,9 @@ export function App() {
         />
       )}
       {modal === 'invite' && current && <InviteModal spaceId={current.space.id} onClose={() => setModal(null)} />}
+      {modal === 'map' && current && (
+        <MapModal spaceId={current.space.id} baseVersion={current.space.mapVersion} onClose={() => setModal(null)} />
+      )}
     </div>
   );
 }

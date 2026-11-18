@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import type { WorldScene } from '../game/WorldScene.ts';
 import type { MediaManager } from '../media/media-manager.ts';
 import type { ProximityController } from '../media/proximity-controller.ts';
 import type { ClientWorld } from '../net/client-world.ts';
@@ -10,14 +9,18 @@ interface Props {
   media: MediaManager;
   world: ClientWorld;
   controller: ProximityController;
-  scene: WorldScene;
+  /**
+   * Posição em tela do avatar. Função em vez da cena do Phaser: o React em desenvolvimento
+   * compara props a fundo e quebraria lendo getters de uma cena já destruída.
+   */
+  positionOf: (id: string) => { x: number; y: number } | null;
 }
 
 /**
  * Balões de vídeo em HTML sobre o canvas. A posição é atualizada a cada frame direto no
  * estilo, sem passar pelo React; o React só monta e desmonta os balões.
  */
-export function VideoBubbles({ media, world, controller, scene }: Props) {
+export function VideoBubbles({ media, world, controller, positionOf }: Props) {
   useMedia(media);
   useWorld(world);
   const elements = useRef(new Map<string, HTMLDivElement>());
@@ -29,14 +32,14 @@ export function VideoBubbles({ media, world, controller, scene }: Props) {
     const loop = () => {
       for (const [id, element] of elements.current) {
         if (media.expandedId === id) continue;
-        const pos = scene.screenPosition(id);
+        const pos = positionOf(id);
         if (pos) element.style.transform = `translate(${Math.round(pos.x)}px, ${Math.round(pos.y)}px)`;
       }
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [media, scene]);
+  }, [media, positionOf]);
 
   return (
     <div className="bubbles">

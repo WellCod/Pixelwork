@@ -638,6 +638,21 @@ tags de equipe gerenciadas pelo admin (tabela, tela e relação N:N para o mesmo
   remover móveis do catálogo, desenhar zonas, posicionar mesas, definir spawn. Undo e redo por
   pilha de comandos. Produz o mesmo JSON do Tiled.
 
+Decisões da fase 6:
+
+- Zip com `fflate` 0.8.3 (sem dependências); descartado escrever o zip à mão com `zlib`.
+- `PUT /map`: o `UPDATE` só grava com `map_version = baseVersion` (concorrência otimista na
+  própria query); sem linha atualizada, 409 `stale_map` com a versão atual. Mapa inválido ou
+  acima de 5 MB responde 422 `invalid_map` com os erros. Limite do corpo da rota: 6 MB.
+- Realocação (`relocate` no shared): busca em largura pelos 4 vizinhos, a partir do tile atual,
+  aceitando só tile caminhável da mesma zona (a zona do tile no mapa novo); sem nenhum, o spawn.
+- Zona de reunião removida: batidas pendentes são recusadas, a tranca some, quem estava dentro
+  recebe o `media.join` da sala nova e a sala `zone:` é encerrada (`deleteRoom`).
+- No cliente, `map.updated` busca o mapa de novo e recria só a cena do Phaser; a conexão, a mídia
+  e as chamadas continuam. A posição de quem foi realocado chega pelo tick.
+- O `CREDITS.txt` do export lista só os tilesets que o mapa usa; a página `/creditos` lista o
+  catálogo inteiro.
+
 ## 13. Convidados e coworking de demonstração
 
 - Seed cria a org "Demo" e o coworking `DEMO_SPACE_SLUG` a partir de um template.
