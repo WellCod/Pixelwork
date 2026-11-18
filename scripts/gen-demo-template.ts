@@ -11,7 +11,19 @@ const T = 16;
 
 const FLOOR = { wood: FIRSTGID.floors, carpet: FIRSTGID.floors + 1, kitchen: FIRSTGID.floors + 2 };
 const WALL = FIRSTGID.walls + 1;
-const F = { chair: 1, plant: 2, sofa: 3, table: 4, door: 5 };
+const F = {
+  chair: 1,
+  plant: 2,
+  sofa: 3,
+  table: 4,
+  door: 5,
+  bookshelf: 6,
+  waterCooler: 7,
+  coffee: 8,
+  armchair: 9,
+  rug: 10,
+  plantTall: 11,
+};
 
 const floor = new Array<number>(W * H).fill(FLOOR.wood);
 const walls = new Array<number>(W * H).fill(0);
@@ -69,6 +81,23 @@ const furniture = [
   tile(F.sofa, 4, 17),
   tile(F.door, 23, 8),
   tile(F.door, 24, 8),
+  // Copa: tapete sob o sofá, café e bebedouro na parede de cima.
+  tile(F.rug, 2, 16),
+  tile(F.rug, 3, 16),
+  tile(F.rug, 4, 16),
+  tile(F.coffee, 6, 14),
+  tile(F.waterCooler, 7, 14),
+  // Estantes no fundo das áreas de trabalho e um canto de leitura no corredor.
+  tile(F.bookshelf, 2, 1),
+  tile(F.bookshelf, 7, 1),
+  tile(F.bookshelf, 11, 1),
+  tile(F.bookshelf, 16, 1),
+  tile(F.armchair, 21, 15),
+  tile(F.armchair, 23, 15),
+  tile(F.rug, 22, 16),
+  tile(F.plantTall, 28, 10),
+  tile(F.plantTall, 28, 18),
+  tile(F.plantTall, 20, 18),
 ];
 
 const zone = (key: string, type: string, name: string, x: number, y: number, w: number, h: number) =>

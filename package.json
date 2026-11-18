@@ -14,7 +14,7 @@
     "db:generate": "pnpm --filter @pixelwork/server db:generate",
     "db:migrate": "pnpm --filter @pixelwork/server db:migrate",
     "db:seed": "pnpm --filter @pixelwork/server db:seed",
-    "assets:placeholders": "tsx scripts/gen-placeholders.ts",
+    "assets:art": "tsx scripts/gen-art.ts",
     "assets:catalog": "tsx scripts/gen-catalog.ts",
     "assets:check": "tsx scripts/check-palette.ts",
     "maps:demo": "tsx scripts/gen-demo-template.ts",

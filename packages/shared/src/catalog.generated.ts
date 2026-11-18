@@ -9,9 +9,9 @@ export const DESK_VARIANTS = ['basic', 'dark'] as const;
 export const DECOR_ITEMS = ['mug', 'lamp', 'books'] as const;
 export const WALL_ITEMS = ['poster', 'clock'] as const;
 export const FLOOR_ITEMS = ['plant-small', 'bin'] as const;
-export const SKIN_PALETTES = ['light', 'medium', 'dark'] as const;
-export const HAIR_PALETTES = ['brown', 'black', 'blond'] as const;
-export const OUTFIT_PALETTES = ['blue', 'red', 'green'] as const;
+export const SKIN_PALETTES = ['light', 'medium', 'dark', 'pale', 'tan', 'deep'] as const;
+export const HAIR_PALETTES = ['brown', 'black', 'blond', 'red', 'gray', 'pink', 'blue', 'green'] as const;
+export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gray', 'black', 'cream'] as const;
 
 export const RAMPS = {
   "skin": {
@@ -32,6 +32,24 @@ export const RAMPS = {
       "#733e39",
       "#b86f50",
       "#c28569"
+    ],
+    "pale": [
+      "#c28569",
+      "#e4a672",
+      "#ead4aa",
+      "#ffffff"
+    ],
+    "tan": [
+      "#733e39",
+      "#be4a2f",
+      "#d77643",
+      "#e4a672"
+    ],
+    "deep": [
+      "#181425",
+      "#3e2731",
+      "#733e39",
+      "#b86f50"
     ]
   },
   "hair": {
@@ -52,6 +70,36 @@ export const RAMPS = {
       "#f77622",
       "#feae34",
       "#fee761"
+    ],
+    "red": [
+      "#3e2731",
+      "#a22633",
+      "#be4a2f",
+      "#d77643"
+    ],
+    "gray": [
+      "#3a4466",
+      "#8b9bb4",
+      "#c0cbdc",
+      "#ffffff"
+    ],
+    "pink": [
+      "#68386c",
+      "#b55088",
+      "#f6757a",
+      "#e8b796"
+    ],
+    "blue": [
+      "#262b44",
+      "#124e89",
+      "#0099db",
+      "#2ce8f5"
+    ],
+    "green": [
+      "#193c3e",
+      "#265c42",
+      "#3e8948",
+      "#63c74d"
     ]
   },
   "outfit": {
@@ -72,6 +120,36 @@ export const RAMPS = {
       "#265c42",
       "#3e8948",
       "#63c74d"
+    ],
+    "purple": [
+      "#3e2731",
+      "#68386c",
+      "#b55088",
+      "#f6757a"
+    ],
+    "yellow": [
+      "#733e39",
+      "#f77622",
+      "#feae34",
+      "#fee761"
+    ],
+    "gray": [
+      "#262b44",
+      "#5a6988",
+      "#8b9bb4",
+      "#c0cbdc"
+    ],
+    "black": [
+      "#181425",
+      "#262b44",
+      "#3a4466",
+      "#5a6988"
+    ],
+    "cream": [
+      "#b86f50",
+      "#e4a672",
+      "#ead4aa",
+      "#ffffff"
     ]
   }
 } as const;
@@ -92,12 +170,17 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
   },
   "furniture": {
     "columns": 8,
-    "tilecount": 8,
+    "tilecount": 16,
     "collides": [
       0,
       2,
       3,
-      4
+      4,
+      6,
+      7,
+      8,
+      9,
+      11
     ],
     "items": {
       "0": "desk",
@@ -105,7 +188,13 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
       "2": "plant",
       "3": "sofa",
       "4": "meeting-table",
-      "5": "door"
+      "5": "door",
+      "6": "bookshelf",
+      "7": "water-cooler",
+      "8": "coffee-machine",
+      "9": "armchair",
+      "10": "rug",
+      "11": "plant-tall"
     }
   },
   "desk-decor": {
