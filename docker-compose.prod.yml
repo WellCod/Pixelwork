@@ -1,0 +1,50 @@
+# Produção numa VPS: docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+services:
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes: [caddy-data:/data, caddy-config:/config]
+    depends_on: [app, livekit]
+
+  app:
+    build: { context: ., target: app }
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD}@postgres:5432/coworking
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: coworking
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 5s
+      retries: 10
+
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes: ["./deploy/livekit.yaml:/etc/livekit.yaml:ro"]
+    # Mídia direto no host: UDP 50000-50100 e TCP 7881 (sinalização passa pelo Caddy).
+    ports:
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+
+volumes:
+  pgdata:
+  caddy-data:
+  caddy-config:

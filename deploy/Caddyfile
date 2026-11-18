@@ -1,0 +1,21 @@
+# TLS automático pelo Let's Encrypt para os dois domínios.
+{$APP_DOMAIN} {
+	encode gzip
+
+	# Rotas da API e o WebSocket vão para o app; o resto é o cliente estático (SPA).
+	@api path /health /auth/* /me /me/* /spaces /spaces/* /orgs /orgs/* /invites /invites/* /templates /ws
+	handle @api {
+		reverse_proxy app:3000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Sinalização do LiveKit (WebSocket) com TLS; a mídia vai direto por UDP/TCP no host.
+{$LIVEKIT_DOMAIN} {
+	reverse_proxy livekit:7880
+}
