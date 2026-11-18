@@ -19,6 +19,7 @@ try {
     },
     palette: new Set(parsePalette(readFileSync(join(assets, 'palette.hex'), 'utf8'))),
     fileExists: (path) => existsSync(join(assets, path)),
+    readTileset: (id) => readJson(`tilesets/${id}.tsj`),
   });
   writeFileSync(out, code);
   console.log('catálogo gerado em packages/shared/src/catalog.generated.ts');

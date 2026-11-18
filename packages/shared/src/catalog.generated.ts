@@ -76,6 +76,56 @@ export const RAMPS = {
   }
 } as const;
 
+// Metadados dos .tsj: colisão e item_id por índice de tile.
+export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = {
+  "floors": {
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [],
+    "items": {}
+  },
+  "walls": {
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [],
+    "items": {}
+  },
+  "furniture": {
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      2,
+      3,
+      4
+    ],
+    "items": {
+      "0": "desk",
+      "1": "chair",
+      "2": "plant",
+      "3": "sofa",
+      "4": "meeting-table",
+      "5": "door"
+    }
+  },
+  "desk-decor": {
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0
+    ],
+    "items": {
+      "0": "basic",
+      "1": "monitor-single",
+      "2": "monitor-dual",
+      "3": "monitor-laptop",
+      "4": "mug",
+      "5": "poster",
+      "6": "plant-small"
+    }
+  }
+};
+
 export const CREDITS = [
   {
     "kind": "tileset",

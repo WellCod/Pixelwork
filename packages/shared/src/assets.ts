@@ -4,3 +4,16 @@ import type { TilesetId } from './catalog.generated.ts';
 export function tilesetImageUrl(id: TilesetId): string {
   return `/tilesets/${id}.png`;
 }
+
+export type CharacterLayer = 'body' | 'outfit' | 'hair' | 'accessory';
+
+export function characterImageUrl(layer: CharacterLayer, id: string): string {
+  return `/characters/${layer}/${id}.png`;
+}
+
+// Rampas-chave da troca de paleta (docs/art.md, seção 3): ficam fora da paleta de propósito.
+export const KEY_RAMPS = {
+  skin: ['#ff0001', '#ff0002', '#ff0003', '#ff0004'],
+  hair: ['#00ff01', '#00ff02', '#00ff03', '#00ff04'],
+  outfit: ['#0001ff', '#0002ff', '#0003ff', '#0004ff'],
+} as const;

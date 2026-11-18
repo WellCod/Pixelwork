@@ -1,5 +1,12 @@
+import { createDb } from './db.ts';
+import { loadTemplate, seedDemo } from './demo.ts';
 import { loadEnv } from './env.ts';
 
-// Vazio até a fase 1, que cria a org Demo e o coworking DEMO_SPACE_SLUG.
-loadEnv();
-console.log('seed: nada a semear por enquanto');
+const env = loadEnv();
+const { pool, db } = createDb(env.DATABASE_URL);
+try {
+  const spaceId = await seedDemo(db, env.DEMO_SPACE_SLUG, loadTemplate('small-office'));
+  console.log(`coworking de demo pronto: ${env.DEMO_SPACE_SLUG} (${spaceId})`);
+} finally {
+  await pool.end();
+}
