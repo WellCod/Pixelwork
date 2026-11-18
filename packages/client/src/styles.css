@@ -548,3 +548,15 @@ a.button {
 .credits a {
   color: #2ce8f5;
 }
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.editor-panel section + section {
+  border-top: 1px solid #3a4466;
+  padding-top: 10px;
+}
