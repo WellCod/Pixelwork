@@ -9,11 +9,69 @@ body {
   margin: 0;
 }
 
-.app {
+button {
+  font: inherit;
+  padding: 6px 14px;
+  border: 2px solid #5a6988;
+  border-radius: 4px;
+  background: #262b44;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #8b9bb4;
+}
+
+.center {
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
   min-height: 100vh;
+  text-align: center;
+}
+
+.error {
+  color: #f6757a;
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
   gap: 12px;
+  padding: 8px 16px;
+  background: #262b44;
+  border-bottom: 2px solid #3a4466;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.status {
+  font-size: 0.85em;
+  color: #8b9bb4;
+}
+
+.status-online {
+  color: #63c74d;
+}
+
+.status-replaced {
+  color: #feae34;
+}
+
+.game {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .game canvas {

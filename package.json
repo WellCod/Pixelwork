@@ -16,10 +16,12 @@
     "db:seed": "pnpm --filter @pixelwork/server db:seed",
     "assets:placeholders": "tsx scripts/gen-placeholders.ts",
     "assets:catalog": "tsx scripts/gen-catalog.ts",
-    "assets:check": "tsx scripts/check-palette.ts"
+    "assets:check": "tsx scripts/check-palette.ts",
+    "maps:demo": "tsx scripts/gen-demo-template.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@pixelwork/shared": "workspace:*",
     "@types/node": "24.19.2",
     "@types/pngjs": "6.0.5",
     "eslint": "10.15.0",

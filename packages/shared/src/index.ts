@@ -1,3 +1,7 @@
 export * from './assets.ts';
+export * from './avatar.ts';
 export * from './catalog.generated.ts';
 export * from './constants.ts';
+export * from './map.ts';
+export * from './protocol.ts';
+export * from './sim.ts';
