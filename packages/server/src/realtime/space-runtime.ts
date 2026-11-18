@@ -3,6 +3,7 @@ import {
   CALL_RING_TIMEOUT_MS,
   CHAT_MAX_CHARS,
   CLOSE_POLICY,
+  CLOSE_REMOVED,
   CLOSE_SESSION_REPLACED,
   ClientMsg,
   DIR_DELTA,
@@ -576,6 +577,20 @@ export class SpaceRuntime {
   }
 
   // ---- presença ----
+
+  /** Saiu do coworking (removido ou por conta própria): fecha a conexão e sai do mapa sem tolerância. */
+  removeMember(userId: string): void {
+    const member = this.members.get(userId);
+    for (const desk of this.desks.values()) {
+      if (desk.userId === userId) this.setDesk({ deskKey: desk.deskKey, userId: null, ownerName: null, decor: null });
+    }
+    if (!member) return;
+    member.leaveTimer?.cancel();
+    const conn = member.conn;
+    member.conn = null;
+    conn?.close(CLOSE_REMOVED, 'removed');
+    this.leave(userId);
+  }
 
   private leave(userId: string): void {
     const member = this.members.get(userId);

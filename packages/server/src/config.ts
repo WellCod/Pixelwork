@@ -7,6 +7,8 @@ export interface AppConfig {
   cookieSecure: boolean;
   demoSpaceSlug: string;
   livekit: LiveKitConfig;
+  /** Vazio desliga o login pelo GitHub. */
+  github: { clientId: string; clientSecret: string };
 }
 
 export function configFromEnv(env: Env): AppConfig {
@@ -15,5 +17,6 @@ export function configFromEnv(env: Env): AppConfig {
     cookieSecure: env.SESSION_COOKIE_SECURE,
     demoSpaceSlug: env.DEMO_SPACE_SLUG,
     livekit: { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET },
+    github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
   };
 }

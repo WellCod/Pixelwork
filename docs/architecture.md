@@ -455,8 +455,26 @@ Decisões da fase 2:
   perfil, para o `welcome` seguinte sair certo.
 - Tamanhos de texto contados em code points, como o `char_length` do Postgres.
 
+Decisões da fase 5:
+
+- Rotas acrescentadas (aprovadas): `GET /auth/providers` (o GitHub está configurado?),
+  `GET /invites/:token` (prévia do convite) e `GET /templates`. `GET /spaces` passou a trazer
+  `orgId` e `orgRole`, para a tela de criação saber em quais empresas o usuário cria.
+- Convidado não cria empresa (`guest_forbidden`); aceita convite normalmente.
+- Conta nova do GitHub entra no coworking de demonstração, como o convidado.
+- Convite: 404 inexistente, 410 `invite_expired` ou `invite_used_up`, 409 `already_member`
+  (tem precedência sobre os outros e não gasta uso). Decremento de usos condicional, na mesma
+  transação da entrada. Validade padrão de 7 dias.
+- Callback do GitHub com `state` divergente, ausente ou código recusado volta para
+  `/?erro=github` sem sessão. O cliente do GitHub é injetado (`GitHubClient`).
+- Remover membro (ou sair) libera a mesa pela FK, fecha a conexão com o código 4003 e tira o
+  jogador do mapa na hora, sem tolerância. Trocar de coworking é uma desconexão comum: o
+  avatar some do anterior depois dos 10 segundos de tolerância.
+- A tabela de isolamento de tenant vem do hook `onRoute` do Fastify (`app.routeTable`).
+
 ```
 POST   /auth/guest
+GET    /auth/providers                    { github: boolean }
 GET    /auth/github
 GET    /auth/github/callback
 POST   /auth/logout
@@ -474,7 +492,9 @@ PUT    /spaces/:spaceId/me/title          { title }
 PUT    /spaces/:spaceId/members/:userId/title   admin
 DELETE /spaces/:spaceId/members/:userId   admin, ou o próprio usuário (sair)
 
-POST   /spaces/:spaceId/invites           admin -> { url }
+GET    /templates                         mapas de partida
+POST   /spaces/:spaceId/invites           admin { role, expiresInHours, maxUses } -> { url }
+GET    /invites/:token                    prévia: coworking, empresa, papel
 POST   /invites/:token/accept
 
 POST   /spaces/:spaceId/desks/:deskKey/claim    só com o usuário sobre o tile da cadeira e sem outra mesa

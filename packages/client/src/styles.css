@@ -497,3 +497,33 @@ input[aria-invalid='true'] {
   aspect-ratio: 4 / 3;
   object-fit: cover;
 }
+
+a.button {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 2px solid #0099db;
+  border-radius: 4px;
+  background: #124e89;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.bar select {
+  max-width: 280px;
+}
+
+.notice-bar {
+  margin: 0;
+  padding: 6px 16px;
+  background: #3e2731;
+  color: #feae34;
+}
+
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #f6757a;
+  text-decoration: underline;
+  font-size: 0.85em;
+}

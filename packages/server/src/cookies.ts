@@ -19,12 +19,13 @@ export function parseCookies(header: string | undefined): Record<string, string>
 export interface CookieOptions {
   maxAgeSeconds: number;
   secure: boolean;
+  path?: string;
 }
 
-export function serializeCookie(name: string, value: string, { maxAgeSeconds, secure }: CookieOptions): string {
+export function serializeCookie(name: string, value: string, { maxAgeSeconds, secure, path = '/' }: CookieOptions): string {
   const parts = [
     `${name}=${encodeURIComponent(value)}`,
-    'Path=/',
+    `Path=${path}`,
     'HttpOnly',
     'SameSite=Lax',
     `Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}`,
