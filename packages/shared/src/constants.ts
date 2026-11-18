@@ -12,3 +12,7 @@ export const CHAT_MAX_CHARS = 280;
 export const CHAT_BUBBLE_MS = 6_000;
 export const KNOCK_TIMEOUT_MS = 30_000;
 export const CALL_RING_TIMEOUT_MS = 30_000;
+
+/** Mapas de partida para criar um coworking (arquivos em maps/templates/). */
+export const MAP_TEMPLATES = [{ id: 'small-office', name: 'Escritório pequeno' }] as const;
+export type MapTemplateId = (typeof MAP_TEMPLATES)[number]['id'];

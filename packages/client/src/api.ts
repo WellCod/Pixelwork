@@ -11,8 +11,10 @@ export interface SpaceSummary {
   id: string;
   name: string;
   slug: string;
+  orgId: string;
   orgName: string;
   role: 'admin' | 'member';
+  orgRole: 'owner' | 'admin' | null;
 }
 
 export interface SpaceDetail {
@@ -73,4 +75,27 @@ export const profileApi = {
   setDecor: (spaceId: string, deskKey: string, decor: DeskDecor) =>
     request<unknown>('PUT', `${desk(spaceId, deskKey)}/decor`, decor),
   releaseDesk: (spaceId: string, deskKey: string) => request<unknown>('DELETE', desk(spaceId, deskKey), {}),
+};
+
+export interface InvitePreview {
+  spaceId: string;
+  spaceName: string;
+  orgName: string;
+  role: 'admin' | 'member';
+  alreadyMember: boolean;
+}
+
+export const orgApi = {
+  providers: () => request<{ github: boolean }>('GET', '/auth/providers'),
+  templates: () => request<{ id: string; name: string }[]>('GET', '/templates'),
+  createOrg: (name: string, slug: string) => request<{ id: string }>('POST', '/orgs', { name, slug }),
+  createSpace: (orgId: string, name: string, slug: string, template: string) =>
+    request<{ id: string }>('POST', `/orgs/${encodeURIComponent(orgId)}/spaces`, { name, slug, template }),
+  createInvite: (spaceId: string, role: 'admin' | 'member', maxUses: number | null) =>
+    request<{ url: string; expiresAt: string }>('POST', space(spaceId, '/invites'), { role, maxUses }),
+  invite: (token: string) => request<InvitePreview>('GET', `/invites/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string) =>
+    request<{ spaceId: string }>('POST', `/invites/${encodeURIComponent(token)}/accept`, {}),
+  removeMember: (spaceId: string, userId: string) =>
+    request<undefined>('DELETE', space(spaceId, `/members/${encodeURIComponent(userId)}`), {}),
 };

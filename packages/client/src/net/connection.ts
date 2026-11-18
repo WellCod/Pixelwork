@@ -1,6 +1,6 @@
-import { CLOSE_SESSION_REPLACED, type ClientMsg, type ServerMsg } from '@pixelwork/shared';
+import { CLOSE_REMOVED, CLOSE_SESSION_REPLACED, type ClientMsg, type ServerMsg } from '@pixelwork/shared';
 
-export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'replaced';
+export type ConnectionStatus = 'connecting' | 'online' | 'reconnecting' | 'replaced' | 'removed';
 
 const MAX_BACKOFF_MS = 10_000;
 
@@ -39,6 +39,10 @@ export class Connection {
       if (this.stopped) return;
       if (event.code === CLOSE_SESSION_REPLACED) {
         this.onStatus('replaced');
+        return;
+      }
+      if (event.code === CLOSE_REMOVED) {
+        this.onStatus('removed');
         return;
       }
       const delay = Math.min(MAX_BACKOFF_MS, 500 * 2 ** this.attempt);

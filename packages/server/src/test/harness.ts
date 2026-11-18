@@ -7,6 +7,7 @@ import type { AppConfig } from '../config.ts';
 import { createDb, type Db } from '../db.ts';
 import { seedDemo } from '../demo.ts';
 import { createTestDatabase, type TestDatabase } from './database.ts';
+import type { GitHubClient } from '../auth/github.ts';
 import type { MediaService } from '../realtime/media.ts';
 import { ManualClock } from './manual-clock.ts';
 
@@ -17,6 +18,7 @@ export const TEST_CONFIG: AppConfig = {
   cookieSecure: false,
   demoSpaceSlug: 'demo',
   livekit: { url: 'ws://localhost:7880', apiKey: 'devkey', apiSecret: 'secret' },
+  github: { clientId: 'client-test', clientSecret: 'secret-test' },
 };
 
 /** Mapa 10x8 com parede na borda, spawn em (1, 1) e três mesas na linha 1 com a cadeira embaixo. */
@@ -42,6 +44,7 @@ export interface TestServer {
 export interface TestServerOptions {
   map?: unknown;
   media?: MediaService;
+  github?: GitHubClient;
 }
 
 export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
@@ -55,6 +58,7 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
     clock,
     scheduler: clock,
     ...(options.media ? { media: options.media } : {}),
+    ...(options.github ? { github: options.github } : {}),
   });
   const baseUrl = await app.listen({ port: 0, host: '127.0.0.1' });
   return {
