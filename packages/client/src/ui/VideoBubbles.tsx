@@ -16,6 +16,12 @@ interface Props {
   positionOf: (id: string) => { x: number; y: number } | null;
 }
 
+/** Quem aparece num balão de vídeo; a cena usa para subir o balão de chat acima do vídeo. */
+export function hasVideoBubble(media: MediaManager, controller: ProximityController, id: string): boolean {
+  // Em reunião e chamada a grade do RoomPanel substitui os balões.
+  return !media.isPrivate && media.expandedId !== id && controller.bubbles.includes(id) && media.remoteVideo(id) !== undefined;
+}
+
 /**
  * Balões de vídeo em HTML sobre o canvas. A posição é atualizada a cada frame direto no
  * estilo, sem passar pelo React; o React só monta e desmonta os balões.
@@ -24,7 +30,6 @@ export function VideoBubbles({ media, world, controller, positionOf }: Props) {
   useMedia(media);
   useWorld(world);
   const elements = useRef(new Map<string, HTMLDivElement>());
-  // Em reunião e chamada a grade do RoomPanel substitui os balões.
   const ids = media.isPrivate ? [] : controller.bubbles.filter((id) => media.remoteVideo(id));
 
   useEffect(() => {
