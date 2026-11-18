@@ -402,3 +402,98 @@ input[aria-invalid='true'] {
 .chat-box input {
   width: min(420px, 60vw);
 }
+
+.zone-ui,
+.call-ui {
+  position: absolute;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.zone-ui {
+  top: 12px;
+}
+
+.call-ui {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.zone-card,
+.call-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #262b44;
+  border: 2px solid #5a6988;
+  border-radius: 6px;
+}
+
+.zone-card.request,
+.call-card.ringing {
+  border-color: #feae34;
+}
+
+.call-card.active {
+  border-color: #3e8948;
+}
+
+.call-button {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 0.85em;
+}
+
+.room-panel {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.room-panel figure {
+  position: relative;
+  margin: 0;
+  border: 2px solid #5a6988;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #181425;
+}
+
+.room-panel video {
+  display: block;
+  width: 100%;
+}
+
+.room-panel figcaption {
+  position: absolute;
+  left: 6px;
+  bottom: 4px;
+  font-size: 0.75em;
+  text-shadow: 0 0 2px #181425;
+}
+
+.room-panel .screen video {
+  max-height: 50vh;
+  object-fit: contain;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.room-grid video {
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}

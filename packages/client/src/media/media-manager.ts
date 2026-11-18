@@ -25,6 +25,9 @@ export class MediaManager {
 
   micOn = true;
   camOn = false;
+  screenOn = false;
+  /** Sala atual: `space:` tem assinatura por proximidade; reunião e chamada, todos com todos. */
+  roomName: string | null = null;
   audioBlocked = false;
   connected = false;
   error: string | null = null;
@@ -39,12 +42,20 @@ export class MediaManager {
    * Troca de sala. Um `media.join` pode chegar enquanto a conexão anterior ainda está sendo
    * estabelecida: a geração descarta a conexão que terminar depois de ter sido substituída.
    */
-  async join(url: string, token: string): Promise<void> {
+  get isPrivate(): boolean {
+    return this.roomName !== null && !this.roomName.startsWith('space:');
+  }
+
+  async join(url: string, token: string, roomName: string): Promise<void> {
     const generation = ++this.generation;
+    this.roomName = roomName;
+    // Tela compartilhada não atravessa a troca de sala.
+    this.screenOn = false;
     const previous = this.room;
     this.room = null;
     this.setConnected(false);
     await previous?.disconnect();
+    this.changed();
 
     const room = new Room({ adaptiveStream: true, dynacast: true });
     this.listen(room);
@@ -96,6 +107,31 @@ export class MediaManager {
     this.camOn = on;
     this.changed();
     await this.room?.localParticipant.setCameraEnabled(on).catch((e: unknown) => this.fail(e));
+  }
+
+  async setScreenShare(on: boolean): Promise<void> {
+    if (on && !this.isPrivate) return;
+    this.screenOn = on;
+    this.changed();
+    await this.room?.localParticipant.setScreenShareEnabled(on, { audio: true }).catch((e: unknown) => {
+      this.screenOn = false;
+      this.fail(e);
+    });
+  }
+
+  /** Telas compartilhadas pelos outros na sala atual (só existem em reunião e chamada). */
+  remoteScreens(): { identity: string; track: RemoteVideoTrack }[] {
+    const screens: { identity: string; track: RemoteVideoTrack }[] = [];
+    for (const [identity, p] of this.room?.remoteParticipants ?? []) {
+      const track = p.getTrackPublication(Track.Source.ScreenShare)?.track;
+      if (track instanceof RemoteVideoTrack) screens.push({ identity, track });
+    }
+    return screens;
+  }
+
+  /** Câmeras assinadas, para a grade da sala de reunião ou da chamada. */
+  remoteCameras(): string[] {
+    return [...(this.room?.remoteParticipants.keys() ?? [])].filter((id) => this.remoteVideo(id));
   }
 
   /** O navegador só toca áudio depois de um gesto do usuário. */
@@ -154,6 +190,12 @@ export class MediaManager {
   }
 
   private applyTo(id: string, participant: RemoteParticipant): void {
+    if (this.isPrivate) {
+      // Reunião e chamada: o servidor já decidiu quem está na sala, então todos com todos.
+      for (const publication of participant.trackPublications.values()) publication.setSubscribed(true);
+      participant.setVolume(1);
+      return;
+    }
     const hearing = this.audible.has(id);
     participant.getTrackPublication(Track.Source.Microphone)?.setSubscribed(hearing);
     const camera = participant.getTrackPublication(Track.Source.Camera);
