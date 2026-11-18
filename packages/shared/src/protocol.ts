@@ -104,7 +104,8 @@ export type ServerMsg =
       zones: ZoneState[];
       desks: DeskState[];
     }
-  | { t: 'tick'; ack: number; moves: TickMove[] }
+  /** `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. */
+  | { t: 'tick'; ack: number; moves: TickMove[]; ts?: number }
   | { t: 'player.join'; player: Player }
   | { t: 'player.leave'; id: string }
   | {

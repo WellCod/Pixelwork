@@ -682,6 +682,9 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Job de hora em hora: apaga convidados expirados (cascata libera as mesas).
 - Job noturno: restaura o mapa do coworking de demo a partir do template e limpa as atribuições
   de mesa.
+- Decisões da fase 8: os dois jobs rodam no processo do servidor (`scheduleJobs`), com relógio e
+  agendador injetáveis. O reset é às 03:00 UTC (meia-noite em Brasília) e quem está online recebe
+  a troca de mapa ao vivo; o convidado expirado que ainda está online sai do mapa na hora.
 
 ## 14. Testes
 
@@ -702,6 +705,10 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
   container no CI.
 - Não testado: renderização do Phaser e layout do React. Lógica fica fora das cenas.
 - CI: typecheck, lint, unitários e integração em todo push; Postgres como service container.
+- Decisões da fase 8: o `tick` ganhou `ts` (hora do servidor no envio) para a latência do teste
+  de carga; `GET /internal/stats` (CPU e memória) só existe com `LOAD_TEST=true`. O LiveKit do E2E
+  sobe com `docker run`, porque o service container do GitHub não aceita `--dev --bind 0.0.0.0`.
+  O estado de debug do E2E é o mesmo `window.__pixelwork` do modo de desenvolvimento.
 
 ## 15. Deploy (futuro)
 
@@ -709,3 +716,8 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Restrições: HTTPS obrigatório (`getUserMedia` exige contexto seguro), portas UDP do LiveKit
   abertas no firewall, TURN sobre TLS na 443 para redes que bloqueiam UDP.
 - Tudo que muda entre local e VPS vem do `.env`.
+- Decisões da fase 8: um Dockerfile com dois alvos, `app` (Node 24 com `tsx`, que roda
+  migrations e seed ao subir) e `web` (Caddy com o cliente compilado, servindo a SPA e repassando
+  a API e o WebSocket). O servidor roda com `tsx` porque o código usa propriedades no construtor,
+  que o Node não remove sozinho. Faixa UDP do LiveKit em 50000-50100. Passo a passo, portas e TURN
+  em `docs/deploy.md`.

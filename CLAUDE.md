@@ -61,7 +61,12 @@ Para o Phaser, avalie 3.x vs 4 e registre a escolha em `docs/architecture.md`.
 - `pnpm assets:placeholders`: gera os placeholders que ainda não existem (`-- --force` regera).
 - `pnpm assets:catalog`: gera `packages/shared/src/catalog.generated.ts` do manifesto.
 - `pnpm assets:check`: confere se todo PNG usa só a paleta e as cores-chave.
-- `pnpm load --bots 50`: teste de carga com bots (fase 8).
+- `pnpm load --bots 50 [--seconds 30]`: teste de carga; sobe o servidor na porta 3100 com
+  `LOAD_TEST=true` e mede latência do tick, tamanho das mensagens e CPU.
+- `pnpm e2e`: E2E de fumaça com Playwright (usa o `pnpm dev` que estiver rodando; localmente, o
+  Chrome instalado).
+- `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`: produção
+  numa VPS (ver `docs/deploy.md`).
 
 Atualize esta seção quando os comandos mudarem.
 
