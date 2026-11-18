@@ -1,10 +1,10 @@
-import type { ClientMsg, ServerMsg } from '@pixelwork/shared';
+import { MIN_STEP_INTERVAL_MS, type ClientMsg, type Dir, type ServerMsg } from '@pixelwork/shared';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import type { FastifyInstance } from 'fastify';
 import WebSocket from 'ws';
 import { buildApp } from '../app.ts';
 import type { AppConfig } from '../config.ts';
-import { createDb } from '../db.ts';
+import { createDb, type Db } from '../db.ts';
 import { seedDemo } from '../demo.ts';
 import { createTestDatabase, type TestDatabase } from './database.ts';
 import { ManualClock } from './manual-clock.ts';
@@ -17,11 +17,19 @@ export const TEST_CONFIG: AppConfig = {
   demoSpaceSlug: 'demo',
 };
 
-/** Mapa 10x8 com parede na borda e spawn em (1, 1). */
-export const TEST_MAP = buildTestMap({ spawns: [[1, 1]] });
+/** Mapa 10x8 com parede na borda, spawn em (1, 1) e três mesas na linha 1 com a cadeira embaixo. */
+export const TEST_MAP = buildTestMap({
+  spawns: [[1, 1]],
+  desks: [
+    { key: 'mesa-1', x: 3, y: 1, orientation: 'down' },
+    { key: 'mesa-2', x: 5, y: 1, orientation: 'down' },
+    { key: 'mesa-3', x: 7, y: 1, orientation: 'down' },
+  ],
+});
 
 export interface TestServer {
   app: FastifyInstance;
+  db: Db;
   clock: ManualClock;
   baseUrl: string;
   wsUrl: string;
@@ -38,6 +46,7 @@ export async function startTestServer(): Promise<TestServer> {
   const baseUrl = await app.listen({ port: 0, host: '127.0.0.1' });
   return {
     app,
+    db: conn.db,
     clock,
     baseUrl,
     wsUrl: `${baseUrl.replace('http', 'ws')}/ws?space=${spaceId}`,
@@ -67,6 +76,22 @@ export async function loginGuest(server: TestServer): Promise<Guest> {
   return { id, cookie };
 }
 
+export async function api(
+  server: TestServer,
+  guest: Guest,
+  method: string,
+  path: string,
+  body: unknown = {},
+): Promise<{ status: number; json: unknown }> {
+  const response = await fetch(`${server.baseUrl}${path}`, {
+    method,
+    headers: { origin: TEST_ORIGIN, 'content-type': 'application/json', cookie: guest.cookie },
+    body: method === 'GET' ? null : JSON.stringify(body),
+  });
+  const text = await response.text();
+  return { status: response.status, json: text ? (JSON.parse(text) as unknown) : null };
+}
+
 /** Cede o event loop até a condição valer; nenhum tempo de jogo passa aqui. */
 export async function until(condition: () => boolean, attempts = 500): Promise<void> {
   for (let i = 0; i < attempts; i++) {
@@ -81,6 +106,7 @@ export class Bot {
   readonly inbox: ServerMsg[] = [];
   private waiters: { match: (m: ServerMsg) => boolean; resolve: (m: ServerMsg) => void }[] = [];
   readonly closed: Promise<number>;
+  private seq = 0;
 
   private constructor(readonly ws: WebSocket) {
     ws.on('message', (data) => {
@@ -120,6 +146,15 @@ export class Bot {
     return new Promise((resolve) => {
       this.waiters.push({ match, resolve: (m) => resolve(m as Extract<ServerMsg, { t: T }>) });
     });
+  }
+
+  /** Anda passo a passo, esperando o servidor processar e o intervalo mínimo passar. */
+  async walk(clock: ManualClock, dirs: readonly Dir[]): Promise<void> {
+    for (const dir of dirs) {
+      this.send({ t: 'move', seq: ++this.seq, dir });
+      await this.flush();
+      clock.advance(MIN_STEP_INTERVAL_MS);
+    }
   }
 
   send(msg: ClientMsg | string): void {
