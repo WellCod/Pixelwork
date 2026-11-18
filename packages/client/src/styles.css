@@ -1,0 +1,22 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  background: #181425;
+  color: #c0cbdc;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  gap: 12px;
+}
+
+.game canvas {
+  display: block;
+  image-rendering: pixelated;
+}
