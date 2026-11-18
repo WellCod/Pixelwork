@@ -1,6 +1,6 @@
 import type { ClientMsg, CompiledMap } from '@pixelwork/shared';
 import { useEffect, useRef, useState } from 'react';
-import type { Me, SpaceDetail } from './api.ts';
+import type { SpaceDetail } from './api.ts';
 import { createGame } from './game/createGame.ts';
 import type { WorldScene } from './game/WorldScene.ts';
 import { MediaManager } from './media/media-manager.ts';
@@ -18,23 +18,18 @@ import { VideoBubbles } from './ui/VideoBubbles.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
 
 interface Props {
-  me: Me;
   space: SpaceDetail;
   map: CompiledMap;
-  onLogout: () => void;
+  onStatus: (status: ConnectionStatus) => void;
 }
 
-const STATUS_TEXT: Record<ConnectionStatus, string> = {
-  connecting: 'Conectando…',
-  online: 'Online',
-  reconnecting: 'Reconectando…',
-  replaced: 'Você abriu este coworking em outra aba.',
-};
-
-export function GameView({ me, space, map, onLogout }: Props) {
+export function GameView({ space, map, onStatus }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const connection = useRef<Connection | null>(null);
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const statusListener = useRef(onStatus);
+  useEffect(() => {
+    statusListener.current = onStatus;
+  });
   const [world] = useState(() => new ClientWorld(map));
   const [media] = useState(() => new MediaManager());
   const [controller] = useState(() => new ProximityController(world, media));
@@ -53,9 +48,9 @@ export function GameView({ me, space, map, onLogout }: Props) {
         else world.handle(msg);
       },
       (next) => {
-        setStatus(next);
-        // Outra aba assumiu: a mídia desta também sai, senão as duas disputam a mesma identidade.
-        if (next === 'replaced') void media.close();
+        statusListener.current(next);
+        // Outra aba assumiu ou saiu do coworking: a mídia sai junto.
+        if (next === 'replaced' || next === 'removed') void media.close();
       },
     );
     connection.current = conn;
@@ -81,16 +76,6 @@ export function GameView({ me, space, map, onLogout }: Props) {
   }, [space, world, media, controller, calls]);
 
   return (
-    <div className="shell">
-      <header className="bar">
-        <strong>{space.name}</strong>
-        <span className={`status status-${status}`}>{STATUS_TEXT[status]}</span>
-        <span className="spacer" />
-        <span>{me.isGuest ? 'Convidado' : me.name}</span>
-        <button type="button" onClick={onLogout}>
-          Sair
-        </button>
-      </header>
       <div className="main">
         <div className="stage">
           <div ref={container} className="game" />
@@ -102,8 +87,7 @@ export function GameView({ me, space, map, onLogout }: Props) {
           <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
           <ChatBox world={world} send={send} />
         </div>
-        <Sidebar world={world} spaceId={space.id} calls={calls} />
+        <Sidebar world={world} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
       </div>
-    </div>
   );
 }

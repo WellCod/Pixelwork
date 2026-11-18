@@ -1,44 +1,104 @@
 import { compileMap, type CompiledMap } from '@pixelwork/shared';
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type Me, type SpaceDetail } from './api.ts';
+import { ApiError, api, orgApi, type Me, type SpaceDetail, type SpaceSummary } from './api.ts';
 import { GameView } from './GameView.tsx';
+import type { ConnectionStatus } from './net/connection.ts';
+import { CreateSpaceModal } from './ui/CreateSpaceModal.tsx';
+import { InviteModal } from './ui/InviteModal.tsx';
+import { InvitePage } from './ui/InvitePage.tsx';
+
+type Current = { space: SpaceDetail; map: CompiledMap };
 
 type State =
   | { kind: 'loading' }
   | { kind: 'login'; error?: string }
-  | { kind: 'ready'; me: Me; space: SpaceDetail; map: CompiledMap };
+  | { kind: 'ready'; me: Me; spaces: SpaceSummary[]; current: Current | null; notice: string };
 
-async function loadSpace(me: Me): Promise<State> {
-  const spaces = await api.spaces();
-  const first = spaces[0];
-  if (!first) throw new Error('Você não participa de nenhum coworking.');
-  const space = await api.space(first.id);
+const STORAGE_KEY = 'pixelwork.space';
+const STATUS_TEXT: Record<ConnectionStatus, string> = {
+  connecting: 'Conectando…',
+  online: 'Online',
+  reconnecting: 'Reconectando…',
+  replaced: 'Aberto em outra aba',
+  removed: 'Você saiu deste coworking',
+};
+
+function remembered(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function remember(spaceId: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, spaceId);
+  } catch {
+    // Navegação privada: a escolha só não fica salva.
+  }
+}
+
+function inviteToken(): string | null {
+  const match = /^\/invite\/([\w-]+)$/.exec(location.pathname);
+  return match?.[1] ?? null;
+}
+
+async function openSpace(spaceId: string): Promise<Current> {
+  const space = await api.space(spaceId);
   const compiled = compileMap(space.map);
   if (!compiled.ok) throw new Error('O mapa deste coworking não pôde ser carregado.');
-  return { kind: 'ready', me, space, map: compiled.map };
+  remember(spaceId);
+  return { space, map: compiled.map };
+}
+
+async function loadReady(me: Me, preferred: string | null = null, notice = ''): Promise<State> {
+  const spaces = await api.spaces();
+  const pick = spaces.find((s) => s.id === preferred) ?? spaces.find((s) => s.id === remembered()) ?? spaces[0];
+  const current = pick ? await openSpace(pick.id) : null;
+  return { kind: 'ready', me, spaces, current, notice };
 }
 
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const [github, setGithub] = useState(false);
+  const [invite, setInvite] = useState(inviteToken);
+  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [modal, setModal] = useState<'create' | 'invite' | null>(null);
 
   const fail = useCallback((error: unknown) => {
     setState({ kind: 'login', error: error instanceof Error ? error.message : 'Falha ao entrar.' });
   }, []);
 
   useEffect(() => {
+    orgApi
+      .providers()
+      .then((p) => setGithub(p.github))
+      .catch(() => setGithub(false));
+    const githubError = new URLSearchParams(location.search).has('erro');
+    if (githubError) history.replaceState(null, '', location.pathname);
     api
       .me()
-      .then(loadSpace)
+      .then((me) => loadReady(me))
       .then(setState)
       .catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 401) setState({ kind: 'login' });
-        else fail(error);
+        if (error instanceof ApiError && error.status === 401) {
+          setState(githubError ? { kind: 'login', error: 'Não deu para entrar com o GitHub.' } : { kind: 'login' });
+        } else fail(error);
       });
   }, [fail]);
 
+  const reload = (me: Me, preferred: string | null = null, notice = '') => {
+    loadReady(me, preferred, notice).then(setState).catch(fail);
+  };
+
   const enterAsGuest = () => {
     setState({ kind: 'loading' });
-    api.guest().then(loadSpace).then(setState).catch(fail);
+    api
+      .guest()
+      .then((me) => loadReady(me))
+      .then(setState)
+      .catch(fail);
   };
 
   const logout = () => {
@@ -52,13 +112,117 @@ export function App() {
       <main className="center">
         <h1>Pixelwork</h1>
         <p>Coworking virtual em pixel art.</p>
+        {invite && <p>Entre para aceitar o convite.</p>}
         <button type="button" onClick={enterAsGuest}>
           Entrar como convidado
         </button>
+        {github && (
+          <a className="button primary" href="/auth/github">
+            Entrar com GitHub
+          </a>
+        )}
         {state.error && <p className="error">{state.error}</p>}
       </main>
     );
   }
 
-  return <GameView me={state.me} space={state.space} map={state.map} onLogout={logout} />;
+  const { me, spaces, current } = state;
+
+  if (invite) {
+    return (
+      <InvitePage
+        token={invite}
+        onDone={(spaceId) => {
+          history.replaceState(null, '', '/');
+          setInvite(null);
+          // Sem isto o coworking anterior aparece por um instante antes do novo.
+          setState({ kind: 'loading' });
+          reload(me, spaceId);
+        }}
+      />
+    );
+  }
+
+  const select = (spaceId: string) => {
+    openSpace(spaceId)
+      .then((next) => setState({ ...state, current: next }))
+      .catch(fail);
+  };
+
+  return (
+    <div className="shell">
+      <header className="bar">
+        <strong>Pixelwork</strong>
+        {spaces.length > 0 && (
+          <select aria-label="Coworking" value={current?.space.id ?? ''} onChange={(e) => select(e.target.value)}>
+            {spaces.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.orgName} · {s.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {current && <span className={`status status-${status}`}>{STATUS_TEXT[status]}</span>}
+        <span className="spacer" />
+        {current?.space.role === 'admin' && (
+          <button type="button" onClick={() => setModal('invite')}>
+            Convidar
+          </button>
+        )}
+        {!me.isGuest && (
+          <button type="button" onClick={() => setModal('create')}>
+            Novo coworking
+          </button>
+        )}
+        <span>{me.isGuest ? 'Convidado' : me.name}</span>
+        <button type="button" onClick={logout}>
+          Sair
+        </button>
+      </header>
+
+      {state.notice && (
+        <p className="notice-bar">
+          {state.notice}{' '}
+          <button type="button" onClick={() => setState({ ...state, notice: '' })}>
+            Ok
+          </button>
+        </p>
+      )}
+
+      {current ? (
+        <GameView
+          key={current.space.id}
+          space={current.space}
+          map={current.map}
+          onStatus={(next) => {
+            setStatus(next);
+            if (next === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
+          }}
+        />
+      ) : (
+        <main className="center">
+          <p>Você não participa de nenhum coworking.</p>
+          {me.isGuest ? (
+            <p>Peça um convite a quem administra um coworking.</p>
+          ) : (
+            <button type="button" className="primary" onClick={() => setModal('create')}>
+              Criar empresa e coworking
+            </button>
+          )}
+        </main>
+      )}
+
+      {modal === 'create' && (
+        <CreateSpaceModal
+          spaces={spaces}
+          onClose={() => setModal(null)}
+          onCreated={(spaceId) => {
+            setModal(null);
+            reload(me, spaceId);
+          }}
+        />
+      )}
+      {modal === 'invite' && current && <InviteModal spaceId={current.space.id} onClose={() => setModal(null)} />}
+    </div>
+  );
 }
