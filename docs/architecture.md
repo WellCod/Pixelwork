@@ -276,6 +276,7 @@ export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
   | { code: 'missing_layer' | 'wrong_layer_type'; layer: string }
   | { code: 'unknown_tileset'; source: string }
+  | { code: 'tileset_overlap'; a: string; b: string }   // firstgid + tilecount invade o seguinte
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
