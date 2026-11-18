@@ -1,4 +1,4 @@
-import type { ClientMsg, CompiledMap, DeskState, Dir, Player, ServerMsg } from '@pixelwork/shared';
+import type { ClientMsg, CompiledMap, DeskState, Dir, Player, ServerMsg, ZoneState } from '@pixelwork/shared';
 import { predictStep, reconcile, type PendingMove, type Pos } from './reconcile.ts';
 
 export type WorldEvent =
@@ -9,6 +9,11 @@ export type WorldEvent =
   | { type: 'desk'; desk: DeskState }
   | { type: 'chat'; from: string; text: string }
   | { type: 'error'; code: string }
+  | { type: 'zone'; zone: ZoneState }
+  | { type: 'knockRequest'; requestId: string; zoneKey: string; from: string }
+  | { type: 'knockResult'; zoneKey: string; allowed: boolean }
+  | { type: 'callIncoming'; callId: string; from: string }
+  | { type: 'callEnded'; callId: string; reason: 'declined' | 'left' | 'timeout' | 'busy' }
   | { type: 'remoteMove'; id: string; x: number; y: number; dir: Dir }
   /** A predição divergiu do servidor: o avatar próprio vai direto para `pos`. */
   | { type: 'selfCorrected'; pos: Pos }
@@ -19,6 +24,7 @@ export class ClientWorld {
   selfId: string | null = null;
   readonly players = new Map<string, Player>();
   readonly desks = new Map<string, DeskState>();
+  readonly zones = new Map<string, ZoneState>();
   /** Muda a cada evento; a UI em React usa como snapshot. */
   version = 0;
   self: Pos = { x: 0, y: 0, dir: 'down' };
@@ -42,6 +48,8 @@ export class ClientWorld {
         for (const p of msg.players) this.players.set(p.id, p);
         this.desks.clear();
         for (const d of msg.desks) this.desks.set(d.deskKey, d);
+        this.zones.clear();
+        for (const z of msg.zones) this.zones.set(z.zoneKey, z);
         const me = this.players.get(msg.selfId);
         this.self = me ? { x: me.x, y: me.y, dir: me.dir } : this.self;
         this.authoritative = this.self;
@@ -88,6 +96,22 @@ export class ClientWorld {
         break;
       case 'error':
         this.emit({ type: 'error', code: msg.code });
+        break;
+      case 'zone.state':
+        this.zones.set(msg.zone.zoneKey, msg.zone);
+        this.emit({ type: 'zone', zone: msg.zone });
+        break;
+      case 'zone.knockRequest':
+        this.emit({ type: 'knockRequest', requestId: msg.requestId, zoneKey: msg.zoneKey, from: msg.from });
+        break;
+      case 'zone.knockResult':
+        this.emit({ type: 'knockResult', zoneKey: msg.zoneKey, allowed: msg.allowed });
+        break;
+      case 'call.incoming':
+        this.emit({ type: 'callIncoming', callId: msg.callId, from: msg.from });
+        break;
+      case 'call.ended':
+        this.emit({ type: 'callEnded', callId: msg.callId, reason: msg.reason });
         break;
       default:
         break;

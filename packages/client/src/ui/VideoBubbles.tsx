@@ -21,7 +21,8 @@ export function VideoBubbles({ media, world, controller, scene }: Props) {
   useMedia(media);
   useWorld(world);
   const elements = useRef(new Map<string, HTMLDivElement>());
-  const ids = controller.bubbles.filter((id) => media.remoteVideo(id));
+  // Em reunião e chamada a grade do RoomPanel substitui os balões.
+  const ids = media.isPrivate ? [] : controller.bubbles.filter((id) => media.remoteVideo(id));
 
   useEffect(() => {
     let frame = 0;
