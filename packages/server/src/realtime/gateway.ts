@@ -9,6 +9,7 @@ import { parseCookies } from '../cookies.ts';
 import type { Db } from '../db.ts';
 import { resolveMembership, type PlayerProfile } from '../spaces/members.ts';
 import type { Clock, Scheduler } from './clock.ts';
+import type { MediaService } from './media.ts';
 import { SpaceRuntime, type Conn } from './space-runtime.ts';
 
 export interface GatewayDeps {
@@ -16,6 +17,7 @@ export interface GatewayDeps {
   publicUrl: string;
   clock: Clock;
   scheduler: Scheduler;
+  media: MediaService;
   log: { error: (obj: unknown, msg: string) => void };
 }
 

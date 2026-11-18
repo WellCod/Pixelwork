@@ -1,11 +1,17 @@
-import type { CompiledMap } from '@pixelwork/shared';
+import type { ClientMsg, CompiledMap } from '@pixelwork/shared';
 import { useEffect, useRef, useState } from 'react';
 import type { Me, SpaceDetail } from './api.ts';
 import { createGame } from './game/createGame.ts';
+import type { WorldScene } from './game/WorldScene.ts';
+import { MediaManager } from './media/media-manager.ts';
+import { ProximityController } from './media/proximity-controller.ts';
 import { ClientWorld } from './net/client-world.ts';
 import { Connection, type ConnectionStatus } from './net/connection.ts';
+import { ChatBox } from './ui/ChatBox.tsx';
 import { DeskBar } from './ui/DeskBar.tsx';
+import { MediaControls } from './ui/MediaControls.tsx';
 import { Sidebar } from './ui/Sidebar.tsx';
+import { VideoBubbles } from './ui/VideoBubbles.tsx';
 
 interface Props {
   me: Me;
@@ -23,24 +29,47 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
 
 export function GameView({ me, space, map, onLogout }: Props) {
   const container = useRef<HTMLDivElement>(null);
+  const connection = useRef<Connection | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [world] = useState(() => new ClientWorld(map));
+  const [media] = useState(() => new MediaManager());
+  const [controller] = useState(() => new ProximityController(world, media));
+  const [scene, setScene] = useState<WorldScene | null>(null);
+
+  const send = (msg: ClientMsg) => connection.current?.send(msg);
 
   useEffect(() => {
     const parent = container.current;
     if (!parent) return;
-    const connection = new Connection(space.id, (msg) => world.handle(msg), setStatus);
-    const game = createGame(parent, {
+    const conn = new Connection(
+      space.id,
+      (msg) => {
+        if (msg.t === 'media.join') void media.join(msg.url, msg.token);
+        else world.handle(msg);
+      },
+      (next) => {
+        setStatus(next);
+        // Outra aba assumiu: a mídia desta também sai, senão as duas disputam a mesma identidade.
+        if (next === 'replaced') void media.close();
+      },
+    );
+    connection.current = conn;
+    const created = createGame(parent, {
       world,
       mapJson: space.map as Record<string, unknown>,
-      send: (msg) => connection.send(msg),
+      send: (msg) => conn.send(msg),
     });
-    connection.open();
+    setScene(created.scene);
+    controller.start();
+    conn.open();
     return () => {
-      connection.close();
-      game.destroy(true);
+      controller.stop();
+      conn.close();
+      void media.close();
+      created.game.destroy(true);
+      setScene(null);
     };
-  }, [space, world]);
+  }, [space, world, media, controller]);
 
   return (
     <div className="shell">
@@ -56,7 +85,10 @@ export function GameView({ me, space, map, onLogout }: Props) {
       <div className="main">
         <div className="stage">
           <div ref={container} className="game" />
+          {scene && <VideoBubbles media={media} world={world} controller={controller} scene={scene} />}
+          <MediaControls media={media} />
           <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
+          <ChatBox world={world} send={send} />
         </div>
         <Sidebar world={world} spaceId={space.id} />
       </div>

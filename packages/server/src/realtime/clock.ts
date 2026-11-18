@@ -40,3 +40,27 @@ export class WindowCounter {
     return this.hits.length > this.max;
   }
 }
+
+/** Balde de fichas: `capacity` de rajada, repondo `perSecond` fichas por segundo. */
+export class TokenBucket {
+  private tokens: number;
+  private updatedAt: number;
+
+  constructor(
+    private readonly clock: Clock,
+    private readonly capacity: number,
+    private readonly perSecond: number,
+  ) {
+    this.tokens = capacity;
+    this.updatedAt = clock.now();
+  }
+
+  take(): boolean {
+    const now = this.clock.now();
+    this.tokens = Math.min(this.capacity, this.tokens + ((now - this.updatedAt) / 1000) * this.perSecond);
+    this.updatedAt = now;
+    if (this.tokens < 1) return false;
+    this.tokens -= 1;
+    return true;
+  }
+}
