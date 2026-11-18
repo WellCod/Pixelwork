@@ -1,9 +1,11 @@
 import {
+  CHAT_MAX_CHARS,
   CLOSE_POLICY,
   CLOSE_SESSION_REPLACED,
   ClientMsg,
   RECONNECT_GRACE_MS,
   TICK_MS,
+  chatRecipients,
   step,
   zoneAt,
   type CompiledDesk,
@@ -17,7 +19,8 @@ import {
   type ZoneState,
 } from '@pixelwork/shared';
 import type { PlayerProfile } from '../spaces/members.ts';
-import { WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
+import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
+import { SPACE_SOURCES, spaceRoom, type MediaService } from './media.ts';
 
 export interface Conn {
   send(data: string): void;
@@ -28,6 +31,8 @@ const INVALID_WINDOW_MS = 10_000;
 const MAX_INVALID = 10;
 const RATE_WINDOW_MS = 1_000;
 const MAX_MESSAGES_PER_SECOND = 50;
+const CHAT_BURST = 3;
+const CHAT_PER_SECOND = 1;
 
 interface Member {
   profile: PlayerProfile;
@@ -38,11 +43,14 @@ interface Member {
   leaveTimer: Timer | null;
   invalid: WindowCounter;
   rate: WindowCounter;
+  chat: TokenBucket;
 }
 
 export interface RuntimeDeps {
   clock: Clock;
   scheduler: Scheduler;
+  media: MediaService;
+  log: { error: (obj: unknown, msg: string) => void };
 }
 
 /** Estado em memória de um coworking: jogadores, simulação e broadcast por tick. */
@@ -130,6 +138,7 @@ export class SpaceRuntime {
         leaveTimer: null,
         invalid: new WindowCounter(clock, INVALID_WINDOW_MS, MAX_INVALID),
         rate: new WindowCounter(clock, RATE_WINDOW_MS, MAX_MESSAGES_PER_SECOND),
+        chat: new TokenBucket(clock, CHAT_BURST, CHAT_PER_SECOND),
       };
       this.members.set(profile.id, member);
       const players = new Map(this.world.players);
@@ -152,6 +161,20 @@ export class SpaceRuntime {
       desks: [...this.desks.values()],
     });
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
+    void this.joinMedia(profile.id, conn);
+  }
+
+  /** Quem decide a sala de mídia é o servidor (invariante 3). Na fase 3, sempre a `space:`. */
+  private async joinMedia(userId: string, conn: Conn): Promise<void> {
+    const room = spaceRoom(this.spaceId);
+    try {
+      const token = await this.deps.media.token(userId, room, SPACE_SOURCES);
+      // A conexão pode ter caído ou sido substituída enquanto o token era assinado.
+      if (this.members.get(userId)?.conn !== conn) return;
+      this.send(conn, { t: 'media.join', room, token, url: this.deps.media.url });
+    } catch (error) {
+      this.deps.log.error({ error, userId, room }, 'falha ao emitir token de mídia');
+    }
   }
 
   onMessage(userId: string, conn: Conn, raw: string | null): void {
@@ -182,8 +205,32 @@ export class SpaceRuntime {
         for (const event of result.events) this.moved.add(event.id);
         break;
       }
+      case 'chat.say':
+        this.chat(userId, member, conn, msg.text);
+        break;
       default:
         this.send(conn, { t: 'error', code: 'not_implemented' });
+    }
+  }
+
+  /** Destinatários calculados aqui: o cliente não escolhe quem lê. Nada é guardado. */
+  private chat(userId: string, member: Member, conn: Conn, raw: string): void {
+    const text = raw.trim();
+    const length = Array.from(text).length;
+    if (length === 0 || length > CHAT_MAX_CHARS) {
+      this.send(conn, { t: 'error', code: 'chat_invalid' });
+      return;
+    }
+    if (!member.chat.take()) {
+      this.send(conn, { t: 'error', code: 'chat_rate' });
+      return;
+    }
+    const author = this.world.players.get(userId);
+    if (!author) return;
+    const players = [...this.world.players].map(([id, p]) => ({ id, x: p.x, y: p.y }));
+    const data = JSON.stringify({ t: 'chat.said', from: userId, text } satisfies ServerMsg);
+    for (const id of chatRecipients(this.map, { id: userId, x: author.x, y: author.y }, players)) {
+      this.members.get(id)?.conn?.send(data);
     }
   }
 

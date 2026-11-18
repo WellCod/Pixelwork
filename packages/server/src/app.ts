@@ -6,6 +6,7 @@ import type { Db } from './db.ts';
 import { registerStateGuards } from './guards.ts';
 import { systemClock, type Clock, type Scheduler } from './realtime/clock.ts';
 import { attachGateway, type Gateway } from './realtime/gateway.ts';
+import { liveKitMedia, type MediaService } from './realtime/media.ts';
 import { registerDeskRoutes } from './spaces/desk-routes.ts';
 import { registerProfileRoutes } from './spaces/profile-routes.ts';
 import { registerSpaceRoutes } from './spaces/routes.ts';
@@ -21,6 +22,7 @@ export interface AppDeps {
   config: AppConfig;
   clock?: Clock;
   scheduler?: Scheduler;
+  media?: MediaService;
   logger?: boolean;
 }
 
@@ -29,6 +31,7 @@ export function buildApp({
   config,
   clock = systemClock,
   scheduler = systemClock,
+  media = liveKitMedia(config.livekit),
   logger = false,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
@@ -54,6 +57,7 @@ export function buildApp({
     publicUrl: config.publicUrl,
     clock,
     scheduler,
+    media,
     log: app.log,
   });
   app.decorate('realtime', gateway);

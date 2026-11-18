@@ -2,11 +2,15 @@ import { RENDER_SCALE } from '@pixelwork/shared';
 import * as Phaser from 'phaser';
 import { WorldScene, type WorldSceneOptions } from './WorldScene.ts';
 
-export function createGame(parent: HTMLElement, options: WorldSceneOptions): Phaser.Game {
+export function createGame(
+  parent: HTMLElement,
+  options: WorldSceneOptions,
+): { game: Phaser.Game; scene: WorldScene } {
   const size = () => ({
     width: Math.max(1, Math.floor(parent.clientWidth / RENDER_SCALE)),
     height: Math.max(1, Math.floor(parent.clientHeight / RENDER_SCALE)),
   });
+  const scene = new WorldScene(options);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
@@ -14,7 +18,7 @@ export function createGame(parent: HTMLElement, options: WorldSceneOptions): Pha
     zoom: RENDER_SCALE,
     pixelArt: true,
     backgroundColor: '#181425',
-    scene: [new WorldScene(options)],
+    scene: [scene],
   });
   const onResize = () => {
     const { width, height } = size();
@@ -22,5 +26,5 @@ export function createGame(parent: HTMLElement, options: WorldSceneOptions): Pha
   };
   window.addEventListener('resize', onResize);
   game.events.once(Phaser.Core.Events.DESTROY, () => window.removeEventListener('resize', onResize));
-  return game;
+  return { game, scene };
 }

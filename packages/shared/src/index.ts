@@ -6,3 +6,4 @@ export * from './map.ts';
 export * from './protocol.ts';
 export * from './sim.ts';
 export * from './validation.ts';
+export * from './proximity.ts';

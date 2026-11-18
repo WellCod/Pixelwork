@@ -90,6 +90,11 @@ volumes:
   outro aparelho na rede local: TLS local (mkcert) no app e no LiveKit (página HTTPS não abre `ws://`).
 - Vários usuários numa máquina: perfis do Chrome com `--use-fake-device-for-media-stream` e
   `--use-fake-ui-for-media-stream`.
+- No Windows, a câmera falsa padrão do Chrome encerra a trilha em poucos segundos (o LiveKit
+  então muta a câmera), e duas instâncias no mesmo processo disputam o dispositivo. Para testar
+  vídeo: um processo por usuário e `--use-file-for-fake-video-capture=<arquivo>.y4m`.
+- Em modo de desenvolvimento, `window.__pixelwork` expõe `media`, `world` e `controller` para
+  scripts de verificação (`media.debugState()` mostra o que está assinado).
 
 Variáveis de ambiente:
 
@@ -498,6 +503,25 @@ Proximidade (na sala `space:`):
   adaptive stream); qualidade alta só quando o usuário expande o balão.
 - Balões renderizados como `<video>` em HTML sobre o canvas, reposicionados a cada frame pela
   câmera do Phaser.
+
+Decisões da fase 3 (versões fixadas: `livekit-server-sdk` 2.20.0, `livekit-client` 2.24.1):
+
+- O grant `canPublishSources` existe e substitui `canPublish`: o token da sala `space:` só libera
+  câmera e microfone, então compartilhar tela ali é recusado pelo próprio LiveKit. Validade do
+  token: 6 horas.
+- O serviço de mídia é uma interface injetada no tempo real (`MediaService`), para os testes de
+  autorização usarem um dublê.
+- Volume pelo `RemoteParticipant.setVolume`, sem Web Audio. Conexão com `autoSubscribe: false`,
+  `adaptiveStream` e `dynacast`; simulcast já vem ligado ao publicar.
+- Áudio é assinado para todo mundo no raio; vídeo só para quem está nos balões. Quem sai é
+  desassinado (`setSubscribed(false)`).
+- Numa sala de reunião, a proximidade (e o chat) vale para todos os ocupantes; quem está fora
+  nunca entra. Na fase 4 a sala vira uma sala de mídia separada.
+- Microfone começa ligado (a fase é "chegar perto liga áudio"); câmera começa desligada.
+- O gerenciador de mídia descarta, por um contador de geração, a conexão que termina depois de
+  um `media.join` mais novo. Sessão substituída por outra aba também fecha a mídia.
+- Chat: `error` com `chat_invalid` (vazio ou acima de `CHAT_MAX_CHARS` depois do trim) ou
+  `chat_rate` (balde de 3 fichas, 1 por segundo).
 
 Descartados: mesh P2P (upload multiplicado por participante); mediasoup (nível baixo demais,
 semanas de sinalização); vídeo como textura no canvas (upload de textura por frame sem ganho).

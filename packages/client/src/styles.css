@@ -294,3 +294,111 @@ input[aria-invalid='true'] {
     border-top: 2px solid #3a4466;
   }
 }
+
+.muted {
+  color: #8b9bb4;
+  font-size: 0.85em;
+}
+
+.media-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+}
+
+.media-controls button.off {
+  border-color: #a22633;
+}
+
+.media-controls button.on {
+  border-color: #3e8948;
+}
+
+.self-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  background: #262b44;
+  border: 2px solid #feae34;
+  border-radius: 6px;
+  font-size: 0.8em;
+  color: #feae34;
+}
+
+.self-preview video {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  transform: scaleX(-1);
+}
+
+.bubbles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 96px;
+  margin-left: -48px;
+  margin-top: -80px;
+  pointer-events: auto;
+  cursor: zoom-in;
+  border: 2px solid #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #181425;
+  will-change: transform;
+}
+
+.bubble video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.bubble span {
+  position: absolute;
+  left: 4px;
+  bottom: 2px;
+  font-size: 0.7em;
+  text-shadow: 0 0 2px #181425;
+}
+
+.bubble.expanded {
+  inset: 50% auto auto 50%;
+  width: min(640px, 80%);
+  margin: 0;
+  transform: translate(-50%, -50%) !important;
+  cursor: zoom-out;
+  z-index: 5;
+}
+
+.chat-hint,
+.chat-box {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+}
+
+.chat-hint {
+  font-size: 0.8em;
+  color: #8b9bb4;
+  pointer-events: none;
+}
+
+.chat-box input {
+  width: min(420px, 60vw);
+}

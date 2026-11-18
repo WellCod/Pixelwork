@@ -15,6 +15,7 @@ export const TEST_CONFIG: AppConfig = {
   publicUrl: TEST_ORIGIN,
   cookieSecure: false,
   demoSpaceSlug: 'demo',
+  livekit: { url: 'ws://localhost:7880', apiKey: 'devkey', apiSecret: 'secret' },
 };
 
 /** Mapa 10x8 com parede na borda, spawn em (1, 1) e três mesas na linha 1 com a cadeira embaixo. */

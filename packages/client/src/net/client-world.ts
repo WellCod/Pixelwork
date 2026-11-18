@@ -7,6 +7,8 @@ export type WorldEvent =
   | { type: 'leave'; id: string }
   | { type: 'update'; id: string }
   | { type: 'desk'; desk: DeskState }
+  | { type: 'chat'; from: string; text: string }
+  | { type: 'error'; code: string }
   | { type: 'remoteMove'; id: string; x: number; y: number; dir: Dir }
   /** A predição divergiu do servidor: o avatar próprio vai direto para `pos`. */
   | { type: 'selfCorrected'; pos: Pos }
@@ -80,6 +82,12 @@ export class ClientWorld {
       case 'desk.updated':
         this.desks.set(msg.desk.deskKey, msg.desk);
         this.emit({ type: 'desk', desk: msg.desk });
+        break;
+      case 'chat.said':
+        this.emit({ type: 'chat', from: msg.from, text: msg.text });
+        break;
+      case 'error':
+        this.emit({ type: 'error', code: msg.code });
         break;
       default:
         break;
