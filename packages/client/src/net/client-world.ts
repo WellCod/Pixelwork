@@ -1,10 +1,12 @@
-import type { ClientMsg, CompiledMap, Dir, Player, ServerMsg } from '@pixelwork/shared';
+import type { ClientMsg, CompiledMap, DeskState, Dir, Player, ServerMsg } from '@pixelwork/shared';
 import { predictStep, reconcile, type PendingMove, type Pos } from './reconcile.ts';
 
 export type WorldEvent =
   | { type: 'reset' }
   | { type: 'join'; player: Player }
   | { type: 'leave'; id: string }
+  | { type: 'update'; id: string }
+  | { type: 'desk'; desk: DeskState }
   | { type: 'remoteMove'; id: string; x: number; y: number; dir: Dir }
   /** A predição divergiu do servidor: o avatar próprio vai direto para `pos`. */
   | { type: 'selfCorrected'; pos: Pos }
@@ -14,13 +16,16 @@ export type WorldEvent =
 export class ClientWorld {
   selfId: string | null = null;
   readonly players = new Map<string, Player>();
+  readonly desks = new Map<string, DeskState>();
+  /** Muda a cada evento; a UI em React usa como snapshot. */
+  version = 0;
   self: Pos = { x: 0, y: 0, dir: 'down' };
   private authoritative: Pos = { x: 0, y: 0, dir: 'down' };
   private pending: PendingMove[] = [];
   private seq = 0;
   private readonly listeners = new Set<(event: WorldEvent) => void>();
 
-  constructor(private readonly map: CompiledMap) {}
+  constructor(readonly map: CompiledMap) {}
 
   subscribe(listener: (event: WorldEvent) => void): () => void {
     this.listeners.add(listener);
@@ -33,6 +38,8 @@ export class ClientWorld {
         this.selfId = msg.selfId;
         this.players.clear();
         for (const p of msg.players) this.players.set(p.id, p);
+        this.desks.clear();
+        for (const d of msg.desks) this.desks.set(d.deskKey, d);
         const me = this.players.get(msg.selfId);
         this.self = me ? { x: me.x, y: me.y, dir: me.dir } : this.self;
         this.authoritative = this.self;
@@ -67,8 +74,13 @@ export class ClientWorld {
       case 'player.update': {
         const player = this.players.get(msg.id);
         if (player) Object.assign(player, msg.patch);
+        this.emit({ type: 'update', id: msg.id });
         break;
       }
+      case 'desk.updated':
+        this.desks.set(msg.desk.deskKey, msg.desk);
+        this.emit({ type: 'desk', desk: msg.desk });
+        break;
       default:
         break;
     }
@@ -84,6 +96,7 @@ export class ClientWorld {
   }
 
   private emit(event: WorldEvent): void {
+    this.version++;
     for (const listener of this.listeners) listener(event);
   }
 }
