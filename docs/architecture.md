@@ -90,6 +90,11 @@ volumes:
   outro aparelho na rede local: TLS local (mkcert) no app e no LiveKit (página HTTPS não abre `ws://`).
 - Vários usuários numa máquina: perfis do Chrome com `--use-fake-device-for-media-stream` e
   `--use-fake-ui-for-media-stream`.
+- No Windows, a câmera falsa padrão do Chrome encerra a trilha em poucos segundos (o LiveKit
+  então muta a câmera), e duas instâncias no mesmo processo disputam o dispositivo. Para testar
+  vídeo: um processo por usuário e `--use-file-for-fake-video-capture=<arquivo>.y4m`.
+- Em modo de desenvolvimento, `window.__pixelwork` expõe `media`, `world` e `controller` para
+  scripts de verificação (`media.debugState()` mostra o que está assinado).
 
 Variáveis de ambiente:
 
