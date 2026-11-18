@@ -245,6 +245,13 @@ Restrições (o servidor rejeita com código de erro):
 - `name` da zona é desenhado como rótulo no mapa (ex.: "Product team").
 - A cadeira da mesa é o tile à frente dela, conforme `orientation`. Esse tile precisa ser
   caminhável. "Sentado" = estar no tile da cadeira da própria mesa.
+- Decisões da fase 1: caminhável = tem piso, não tem parede e não tem móvel com `collides`. A
+  própria mesa ocupa e bloqueia o seu tile. Objetos de tile (móveis) seguem a âncora do Tiled, no
+  canto inferior esquerdo. Entrada que não é objeto JSON devolve `not_orthogonal` (não há
+  `orientation`). Os metadados dos `.tsj` (colunas, `collides`, `item_id`) vão para o catálogo
+  gerado (`TILESETS`), para o `compileMap` não ler arquivo.
+- O Phaser não lê tileset externo: o cliente embute os tilesets do catálogo no JSON só para
+  renderizar. O mapa salvo continua com `source`.
 
 Compilação (em `shared`, usada por cliente e servidor):
 
@@ -324,6 +331,16 @@ export function step(
   10 segundos fecham a conexão (código 1008). Mais de 50 mensagens por segundo também.
 - Desconexão: o jogador permanece por `RECONNECT_GRACE_MS` antes de `player.leave`. O cliente
   reconecta com backoff exponencial.
+- Decisões da fase 1:
+  - Upgrade feito à mão (`ws` em `noServer` no evento `upgrade` do Fastify): `Origin`, cookie e
+    `space_members` são conferidos antes de aceitar.
+  - Fechamento: 4001 para `session.replaced` (o cliente não reconecta), 1008 para mensagens
+    inválidas ou taxa.
+  - O passo é aplicado quando a mensagem chega; o tick só faz o broadcast. Passo ignorado pelo
+    intervalo mínimo também conta no `ack`. A contagem de `seq` recomeça a cada `welcome`.
+  - O tick só sai quando alguém se moveu ou o `ack` de quem recebe mudou.
+  - Interpolação: com vários passos na fila, a velocidade sobe na proporção da fila, então o
+    avatar nunca fica mais de um passo atrás.
 
 ```ts
 type Dir = 'up' | 'down' | 'left' | 'right';

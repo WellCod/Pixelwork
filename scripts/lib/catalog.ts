@@ -40,6 +40,43 @@ export interface CatalogInput {
   palette: ReadonlySet<string>;
   /** Caminho relativo a `assets/`. */
   fileExists: (path: string) => boolean;
+  /** Conteúdo do `.tsj` do tileset, já lido como JSON. */
+  readTileset: (id: string) => unknown;
+}
+
+const Tsj = z.object({
+  tilewidth: z.literal(16),
+  tileheight: z.literal(16),
+  columns: z.number().int().positive(),
+  tilecount: z.number().int().positive(),
+  tiles: z
+    .array(
+      z.object({
+        id: z.number().int().nonnegative(),
+        properties: z
+          .array(z.object({ name: z.string(), type: z.string(), value: z.unknown() }))
+          .optional(),
+      }),
+    )
+    .optional(),
+});
+
+interface TilesetMeta {
+  columns: number;
+  tilecount: number;
+  collides: number[];
+  items: Record<number, string>;
+}
+
+function tilesetMeta(tsj: z.infer<typeof Tsj>): TilesetMeta {
+  const meta: TilesetMeta = { columns: tsj.columns, tilecount: tsj.tilecount, collides: [], items: {} };
+  for (const tile of tsj.tiles ?? []) {
+    for (const prop of tile.properties ?? []) {
+      if (prop.name === 'collides' && prop.value === true) meta.collides.push(tile.id);
+      if (prop.name === 'item_id' && typeof prop.value === 'string') meta.items[tile.id] = prop.value;
+    }
+  }
+  return meta;
 }
 
 export class CatalogError extends Error {
@@ -103,10 +140,16 @@ export function buildCatalog(input: CatalogInput): string {
   const { tilesets, characters, deskDecor } = manifest.data;
 
   problems.push(...duplicates('tilesets', tilesets));
+  const tilesetMetas: Record<string, TilesetMeta> = {};
   for (const t of tilesets) {
-    for (const file of [`tilesets/${t.id}.png`, `tilesets/${t.id}.tsj`]) {
-      if (!input.fileExists(file)) problems.push(`tilesets: arquivo ausente ${file}`);
-    }
+    const missing = [`tilesets/${t.id}.png`, `tilesets/${t.id}.tsj`].filter(
+      (file) => !input.fileExists(file),
+    );
+    for (const file of missing) problems.push(`tilesets: arquivo ausente ${file}`);
+    if (missing.length > 0) continue;
+    const tsj = Tsj.safeParse(input.readTileset(t.id));
+    if (tsj.success) tilesetMetas[t.id] = tilesetMeta(tsj.data);
+    else problems.push(...zodProblems(`tilesets/${t.id}.tsj`, tsj.error));
   }
   for (const [layer, assets] of Object.entries(characters)) {
     problems.push(...duplicates(`characters.${layer}`, assets));
@@ -151,6 +194,8 @@ export function buildCatalog(input: CatalogInput): string {
     list('OUTFIT_PALETTES', rampIds('outfit')),
     '\n',
     `export const RAMPS = ${JSON.stringify(ramps, null, 2)} as const;\n\n`,
+    '// Metadados dos .tsj: colisão e item_id por índice de tile.\n',
+    `export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = ${JSON.stringify(tilesetMetas, null, 2)};\n\n`,
     `export const CREDITS = ${JSON.stringify(credits, null, 2)} as const;\n\n`,
     'export type TilesetId = (typeof TILESET_IDS)[number];\n',
     'export type BodyId = (typeof BODY_IDS)[number];\n',
