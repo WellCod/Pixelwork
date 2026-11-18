@@ -1,7 +1,10 @@
 import type { ClientMsg, CompiledMap } from '@pixelwork/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SpaceDetail } from './api.ts';
-import { createGame } from './game/createGame.ts';
+import { EditorPanel } from './editor/EditorPanel.tsx';
+import { EditorScene } from './editor/EditorScene.ts';
+import type { EditorController } from './editor/editor-controller.ts';
+import { createGame, mountGame } from './game/createGame.ts';
 import type { WorldScene } from './game/WorldScene.ts';
 import { MediaManager } from './media/media-manager.ts';
 import { ProximityController } from './media/proximity-controller.ts';
@@ -23,9 +26,13 @@ interface Props {
   onStatus: (status: ConnectionStatus) => void;
   /** `map.updated`: quem renderiza busca o mapa novo e passa de volta em `space` e `map`. */
   onMapUpdated: () => void;
+  /** Modo de edição do mapa (só admin): troca a cena do jogo pela do editor. */
+  editor: { controller: EditorController; baseVersion: number } | null;
+  onEditorBaseVersion: (version: number) => void;
+  onEditorClose: () => void;
 }
 
-export function GameView({ space, map, onStatus, onMapUpdated }: Props) {
+export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorBaseVersion, onEditorClose }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const connection = useRef<Connection | null>(null);
   const statusListener = useRef(onStatus);
@@ -38,7 +45,6 @@ export function GameView({ space, map, onStatus, onMapUpdated }: Props) {
   const [media] = useState(() => new MediaManager());
   const [controller] = useState(() => new ProximityController(world, media));
   const scene = useRef<WorldScene | null>(null);
-  const [sceneReady, setSceneReady] = useState(false);
   const positionOf = useCallback((id: string) => scene.current?.screenPosition(id) ?? null, []);
   const [calls] = useState(() => new CallStore(world));
 
@@ -76,40 +82,63 @@ export function GameView({ space, map, onStatus, onMapUpdated }: Props) {
     };
   }, [space.id, world, media, controller, calls]);
 
+  // Editando, a cena é a do editor e ignora mapas que chegam de fora (o salvar dá 409).
+  const editorController = editor?.controller ?? null;
+  const worldMap = editorController ? null : map;
+  const worldMapJson = editorController ? null : space.map;
+
   // A cena é refeita quando o mapa muda; o estado do mundo e a conexão continuam.
   useEffect(() => {
     const parent = container.current;
     if (!parent) return;
-    world.setMap(map);
+    if (editorController || !worldMap) {
+      if (!editorController) return;
+      const created = mountGame(parent, new EditorScene(editorController));
+      if (import.meta.env.DEV) Object.assign(window, { __pixelworkEditor: { scene: created.scene, controller: editorController } });
+      return () => {
+        created.game.destroy(true);
+      };
+    }
+    world.setMap(worldMap);
     const created = createGame(parent, {
       world,
-      mapJson: space.map as Record<string, unknown>,
+      mapJson: worldMapJson as Record<string, unknown>,
       send: (msg) => connection.current?.send(msg),
     });
     scene.current = created.scene;
-    setSceneReady(true);
     return () => {
       scene.current = null;
-      setSceneReady(false);
       created.game.destroy(true);
     };
-  }, [space.map, map, world]);
+  }, [editorController, worldMap, worldMapJson, world]);
 
   return (
       <div className="main">
         <div className="stage">
           <div ref={container} className="game" />
-          {sceneReady && (
-            <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />
-          )}
+          {!editor && <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
           <MediaControls media={media} />
-          <ZoneUi world={world} send={send} />
           <CallUi calls={calls} world={world} />
-          <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
-          <ChatBox world={world} send={send} />
+          {!editor && (
+            <>
+              <ZoneUi world={world} send={send} />
+              <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
+              <ChatBox world={world} send={send} />
+            </>
+          )}
         </div>
-        <Sidebar world={world} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
+        {editor ? (
+          <EditorPanel
+            controller={editor.controller}
+            spaceId={space.id}
+            baseVersion={editor.baseVersion}
+            onBaseVersion={onEditorBaseVersion}
+            onClose={onEditorClose}
+          />
+        ) : (
+          <Sidebar world={world} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
+        )}
       </div>
   );
 }
