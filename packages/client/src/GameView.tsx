@@ -1,5 +1,5 @@
 import type { ClientMsg, CompiledMap } from '@pixelwork/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SpaceDetail } from './api.ts';
 import { createGame } from './game/createGame.ts';
 import type { WorldScene } from './game/WorldScene.ts';
@@ -21,26 +21,31 @@ interface Props {
   space: SpaceDetail;
   map: CompiledMap;
   onStatus: (status: ConnectionStatus) => void;
+  /** `map.updated`: quem renderiza busca o mapa novo e passa de volta em `space` e `map`. */
+  onMapUpdated: () => void;
 }
 
-export function GameView({ space, map, onStatus }: Props) {
+export function GameView({ space, map, onStatus, onMapUpdated }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const connection = useRef<Connection | null>(null);
   const statusListener = useRef(onStatus);
+  const mapListener = useRef(onMapUpdated);
   useEffect(() => {
     statusListener.current = onStatus;
+    mapListener.current = onMapUpdated;
   });
   const [world] = useState(() => new ClientWorld(map));
   const [media] = useState(() => new MediaManager());
   const [controller] = useState(() => new ProximityController(world, media));
-  const [scene, setScene] = useState<WorldScene | null>(null);
+  const scene = useRef<WorldScene | null>(null);
+  const [sceneReady, setSceneReady] = useState(false);
+  const positionOf = useCallback((id: string) => scene.current?.screenPosition(id) ?? null, []);
   const [calls] = useState(() => new CallStore(world));
 
   const send = (msg: ClientMsg) => connection.current?.send(msg);
 
+  // Conexão, mídia e chamadas vivem enquanto o coworking for o mesmo, mesmo se o mapa trocar.
   useEffect(() => {
-    const parent = container.current;
-    if (!parent) return;
     const conn = new Connection(
       space.id,
       (msg) => {
@@ -54,12 +59,9 @@ export function GameView({ space, map, onStatus }: Props) {
       },
     );
     connection.current = conn;
-    const created = createGame(parent, {
-      world,
-      mapJson: space.map as Record<string, unknown>,
-      send: (msg) => conn.send(msg),
+    const stopMap = world.subscribe((event) => {
+      if (event.type === 'mapUpdated') mapListener.current();
     });
-    setScene(created.scene);
     controller.start();
     const stopCalls = calls.start((msg) => conn.send(msg));
     // Só em desenvolvimento: estado de assinatura e posição para scripts de verificação.
@@ -68,18 +70,38 @@ export function GameView({ space, map, onStatus }: Props) {
     return () => {
       controller.stop();
       stopCalls();
+      stopMap();
       conn.close();
       void media.close();
-      created.game.destroy(true);
-      setScene(null);
     };
-  }, [space, world, media, controller, calls]);
+  }, [space.id, world, media, controller, calls]);
+
+  // A cena é refeita quando o mapa muda; o estado do mundo e a conexão continuam.
+  useEffect(() => {
+    const parent = container.current;
+    if (!parent) return;
+    world.setMap(map);
+    const created = createGame(parent, {
+      world,
+      mapJson: space.map as Record<string, unknown>,
+      send: (msg) => connection.current?.send(msg),
+    });
+    scene.current = created.scene;
+    setSceneReady(true);
+    return () => {
+      scene.current = null;
+      setSceneReady(false);
+      created.game.destroy(true);
+    };
+  }, [space.map, map, world]);
 
   return (
       <div className="main">
         <div className="stage">
           <div ref={container} className="game" />
-          {scene && <VideoBubbles media={media} world={world} controller={controller} scene={scene} />}
+          {sceneReady && (
+            <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />
+          )}
           <RoomPanel media={media} world={world} />
           <MediaControls media={media} />
           <ZoneUi world={world} send={send} />

@@ -132,7 +132,15 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
   }
 };
 
-export const CREDITS = [
+export interface Credit {
+  kind: string;
+  id: string;
+  license: 'own' | 'CC0' | 'CC-BY';
+  author: string;
+  source: string | null;
+}
+
+export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "floors",
@@ -280,7 +288,7 @@ export const CREDITS = [
     "author": "Pixelwork",
     "source": null
   }
-] as const;
+];
 
 export type TilesetId = (typeof TILESET_IDS)[number];
 export type BodyId = (typeof BODY_IDS)[number];
