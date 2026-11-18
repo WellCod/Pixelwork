@@ -1,26 +1,39 @@
+import { randomUUID } from 'node:crypto';
 import {
+  CALL_RING_TIMEOUT_MS,
   CHAT_MAX_CHARS,
   CLOSE_POLICY,
   CLOSE_SESSION_REPLACED,
   ClientMsg,
+  DIR_DELTA,
+  KNOCK_TIMEOUT_MS,
   RECONNECT_GRACE_MS,
   TICK_MS,
   chatRecipients,
   step,
   zoneAt,
+  type Activity,
   type CompiledDesk,
   type CompiledMap,
   type DeskState,
   type Player,
   type ServerMsg,
   type SimPlayer,
+  type StepRules,
   type TickMove,
   type WorldState,
   type ZoneState,
 } from '@pixelwork/shared';
 import type { PlayerProfile } from '../spaces/members.ts';
 import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
-import { SPACE_SOURCES, spaceRoom, type MediaService } from './media.ts';
+import {
+  PRIVATE_SOURCES,
+  SPACE_SOURCES,
+  callRoom,
+  spaceRoom,
+  zoneRoom,
+  type MediaService,
+} from './media.ts';
 
 export interface Conn {
   send(data: string): void;
@@ -44,6 +57,31 @@ interface Member {
   invalid: WindowCounter;
   rate: WindowCounter;
   chat: TokenBucket;
+  /** Zona onde estava no último movimento, para detectar entrada e saída. */
+  zoneKey: string;
+  /** Sala de mídia para a qual o cliente foi mandado por último. */
+  mediaRoom: string | null;
+  activity: Activity;
+}
+
+interface Lock {
+  locked: boolean;
+  /** Quem estava dentro na hora da tranca mais quem foi aprovado depois. */
+  allowed: Set<string>;
+}
+
+interface Knock {
+  zoneKey: string;
+  from: string;
+  timer: Timer;
+}
+
+interface Call {
+  id: string;
+  from: string;
+  to: string;
+  active: boolean;
+  timer: Timer | null;
 }
 
 export interface RuntimeDeps {
@@ -53,13 +91,17 @@ export interface RuntimeDeps {
   log: { error: (obj: unknown, msg: string) => void };
 }
 
-/** Estado em memória de um coworking: jogadores, simulação e broadcast por tick. */
+/** Estado em memória de um coworking: jogadores, simulação, salas e chamadas. */
 export class SpaceRuntime {
   private world: WorldState = { players: new Map() };
   private readonly members = new Map<string, Member>();
   private readonly moved = new Set<string>();
   private ticker: Timer | null = null;
   private readonly desks = new Map<string, DeskState>();
+  private readonly locks = new Map<string, Lock>();
+  private readonly knocks = new Map<string, Knock>();
+  private readonly calls = new Map<string, Call>();
+  private readonly rules: StepRules;
 
   constructor(
     readonly spaceId: string,
@@ -75,6 +117,10 @@ export class SpaceRuntime {
     for (const assignment of assignments) {
       if (this.desks.has(assignment.deskKey)) this.desks.set(assignment.deskKey, assignment);
     }
+    for (const zone of map.zones) {
+      if (zone.type === 'meeting') this.locks.set(zone.key, { locked: false, allowed: new Set() });
+    }
+    this.rules = { canEnter: (id, x, y) => this.canEnter(id, x, y) };
   }
 
   /** Mesa do mapa compilado, para conferir a cadeira. */
@@ -109,12 +155,6 @@ export class SpaceRuntime {
     }
   }
 
-  get connectedCount(): number {
-    let count = 0;
-    for (const member of this.members.values()) if (member.conn) count++;
-    return count;
-  }
-
   connect(profile: PlayerProfile, conn: Conn): void {
     const { clock } = this.deps;
     let member = this.members.get(profile.id);
@@ -139,12 +179,16 @@ export class SpaceRuntime {
         invalid: new WindowCounter(clock, INVALID_WINDOW_MS, MAX_INVALID),
         rate: new WindowCounter(clock, RATE_WINDOW_MS, MAX_MESSAGES_PER_SECOND),
         chat: new TokenBucket(clock, CHAT_BURST, CHAT_PER_SECOND),
+        zoneKey: zoneAt(this.map, this.map.spawn.x, this.map.spawn.y).key,
+        mediaRoom: null,
+        activity: 'idle',
       };
       this.members.set(profile.id, member);
       const players = new Map(this.world.players);
       const sim: SimPlayer = { ...this.map.spawn, dir: 'down', lastStepAt: -Infinity };
       players.set(profile.id, sim);
       this.world = { players };
+      member.activity = this.activityOf(profile.id);
       this.broadcast({ t: 'player.join', player: this.player(profile.id) }, profile.id);
     }
 
@@ -152,6 +196,8 @@ export class SpaceRuntime {
     member.lastSeq = 0;
     member.ackDirty = false;
     member.conn = conn;
+    // Conexão nova sempre recebe a sala atual, mesmo que seja a mesma de antes.
+    member.mediaRoom = null;
     this.send(conn, {
       t: 'welcome',
       selfId: profile.id,
@@ -161,20 +207,7 @@ export class SpaceRuntime {
       desks: [...this.desks.values()],
     });
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
-    void this.joinMedia(profile.id, conn);
-  }
-
-  /** Quem decide a sala de mídia é o servidor (invariante 3). Na fase 3, sempre a `space:`. */
-  private async joinMedia(userId: string, conn: Conn): Promise<void> {
-    const room = spaceRoom(this.spaceId);
-    try {
-      const token = await this.deps.media.token(userId, room, SPACE_SOURCES);
-      // A conexão pode ter caído ou sido substituída enquanto o token era assinado.
-      if (this.members.get(userId)?.conn !== conn) return;
-      this.send(conn, { t: 'media.join', room, token, url: this.deps.media.url });
-    } catch (error) {
-      this.deps.log.error({ error, userId, room }, 'falha ao emitir token de mídia');
-    }
+    this.syncMedia(profile.id);
   }
 
   onMessage(userId: string, conn: Conn, raw: string | null): void {
@@ -200,37 +233,37 @@ export class SpaceRuntime {
           [{ playerId: userId, seq: msg.seq, dir: msg.dir }],
           this.deps.clock.now(),
           this.map,
+          this.rules,
         );
         this.world = result.state;
         for (const event of result.events) this.moved.add(event.id);
+        this.afterMove(userId);
         break;
       }
       case 'chat.say':
         this.chat(userId, member, conn, msg.text);
         break;
-      default:
-        this.send(conn, { t: 'error', code: 'not_implemented' });
-    }
-  }
-
-  /** Destinatários calculados aqui: o cliente não escolhe quem lê. Nada é guardado. */
-  private chat(userId: string, member: Member, conn: Conn, raw: string): void {
-    const text = raw.trim();
-    const length = Array.from(text).length;
-    if (length === 0 || length > CHAT_MAX_CHARS) {
-      this.send(conn, { t: 'error', code: 'chat_invalid' });
-      return;
-    }
-    if (!member.chat.take()) {
-      this.send(conn, { t: 'error', code: 'chat_rate' });
-      return;
-    }
-    const author = this.world.players.get(userId);
-    if (!author) return;
-    const players = [...this.world.players].map(([id, p]) => ({ id, x: p.x, y: p.y }));
-    const data = JSON.stringify({ t: 'chat.said', from: userId, text } satisfies ServerMsg);
-    for (const id of chatRecipients(this.map, { id: userId, x: author.x, y: author.y }, players)) {
-      this.members.get(id)?.conn?.send(data);
+      case 'zone.lock':
+        this.lock(userId, conn, msg.zoneKey, msg.locked);
+        break;
+      case 'zone.knock':
+        this.knock(userId, conn, msg.zoneKey);
+        break;
+      case 'zone.knockReply':
+        this.knockReply(userId, msg.requestId, msg.allow);
+        break;
+      case 'call.invite':
+        this.invite(userId, conn, msg.userId);
+        break;
+      case 'call.reply':
+        this.reply(userId, msg.callId, msg.accept);
+        break;
+      case 'call.leave': {
+        const call = this.callOf(userId);
+        // Quem recebe e sai antes de atender está recusando; o resto é saída.
+        if (call) this.endCall(call, !call.active && call.to === userId ? 'declined' : 'left');
+        break;
+      }
     }
   }
 
@@ -238,6 +271,9 @@ export class SpaceRuntime {
     const member = this.members.get(userId);
     if (member?.conn !== conn) return;
     member.conn = null;
+    // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
+    const call = this.callOf(userId);
+    if (call) this.endCall(call, 'left');
     member.leaveTimer = this.deps.scheduler.setTimeout(() => this.leave(userId), RECONNECT_GRACE_MS);
   }
 
@@ -261,21 +297,304 @@ export class SpaceRuntime {
   close(): void {
     this.ticker?.cancel();
     this.ticker = null;
+    for (const knock of this.knocks.values()) knock.timer.cancel();
+    for (const call of this.calls.values()) call.timer?.cancel();
     for (const member of this.members.values()) {
       member.leaveTimer?.cancel();
       member.conn?.close(1001, 'server shutdown');
     }
+    this.knocks.clear();
+    this.calls.clear();
     this.members.clear();
     this.world = { players: new Map() };
   }
 
+  // ---- zonas de reunião ----
+
+  /** Ponto de extensão da simulação: sala trancada só para quem está na lista. */
+  private canEnter(userId: string, x: number, y: number): boolean {
+    const zone = zoneAt(this.map, x, y);
+    const lock = this.locks.get(zone.key);
+    if (!lock?.locked) return true;
+    return lock.allowed.has(userId) || this.members.get(userId)?.zoneKey === zone.key;
+  }
+
+  private occupants(zoneKey: string): string[] {
+    const ids: string[] = [];
+    for (const [id, p] of this.world.players) {
+      if (zoneAt(this.map, p.x, p.y).key === zoneKey) ids.push(id);
+    }
+    return ids;
+  }
+
+  private zoneState(zoneKey: string): ZoneState {
+    const lock = this.locks.get(zoneKey);
+    return { zoneKey, locked: lock?.locked ?? false, occupants: this.occupants(zoneKey) };
+  }
+
+  private zoneStates(): ZoneState[] {
+    return [...this.locks.keys()].map((key) => this.zoneState(key));
+  }
+
+  /** Entrada e saída de zona: estado da sala, destranca automática, atividade e sala de mídia. */
+  private afterMove(userId: string): void {
+    const member = this.members.get(userId);
+    const p = this.world.players.get(userId);
+    if (!member || !p) return;
+    const zoneKey = zoneAt(this.map, p.x, p.y).key;
+    if (zoneKey === member.zoneKey) return;
+    const previous = member.zoneKey;
+    member.zoneKey = zoneKey;
+    this.zoneChanged(previous);
+    this.zoneChanged(zoneKey);
+    this.refresh(userId);
+  }
+
+  private zoneChanged(zoneKey: string): void {
+    const lock = this.locks.get(zoneKey);
+    if (!lock) return;
+    if (lock.locked && this.occupants(zoneKey).length === 0) {
+      lock.locked = false;
+      lock.allowed.clear();
+      for (const [requestId, knock] of this.knocks) {
+        if (knock.zoneKey === zoneKey) this.resolveKnock(requestId, false);
+      }
+    }
+    this.broadcast({ t: 'zone.state', zone: this.zoneState(zoneKey) });
+  }
+
+  private lock(userId: string, conn: Conn, zoneKey: string, locked: boolean): void {
+    const lock = this.locks.get(zoneKey);
+    if (!lock || this.members.get(userId)?.zoneKey !== zoneKey) {
+      this.send(conn, { t: 'error', code: 'not_in_zone' });
+      return;
+    }
+    lock.locked = locked;
+    lock.allowed = locked ? new Set(this.occupants(zoneKey)) : new Set();
+    this.broadcast({ t: 'zone.state', zone: this.zoneState(zoneKey) });
+  }
+
+  private knock(userId: string, conn: Conn, zoneKey: string): void {
+    const lock = this.locks.get(zoneKey);
+    const p = this.world.players.get(userId);
+    if (!lock || !p) {
+      this.send(conn, { t: 'error', code: 'not_at_door' });
+      return;
+    }
+    if (!lock.locked) {
+      this.send(conn, { t: 'error', code: 'not_locked' });
+      return;
+    }
+    const inside = zoneAt(this.map, p.x, p.y).key === zoneKey;
+    const atDoor = Object.values(DIR_DELTA).some(
+      ([dx, dy]) => zoneAt(this.map, p.x + dx, p.y + dy).key === zoneKey,
+    );
+    if (inside || !atDoor) {
+      this.send(conn, { t: 'error', code: 'not_at_door' });
+      return;
+    }
+    if ([...this.knocks.values()].some((k) => k.from === userId && k.zoneKey === zoneKey)) return;
+
+    const requestId = randomUUID();
+    const timer = this.deps.scheduler.setTimeout(() => this.resolveKnock(requestId, false), KNOCK_TIMEOUT_MS);
+    this.knocks.set(requestId, { zoneKey, from: userId, timer });
+    const data = JSON.stringify({ t: 'zone.knockRequest', requestId, zoneKey, from: userId } satisfies ServerMsg);
+    for (const id of this.occupants(zoneKey)) this.members.get(id)?.conn?.send(data);
+  }
+
+  /** A primeira resposta de um ocupante vale; as seguintes encontram o pedido já resolvido. */
+  private knockReply(userId: string, requestId: string, allow: boolean): void {
+    const knock = this.knocks.get(requestId);
+    if (!knock || this.members.get(userId)?.zoneKey !== knock.zoneKey) return;
+    this.resolveKnock(requestId, allow);
+  }
+
+  private resolveKnock(requestId: string, allow: boolean): void {
+    const knock = this.knocks.get(requestId);
+    if (!knock) return;
+    this.knocks.delete(requestId);
+    knock.timer.cancel();
+    const lock = this.locks.get(knock.zoneKey);
+    const allowed = allow && lock?.locked === true;
+    if (allowed) lock.allowed.add(knock.from);
+    const conn = this.members.get(knock.from)?.conn;
+    if (conn) this.send(conn, { t: 'zone.knockResult', zoneKey: knock.zoneKey, allowed });
+  }
+
+  // ---- chamadas ----
+
+  private callOf(userId: string): Call | undefined {
+    for (const call of this.calls.values()) if (call.from === userId || call.to === userId) return call;
+    return undefined;
+  }
+
+  /** Sentado = no tile da cadeira da própria mesa. */
+  private isSeated(userId: string): boolean {
+    const p = this.world.players.get(userId);
+    if (!p) return false;
+    return this.map.desks.some(
+      (d) => d.chairX === p.x && d.chairY === p.y && this.desks.get(d.key)?.userId === userId,
+    );
+  }
+
+  private invite(userId: string, conn: Conn, target: string): void {
+    if (!this.isSeated(userId)) {
+      this.send(conn, { t: 'error', code: 'not_seated' });
+      return;
+    }
+    if (target === userId || !this.members.get(target)?.conn) {
+      this.send(conn, { t: 'error', code: 'call_unavailable' });
+      return;
+    }
+    if (this.callOf(userId)) {
+      this.send(conn, { t: 'error', code: 'already_in_call' });
+      return;
+    }
+    const id = randomUUID();
+    if (this.callOf(target) || this.activityOf(target) === 'meeting') {
+      this.send(conn, { t: 'call.ended', callId: id, reason: 'busy' });
+      return;
+    }
+    const call: Call = { id, from: userId, to: target, active: false, timer: null };
+    call.timer = this.deps.scheduler.setTimeout(() => this.endCall(call, 'timeout'), CALL_RING_TIMEOUT_MS);
+    this.calls.set(id, call);
+    const targetConn = this.members.get(target)?.conn;
+    if (targetConn) this.send(targetConn, { t: 'call.incoming', callId: id, from: userId });
+  }
+
+  private reply(userId: string, callId: string, accept: boolean): void {
+    const call = this.calls.get(callId);
+    if (call?.to !== userId || call.active) return;
+    if (!accept) {
+      this.endCall(call, 'declined');
+      return;
+    }
+    call.timer?.cancel();
+    call.timer = null;
+    call.active = true;
+    this.refresh(call.from);
+    this.refresh(call.to);
+  }
+
+  /** Encerra para os dois; cada um volta para a sala onde está no mapa. */
+  private endCall(call: Call, reason: 'declined' | 'left' | 'timeout'): void {
+    if (!this.calls.delete(call.id)) return;
+    call.timer?.cancel();
+    const msg: ServerMsg = { t: 'call.ended', callId: call.id, reason };
+    for (const id of [call.from, call.to]) {
+      const conn = this.members.get(id)?.conn;
+      if (conn) this.send(conn, msg);
+      this.refresh(id);
+    }
+  }
+
+  // ---- atividade e mídia ----
+
+  private activityOf(userId: string): Activity {
+    if (this.callOf(userId)?.active) return 'call';
+    const p = this.world.players.get(userId);
+    if (p && zoneAt(this.map, p.x, p.y).type === 'meeting') return 'meeting';
+    return 'idle';
+  }
+
+  /** Recalcula atividade (avisando todos) e sala de mídia de um jogador. */
+  private refresh(userId: string): void {
+    const member = this.members.get(userId);
+    if (!member) return;
+    const activity = this.activityOf(userId);
+    if (activity !== member.activity) {
+      member.activity = activity;
+      this.broadcast({ t: 'player.update', id: userId, patch: { activity } });
+    }
+    this.syncMedia(userId);
+  }
+
+  private mediaRoomOf(userId: string): string {
+    const call = this.callOf(userId);
+    if (call?.active) return callRoom(call.id);
+    const p = this.world.players.get(userId);
+    const zone = p ? zoneAt(this.map, p.x, p.y) : undefined;
+    if (zone?.type === 'meeting') return zoneRoom(this.spaceId, zone.key);
+    return spaceRoom(this.spaceId);
+  }
+
+  /**
+   * Quem decide a sala é o servidor (invariante 3). Ao trocar, emite o token da sala nova e
+   * tira o participante da anterior pela API do LiveKit, para o caso de o cliente ignorar o aviso.
+   */
+  private syncMedia(userId: string): void {
+    const member = this.members.get(userId);
+    if (!member) return;
+    const room = this.mediaRoomOf(userId);
+    if (room === member.mediaRoom) return;
+    const previous = member.mediaRoom;
+    member.mediaRoom = room;
+    if (previous && previous !== spaceRoom(this.spaceId)) {
+      this.deps.media.removeParticipant(previous, userId).catch((error: unknown) => {
+        // Participante que já tinha saído da sala dá erro no LiveKit; não muda nada.
+        this.deps.log.error({ error, userId, room: previous }, 'falha ao remover da sala de mídia');
+      });
+    }
+    const conn = member.conn;
+    if (conn) void this.sendMediaJoin(userId, conn, room);
+  }
+
+  private async sendMediaJoin(userId: string, conn: Conn, room: string): Promise<void> {
+    const sources = room === spaceRoom(this.spaceId) ? SPACE_SOURCES : PRIVATE_SOURCES;
+    try {
+      const token = await this.deps.media.token(userId, room, sources);
+      // A sala pode ter mudado de novo, ou a conexão caído, enquanto o token era assinado.
+      const member = this.members.get(userId);
+      if (member?.conn !== conn || member.mediaRoom !== room) return;
+      this.send(conn, { t: 'media.join', room, token, url: this.deps.media.url });
+    } catch (error) {
+      this.deps.log.error({ error, userId, room }, 'falha ao emitir token de mídia');
+    }
+  }
+
+  // ---- chat ----
+
+  /** Destinatários calculados aqui: o cliente não escolhe quem lê. Nada é guardado. */
+  private chat(userId: string, member: Member, conn: Conn, raw: string): void {
+    const text = raw.trim();
+    const length = Array.from(text).length;
+    if (length === 0 || length > CHAT_MAX_CHARS) {
+      this.send(conn, { t: 'error', code: 'chat_invalid' });
+      return;
+    }
+    if (!member.chat.take()) {
+      this.send(conn, { t: 'error', code: 'chat_rate' });
+      return;
+    }
+    const author = this.world.players.get(userId);
+    if (!author) return;
+    const players = [...this.world.players].map(([id, p]) => ({ id, x: p.x, y: p.y }));
+    const data = JSON.stringify({ t: 'chat.said', from: userId, text } satisfies ServerMsg);
+    for (const id of chatRecipients(this.map, { id: userId, x: author.x, y: author.y }, players)) {
+      this.members.get(id)?.conn?.send(data);
+    }
+  }
+
+  // ---- presença ----
+
   private leave(userId: string): void {
-    if (!this.members.delete(userId)) return;
+    const member = this.members.get(userId);
+    if (!member) return;
+    const call = this.callOf(userId);
+    if (call) this.endCall(call, 'left');
+    for (const [requestId, knock] of this.knocks) {
+      if (knock.from === userId) this.resolveKnock(requestId, false);
+    }
+    if (member.mediaRoom && member.mediaRoom !== spaceRoom(this.spaceId)) {
+      this.deps.media.removeParticipant(member.mediaRoom, userId).catch(() => undefined);
+    }
+    this.members.delete(userId);
     const players = new Map(this.world.players);
     players.delete(userId);
     this.world = { players };
     this.moved.delete(userId);
     this.broadcast({ t: 'player.leave', id: userId });
+    this.zoneChanged(member.zoneKey);
     if (this.members.size === 0) {
       this.ticker?.cancel();
       this.ticker = null;
@@ -286,18 +605,7 @@ export class SpaceRuntime {
     const member = this.members.get(id);
     const sim = this.world.players.get(id);
     if (!member || !sim) throw new Error(`jogador ${id} sem estado`);
-    return { ...member.profile, x: sim.x, y: sim.y, dir: sim.dir, activity: 'idle' };
-  }
-
-  private zoneStates(): ZoneState[] {
-    const zones = this.map.zones
-      .filter((z) => z.type === 'meeting')
-      .map((z): ZoneState => ({ zoneKey: z.key, locked: false, occupants: [] }));
-    for (const [id, p] of this.world.players) {
-      const zone = zones.find((z) => z.zoneKey === zoneAt(this.map, p.x, p.y).key);
-      zone?.occupants.push(id);
-    }
-    return zones;
+    return { ...member.profile, x: sim.x, y: sim.y, dir: sim.dir, activity: member.activity };
   }
 
   private send(conn: Conn, msg: ServerMsg): void {

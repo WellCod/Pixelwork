@@ -42,6 +42,16 @@ export function MediaControls({ media }: { media: MediaManager }) {
       >
         {media.camOn ? 'Câmera ligada' : 'Câmera desligada'}
       </button>
+      {media.isPrivate && (
+        <button
+          type="button"
+          className={media.screenOn ? 'on' : 'off'}
+          aria-pressed={media.screenOn}
+          onClick={() => void media.setScreenShare(!media.screenOn)}
+        >
+          {media.screenOn ? 'Parar de compartilhar' : 'Compartilhar tela'}
+        </button>
+      )}
       {media.camOn && (
         <div className="self-preview">
           <video ref={preview} muted playsInline />

@@ -1,7 +1,10 @@
 import { isSingleEmoji, type Player, type Status } from '@pixelwork/shared';
 import { useState, type SubmitEvent } from 'react';
 import { profileApi } from '../api.ts';
+import { seatedFacing } from '../game/presence.ts';
+import type { CallStore } from '../net/call-store.ts';
 import type { ClientWorld } from '../net/client-world.ts';
+import { useCalls } from './CallUi.tsx';
 import { AvatarEditor } from './AvatarEditor.tsx';
 import { AvatarPreview } from './AvatarPreview.tsx';
 import { errorMessage, useWorld } from './useWorld.ts';
@@ -12,8 +15,14 @@ const STATUS_LABEL: Record<Status, string> = {
   away: 'Ausente',
 };
 
-export function Sidebar({ world, spaceId }: { world: ClientWorld; spaceId: string }) {
+export function Sidebar({ world, spaceId, calls }: { world: ClientWorld; spaceId: string; calls: CallStore }) {
   useWorld(world);
+  useCalls(calls);
+  // Chamada só sai da própria mesa (o servidor confere de novo).
+  const seated =
+    world.selfId !== null && seatedFacing(world.map, world.desks, world.selfId, world.self.x, world.self.y) !== null;
+  const canCall = (p: Player) =>
+    seated && p.id !== world.selfId && p.activity !== 'call' && calls.state.kind === 'idle';
   const me = world.selfId ? world.players.get(world.selfId) : undefined;
   const people = [...world.players.values()].sort(
     (a, b) => Number(b.id === world.selfId) - Number(a.id === world.selfId) || a.name.localeCompare(b.name),
@@ -36,7 +45,15 @@ export function Sidebar({ world, spaceId }: { world: ClientWorld; spaceId: strin
                 </div>
                 {p.title && <div className="person-title">{p.title}</div>}
                 {p.statusText && <div className="person-status">{p.statusText}</div>}
+                {p.activity !== 'idle' && (
+                  <div className="person-status">{p.activity === 'call' ? 'Em chamada' : 'Em reunião'}</div>
+                )}
               </div>
+              {canCall(p) && (
+                <button type="button" className="call-button" onClick={() => calls.call(p.id)}>
+                  Ligar
+                </button>
+              )}
             </li>
           ))}
         </ul>
