@@ -4,6 +4,8 @@ import type { Me, SpaceDetail } from './api.ts';
 import { createGame } from './game/createGame.ts';
 import { ClientWorld } from './net/client-world.ts';
 import { Connection, type ConnectionStatus } from './net/connection.ts';
+import { DeskBar } from './ui/DeskBar.tsx';
+import { Sidebar } from './ui/Sidebar.tsx';
 
 interface Props {
   me: Me;
@@ -22,11 +24,11 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
 export function GameView({ me, space, map, onLogout }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [world] = useState(() => new ClientWorld(map));
 
   useEffect(() => {
     const parent = container.current;
     if (!parent) return;
-    const world = new ClientWorld(map);
     const connection = new Connection(space.id, (msg) => world.handle(msg), setStatus);
     const game = createGame(parent, {
       world,
@@ -38,7 +40,7 @@ export function GameView({ me, space, map, onLogout }: Props) {
       connection.close();
       game.destroy(true);
     };
-  }, [space, map]);
+  }, [space, world]);
 
   return (
     <div className="shell">
@@ -46,12 +48,18 @@ export function GameView({ me, space, map, onLogout }: Props) {
         <strong>{space.name}</strong>
         <span className={`status status-${status}`}>{STATUS_TEXT[status]}</span>
         <span className="spacer" />
-        <span>{me.name}</span>
+        <span>{me.isGuest ? 'Convidado' : me.name}</span>
         <button type="button" onClick={onLogout}>
           Sair
         </button>
       </header>
-      <div ref={container} className="game" />
+      <div className="main">
+        <div className="stage">
+          <div ref={container} className="game" />
+          <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
+        </div>
+        <Sidebar world={world} spaceId={space.id} />
+      </div>
     </div>
   );
 }

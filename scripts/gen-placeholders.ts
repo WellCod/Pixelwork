@@ -155,6 +155,12 @@ tileset('desk-decor', [
   { draw: object(C.white, 6), itemId: 'mug' },
   { draw: object(C.yellow, 3, C.red), itemId: 'poster' },
   { draw: object(C.greenDark, 5, C.green), itemId: 'plant-small' },
+  // Daqui para baixo, só acrescentar: os mapas referenciam os tiles pela posição.
+  { draw: object(C.navy, 0), collides: true, itemId: 'dark' },
+  { draw: object(C.yellow, 5, C.white), itemId: 'lamp' },
+  { draw: object(C.red, 4, C.blue), itemId: 'books' },
+  { draw: object(C.white, 4, C.outline), itemId: 'clock' },
+  { draw: object(C.slate, 5), itemId: 'bin' },
 ]);
 
 // Personagem: frame 16x32, 4 colunas x 5 linhas, mesma silhueta em todos os frames.
@@ -197,6 +203,28 @@ character('hair/short', (c, x, y) => {
   c.rect(x + 5, y + 7, 6, 2, hair2);
 });
 
+character('hair/long', (c, x, y) => {
+  c.rect(x + 3, y + 7, 10, 3, hair1);
+  c.rect(x + 3, y + 10, 2, 8, hair1);
+  c.rect(x + 11, y + 10, 2, 8, hair1);
+  c.rect(x + 5, y + 7, 6, 2, hair2);
+});
+
+character('hair/spiky', (c, x, y) => {
+  for (let i = 0; i < 4; i++) c.rect(x + 4 + i * 2, y + 5 + (i % 2), 2, 4, hair1);
+  c.rect(x + 5, y + 8, 6, 1, hair2);
+});
+
+character('outfit/hoodie', (c, x, y) => {
+  c.rect(x + 3, y + 16, 10, 13, outfit1);
+  c.rect(x + 6, y + 18, 4, 9, outfit2);
+});
+
 character('accessory/glasses', (c, x, y, row) => {
   if (row !== 3) c.rect(x + 5, y + 13, 6, 1, C.outline);
+});
+
+character('accessory/cap', (c, x, y, row) => {
+  c.rect(x + 4, y + 6, 8, 3, C.red);
+  if (row !== 3) c.rect(x + 4, y + 9, 10, 1, C.red);
 });

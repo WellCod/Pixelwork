@@ -6,6 +6,8 @@ import type { Db } from './db.ts';
 import { registerStateGuards } from './guards.ts';
 import { systemClock, type Clock, type Scheduler } from './realtime/clock.ts';
 import { attachGateway, type Gateway } from './realtime/gateway.ts';
+import { registerDeskRoutes } from './spaces/desk-routes.ts';
+import { registerProfileRoutes } from './spaces/profile-routes.ts';
 import { registerSpaceRoutes } from './spaces/routes.ts';
 
 declare module 'fastify' {
@@ -44,6 +46,8 @@ export function buildApp({
   registerStateGuards(app, config.publicUrl);
   registerAuthRoutes(app, { db, config, clock });
   registerSpaceRoutes(app, { db, config, clock });
+  registerProfileRoutes(app, { db, config, clock });
+  registerDeskRoutes(app, { db, config, clock });
 
   const gateway = attachGateway(app.server, {
     db,

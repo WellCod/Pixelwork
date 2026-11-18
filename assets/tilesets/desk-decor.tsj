@@ -4,11 +4,11 @@
   "name": "desk-decor",
   "image": "desk-decor.png",
   "imagewidth": 128,
-  "imageheight": 16,
+  "imageheight": 32,
   "tilewidth": 16,
   "tileheight": 16,
   "columns": 8,
-  "tilecount": 8,
+  "tilecount": 16,
   "margin": 0,
   "spacing": 0,
   "tiles": [
@@ -84,6 +84,61 @@
           "name": "item_id",
           "type": "string",
           "value": "plant-small"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "dark"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "lamp"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "books"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "clock"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "bin"
         }
       ]
     }
