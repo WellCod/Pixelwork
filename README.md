@@ -142,6 +142,6 @@ O deploy numa VPS está preparado (Caddy com TLS, app, Postgres, LiveKit), mas n
 
 ## Arte
 
-Toda a arte atual é placeholder gerado por script, em uma paleta fixa (Endesga 32), no layout final
-dos spritesheets; a arte definitiva entra sem mudar código. Licenças aceitas e créditos em
+A arte é gerada em código (`pnpm assets:art`, a partir de `scripts/art/`), na paleta Endesga 32 e
+no layout final dos spritesheets; peça desenhada à mão substitui a gerada sem mudar código. Licenças aceitas e créditos em
 `docs/art.md` e na página `/creditos` do app.
