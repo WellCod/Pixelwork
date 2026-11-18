@@ -23,7 +23,13 @@ export interface WorldSceneOptions {
   world: ClientWorld;
   mapJson: Record<string, unknown>;
   send: (msg: ClientMsg) => void;
+  /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
+  hasVideoBubble?: (id: string) => boolean;
 }
+
+/** Base do balão de chat acima do pé do avatar, sem e com o balão de vídeo (76 px de tela, 2x). */
+const CHAT_OFFSET = 34;
+const CHAT_OFFSET_OVER_VIDEO = CHAT_OFFSET + 40;
 
 interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
@@ -128,7 +134,10 @@ export class WorldScene extends Phaser.Scene {
       avatar.sprite.setPosition(x, y).setDepth(y);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
       avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
-      avatar.chat?.setPosition(Math.round(x), Math.round(y) - 34);
+      if (avatar.chat) {
+        const offset = this.options.hasVideoBubble?.(id) ? CHAT_OFFSET_OVER_VIDEO : CHAT_OFFSET;
+        avatar.chat.setPosition(Math.round(x), Math.round(y) - offset);
+      }
 
       const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
       avatar.title.setVisible(avatar.title.text !== '' && (near || avatar.hovered));
