@@ -59,6 +59,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Restrição: os mapas referenciam tiles pela posição. A largura do PNG (número de colunas) nunca
   muda, e tiles novos só entram no fim. Nunca reordenar nem remover. Todos os tilesets têm 8
   colunas (128 px de largura), fixadas pelos placeholders.
+- Cada tileset tem 100 gids reservados no mapa (firstgid 1, 101, 201, 301). O Tiled atribui
+  firstgid contíguo, e um tileset que cresce invadiria os gids do seguinte; o `compileMap` recusa
+  mapa com tilesets sobrepostos (`tileset_overlap`).
 - Propriedades de tile no `.tsj`:
   - `collides` (bool): o móvel bloqueia passagem.
   - `item_id` (string): ID de catálogo de um móvel ou item de decoração.
@@ -104,7 +107,11 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Tudo que está no repositório pode ser redistribuído, então o export inclui todos os tilesets.
 - Prefira `own` e `CC0`. `CC-BY` só se não houver alternativa.
 - Desenhar inspirado em referências é ok. Copiar ou decalcar sprites de terceiros, não.
-- Sem arte gerada por IA: manter consistência entre tiles e frames de animação é o ponto fraco.
+- ~~Sem arte gerada por IA~~. Revisto em 2026-11-18 por decisão do dono do projeto: a arte pode ser
+  gerada pelo Claude, desenhada pixel a pixel em código (`scripts/gen-art.ts`), sempre na paleta e
+  nos layouts deste documento. Licença `own`. O risco que motivava a regra (consistência entre tiles
+  e frames) é tratado desenhando por código: as camadas do personagem compartilham as mesmas
+  coordenadas e os frames de caminhada variam só as pernas.
 
 ## 8. Fontes CC0 de partida
 
@@ -128,11 +135,15 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Personagem: 1 corpo base, 5 a 6 cabelos, 5 a 6 roupas, 3 a 4 acessórios (óculos, boné, fone).
 - Rampas: 6 de pele, 8 de cabelo, 8 de roupa.
 
-## 10. Placeholders
+## 10. Arte gerada
 
-`scripts/gen-placeholders.ts` gera PNGs no layout e nas dimensões corretas, com formas e cores da
-paleta (retângulo marrom para mesa, verde para planta, personagem em silhueta com as rampas-chave).
-O manifesto aponta para eles até a arte final existir, com `license: "own"`.
+`scripts/gen-art.ts` desenha toda a arte atual (tilesets, itens de mesa e camadas do personagem)
+a partir de grades de caracteres, um caractere por pixel, mapeados para a paleta e para as
+cores-chave. Substituiu os placeholders de formas simples. Regras do gerador:
+
+- Tilesets só crescem: as posições dos tiles existentes não mudam; itens novos entram no fim.
+- Camadas do personagem desenham nas mesmas coordenadas do corpo; a direita é o espelho da esquerda.
+- Um asset desenhado à mão pode substituir o gerado a qualquer momento, no mesmo arquivo e layout.
 
 ## 11. Ferramentas gratuitas
 

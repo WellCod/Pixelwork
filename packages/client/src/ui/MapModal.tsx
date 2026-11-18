@@ -22,6 +22,8 @@ export function describeMapError(error: MapError): string {
       return `A camada "${error.layer}" é do tipo errado.`;
     case 'unknown_tileset':
       return `Tileset fora do catálogo ou embutido: ${error.source}. Use os .tsj do catálogo como tilesets externos.`;
+    case 'tileset_overlap':
+      return `Os tilesets ${error.a} e ${error.b} dividem gids. Dê ao segundo um firstgid depois do fim do primeiro (o padrão é 100 por tileset).`;
     case 'duplicate_key':
       return `${error.kind === 'zone' ? 'zone_key' : 'desk_key'} repetido: ${error.key}.`;
     case 'invalid_key':
