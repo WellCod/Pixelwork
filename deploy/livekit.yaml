@@ -1,0 +1,20 @@
+# Configuração do LiveKit para a VPS. Chaves vêm de LIVEKIT_KEYS ("chave: segredo").
+# Referência: config-sample.yaml do LiveKit v1.13.11.
+port: 7880
+rtc:
+  # Mídia por UDP: essa faixa precisa estar aberta no firewall da VPS.
+  port_range_start: 50000
+  port_range_end: 50100
+  # ICE por TCP quando a rede bloqueia UDP; não pode ficar atrás de proxy.
+  tcp_port: 7881
+  # Descobre o IP público por STUN (VPS com IP interno mapeado).
+  use_external_ip: true
+# TURN embutido para redes que só deixam passar 443. Desligado por padrão: ligar exige um
+# domínio próprio (TURN_DOMAIN) com certificado, ver docs/deploy.md.
+# turn:
+#   enabled: true
+#   domain: turn.example.com
+#   tls_port: 443
+#   udp_port: 3478
+#   cert_file: /certs/turn.crt
+#   key_file: /certs/turn.key

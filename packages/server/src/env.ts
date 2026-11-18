@@ -14,6 +14,10 @@ const Env = z.object({
   GITHUB_CLIENT_SECRET: z.string().default(''),
   SESSION_COOKIE_SECURE: flag,
   DEMO_SPACE_SLUG: z.string().regex(/^[a-z0-9-]{1,40}$/),
+  // 0.0.0.0 dentro do container; em dev, só a máquina local.
+  HOST: z.string().default('127.0.0.1'),
+  // Liga /internal/stats para o teste de carga. Nunca em produção.
+  LOAD_TEST: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof Env>;
