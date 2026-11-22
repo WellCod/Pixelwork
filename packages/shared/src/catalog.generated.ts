@@ -2,9 +2,9 @@
 
 export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2'] as const;
 export const BODY_IDS = ['base'] as const;
-export const HAIR_IDS = ['short', 'long', 'spiky'] as const;
-export const OUTFIT_IDS = ['basic', 'hoodie'] as const;
-export const ACCESSORY_IDS = ['glasses', 'cap'] as const;
+export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro'] as const;
+export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater'] as const;
+export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow'] as const;
 export const DESK_VARIANTS = ['basic', 'dark', 'white'] as const;
 export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck'] as const;
 export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo'] as const;
@@ -467,6 +467,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/hair",
+    "id": "curly",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/hair",
+    "id": "bun",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/hair",
+    "id": "afro",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/outfit",
     "id": "basic",
     "license": "own",
@@ -481,6 +502,34 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/outfit",
+    "id": "shirt",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "dress",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "jacket",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "sweater",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/accessory",
     "id": "glasses",
     "license": "own",
@@ -490,6 +539,27 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "character/accessory",
     "id": "cap",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "headphones",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "beanie",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "bow",
     "license": "own",
     "author": "Pixelwork",
     "source": null
