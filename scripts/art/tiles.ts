@@ -15,43 +15,48 @@ export interface TileArt {
 // ---- pisos ----
 
 export const FLOORS: TileArt[] = [
-  { pixels: S.woodLight },
-  { pixels: S.lilacCarpet },
-  { pixels: S.kitchenChecker },
-  // Daqui para baixo, só acrescentar. Tapetes: 16 tiles cada, na ordem da máscara de bordas.
-  { pixels: S.creamTile },
-  { pixels: S.grayCarpet },
-  ...S.rug(S.RUG_LAVENDER).map((pixels) => ({ pixels })),
-  ...S.rug(S.RUG_SAGE).map((pixels) => ({ pixels })),
-  ...S.rug(S.RUG_CREAM).map((pixels) => ({ pixels })),
-  { pixels: S.herringbone },
-  { pixels: S.woodDark },
-  { pixels: S.grass },
-  { pixels: S.stonePath },
-  { pixels: S.concrete },
-  { pixels: S.sageTile },
-  { pixels: S.iceCarpet },
+  { pixels: S.woodLight, itemId: 'wood-light' },
+  { pixels: S.lilacCarpet, itemId: 'carpet-lilac' },
+  { pixels: S.kitchenChecker, itemId: 'kitchen-checker' },
+  // Daqui para baixo, só acrescentar. Tapetes: 16 tiles cada, na ordem da máscara de bordas; o
+  // primeiro (máscara 0) leva o item_id do tapete.
+  { pixels: S.creamTile, itemId: 'tile-cream' },
+  { pixels: S.grayCarpet, itemId: 'carpet-gray' },
+  ...rugTiles(S.RUG_LAVENDER, 'rug-lavender'),
+  ...rugTiles(S.RUG_SAGE, 'rug-sage'),
+  ...rugTiles(S.RUG_CREAM, 'rug-cream'),
+  { pixels: S.herringbone, itemId: 'wood-herringbone' },
+  { pixels: S.woodDark, itemId: 'wood-dark' },
+  { pixels: S.grass, itemId: 'grass' },
+  { pixels: S.stonePath, itemId: 'stone-path' },
+  { pixels: S.concrete, itemId: 'concrete' },
+  { pixels: S.sageTile, itemId: 'tile-sage' },
+  { pixels: S.iceCarpet, itemId: 'carpet-ice' },
 ]
+
+function rugTiles(colors: S.RugColors, itemId: string): TileArt[] {
+  return S.rug(colors).map((pixels, mask) => (mask === 0 ? { pixels, itemId } : { pixels }));
+}
 
 // ---- paredes ----
 
 export const WALLS: TileArt[] = [
-  { pixels: S.wallTop },
-  { pixels: S.wallFace },
-  { pixels: S.wallWindow },
+  { pixels: S.wallTop, itemId: 'wall-top' },
+  { pixels: S.wallFace, itemId: 'wall' },
+  { pixels: S.wallWindow, itemId: 'wall-window' },
   // Daqui para baixo, só acrescentar.
-  { pixels: S.wallFaceSage },
-  { pixels: S.wallFaceCream },
-  { pixels: S.wallPainting },
-  { pixels: S.wallPoster },
-  { pixels: S.wallClock },
-  { pixels: S.wallWhiteboard },
-  { pixels: S.wallShelf },
-  { pixels: S.wallFaceLilac },
-  { pixels: S.wallCorkboard },
-  { pixels: S.wallHangingPlant },
-  { pixels: S.wallTv },
-  { pixels: S.wallWindowCurtain },
+  { pixels: S.wallFaceSage, itemId: 'wall-sage' },
+  { pixels: S.wallFaceCream, itemId: 'wall-cream' },
+  { pixels: S.wallPainting, itemId: 'wall-painting' },
+  { pixels: S.wallPoster, itemId: 'wall-poster' },
+  { pixels: S.wallClock, itemId: 'wall-clock' },
+  { pixels: S.wallWhiteboard, itemId: 'wall-whiteboard' },
+  { pixels: S.wallShelf, itemId: 'wall-shelf' },
+  { pixels: S.wallFaceLilac, itemId: 'wall-lilac' },
+  { pixels: S.wallCorkboard, itemId: 'wall-corkboard' },
+  { pixels: S.wallHangingPlant, itemId: 'wall-plant' },
+  { pixels: S.wallTv, itemId: 'wall-tv' },
+  { pixels: S.wallWindowCurtain, itemId: 'wall-window-curtain' },
 ]
 
 // ---- móveis ----

@@ -2,6 +2,7 @@ import {
   PROXIMITY_ENTER_TILES,
   type CompiledDesk,
   type CompiledMap,
+  type DeskDecor,
   type DeskState,
   type Dir,
 } from '@pixelwork/shared';
@@ -91,4 +92,55 @@ export function dividerLayout(desk: CompiledDesk): DividerLayout | null {
   const dx = left ? desk.w * T - 12 : -4;
   const pieces = Array.from({ length: desk.h }, (_, i) => ({ item: 'divider-side', dx, dy: -(desk.h - 1 - i) * T, flip: !left }));
   return { pieces, back: [left ? desk.w * T - 8 : -8, desk.h === 2 ? -10 : -2], behind: true };
+}
+
+export interface DeskSprite {
+  /** item_id no desk-decor. */
+  item: string;
+  /** Deslocamento do canto inferior esquerdo do sprite a partir do canto esquerdo e da base da pegada. */
+  dx: number;
+  dy: number;
+  /** Ordem de desenho relativa à base da mesa (somada à profundidade da base no jogo). */
+  z: number;
+  flip: boolean;
+}
+
+const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
+
+/**
+ * Tudo o que compõe a mesa (tampo, monitor, divisória e decoração), na posição e ordem em que é
+ * desenhado. Usado pelo jogo e pela prévia do editor de decoração, então os dois mostram o mesmo.
+ * Mesa livre (sem decoração) aparece com a variação padrão e um monitor.
+ */
+export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSprite[] {
+  const T = 16;
+  const sprites: DeskSprite[] = [];
+  const add = (item: string | null, dx: number, dy: number, z: number, flip = false) => {
+    if (item) sprites.push({ item, dx, dy, z, flip });
+  };
+  const variant = decor?.variant ?? 'basic';
+  const wide = desk.w === 2;
+  const tall = desk.h === 2;
+  // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
+  if (wide) {
+    add(`${variant}-wide-l`, 0, 0, 0);
+    add(`${variant}-wide-r`, T, 0, 0);
+  } else if (tall) {
+    add(`${variant}-tall-t`, 0, -T, 0);
+    add(`${variant}-tall-b`, 0, 0, 0);
+  } else {
+    add(variant, 0, 0, 0);
+  }
+  const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, -2] as const };
+  add(`monitor-${decor?.monitor ?? 'single'}`, offsets.monitor[0], offsets.monitor[1], 0.1);
+  if (!decor) return sprites;
+  // Sem parede atrás, a decoração "de parede" vai presa numa divisória em vez de flutuar.
+  const divider = decor.slots.back ? dividerLayout(desk) : null;
+  if (divider) for (const p of divider.pieces) add(p.item, p.dx, p.dy, divider.behind ? -0.2 : 0.3, p.flip);
+  for (const slot of SLOTS) {
+    const [dx, dy] = slot === 'back' && divider ? divider.back : offsets[slot];
+    const backZ = divider ? (divider.behind ? -0.15 : 0.35) : -0.1;
+    add(decor.slots[slot], dx, dy, slot === 'back' ? backZ : 0.2);
+  }
+  return sprites;
 }

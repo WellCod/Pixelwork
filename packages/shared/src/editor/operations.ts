@@ -124,25 +124,43 @@ export function paint(doc: TiledDoc, layer: TileLayerName, tiles: readonly [numb
 
 // ---- móveis ----
 
-/** Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo. */
 /**
  * Móvel do `frame` do `tileset`, ancorado no canto inferior esquerdo do tile clicado, com o
  * tamanho da célula do tileset. Mapa salvo antes do tileset existir ganha a referência (bloco de
  * 100 gids na ordem do catálogo) no mesmo comando, então desfazer volta o documento exato.
  */
 export function placeFurniture(doc: TiledDoc, tileset: TilesetId, frame: number, tx: number, ty: number): EditorCommand | null {
-  if (!inside(doc, tx, ty)) return null;
+  const { tileWidth, tileHeight } = TILESETS[tileset];
+  // Objeto de tile do Tiled fica ancorado no canto inferior esquerdo: a pegada sobe a partir dele.
+  if (!fits(doc, tx * TILE_PX, (ty + 1) * TILE_PX - tileHeight, tileWidth, tileHeight)) return null;
   const refs = (doc.tilesets as TilesetRef[] | undefined) ?? [];
   const source = `${tileset}.tsj`;
   const existing = refs.find((r) => r.source === source);
-  const firstgid = existing?.firstgid ?? 1 + TILESET_IDS.indexOf(tileset) * 100;
-  const { tileWidth, tileHeight } = TILESETS[tileset];
+  const firstgid = existing?.firstgid ?? freeFirstgid(refs, tileset);
   const add = addWithKey(doc, 'furniture', (id) =>
     baseObject(id, { gid: firstgid + frame, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: tileWidth, height: tileHeight }),
   );
   if (existing) return add;
   const tilesets = [...refs, { firstgid, source }].sort((a, b) => a.firstgid - b.firstgid);
   return { kind: 'batch', commands: [{ kind: 'setDocFields', fields: { tilesets } }, add] };
+}
+
+/**
+ * Bloco de 100 gids na ordem do catálogo, como nos mapas gerados. Num mapa editado no Tiled os
+ * firstgid vêm compactados e esse bloco pode cruzar a faixa de outro tileset; aí o novo vai para o
+ * primeiro bloco de 100 livre depois de todos.
+ */
+function freeFirstgid(refs: TilesetRef[], tileset: TilesetId): number {
+  const count = (source: string) => {
+    const id = source.replace(/\.tsj$/, '');
+    // Tileset fora do catálogo: assume o bloco inteiro de 100.
+    return (TILESET_IDS as readonly string[]).includes(id) ? TILESETS[id as TilesetId].tilecount : 100;
+  };
+  const preferred = 1 + TILESET_IDS.indexOf(tileset) * 100;
+  const end = preferred + TILESETS[tileset].tilecount;
+  if (refs.every((r) => end <= r.firstgid || r.firstgid + count(r.source) <= preferred)) return preferred;
+  const last = Math.max(...refs.map((r) => r.firstgid + count(r.source)));
+  return Math.ceil((last - 1) / 100) * 100 + 1;
 }
 
 // ---- zonas ----
@@ -256,8 +274,11 @@ export function moveObject(doc: TiledDoc, layer: ObjectLayerName, id: number, tx
     y += TILE_PX / 2;
   }
   if (!inside(doc, tx, ty)) return null;
-  // Zona e mesa inteiras têm que caber no mapa depois de mover.
-  if ((layer === 'zones' || layer === 'desks') && !fits(doc, x, y, object.width || TILE_PX, object.height || TILE_PX)) return null;
+  // Zona, mesa e móvel inteiros têm que caber no mapa depois de mover (o móvel sobe a partir de y).
+  const w = object.width || TILE_PX;
+  const h = object.height || TILE_PX;
+  if ((layer === 'zones' || layer === 'desks') && !fits(doc, x, y, w, h)) return null;
+  if (layer === 'furniture' && !fits(doc, x, y - h, w, h)) return null;
   if (x === object.x && y === object.y) return null;
   return { kind: 'replaceObject', layer, object: { ...object, x, y } };
 }

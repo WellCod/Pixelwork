@@ -11,5 +11,156 @@
   "tilecount": 16,
   "margin": 0,
   "spacing": 0,
-  "tiles": []
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-top"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-window"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-sage"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-cream"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-painting"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-poster"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-clock"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-whiteboard"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-shelf"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-lilac"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-corkboard"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-plant"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-tv"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-window-curtain"
+        }
+      ]
+    }
+  ]
 }

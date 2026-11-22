@@ -90,7 +90,12 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
   mapa com tilesets sobrepostos (`tileset_overlap`).
 - Propriedades de tile no `.tsj`:
   - `collides` (bool): o móvel bloqueia passagem.
-  - `item_id` (string): ID de catálogo de um móvel ou item de decoração.
+  - `item_id` (string): ID de catálogo de um móvel, item de decoração, piso ou parede (nos
+    tapetes, só o primeiro dos 16 tiles, `rug-<cor>`). O código acha o frame por ele
+    (`frameOf`), nunca pela posição no tileset.
+- Mapa editado no Tiled pode vir com firstgid compactado; o editor do app, ao acrescentar um
+  tileset que o mapa ainda não referencia, usa o bloco de 100 do catálogo se estiver livre, senão
+  o primeiro bloco livre depois de todos.
 - Tilesets: ver seção 9. Os de móveis grandes têm célula maior (32x16, 32x32, 48x32); o tamanho
   vem do próprio `.tsj` e o catálogo o expõe como `tileWidth`/`tileHeight`.
 
