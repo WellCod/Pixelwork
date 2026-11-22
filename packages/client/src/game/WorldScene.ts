@@ -1,7 +1,6 @@
 import {
   CHAT_BUBBLE_MS,
   findPath,
-  RENDER_SCALE,
   STEP_MS,
   TILESETS,
   TILESET_IDS,
@@ -19,6 +18,7 @@ import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-
 import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
 import { deskSprites, isNear, seatedFacing } from './presence.ts';
+import { baseZoom, canvasToCss } from './scale.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
@@ -60,7 +60,7 @@ const DESK_TILESET = 'desk-decor';
 /** Sombra de contato de móveis e avatares: a cor mais escura da paleta, translúcida. */
 const SHADOW_COLOR = 0x2e222f;
 const SHADOW_ALPHA = 0.18;
-/** Zoom da câmera sobre a escala base (RENDER_SCALE): inteiro, para o pixel art não borrar. */
+/** Zoom da câmera em múltiplos do zoom base (`baseZoom`): inteiro, para o pixel art não borrar. */
 const ZOOM_LEVELS = [1, 2, 3] as const;
 const SPEAKING_COLOR = 0x63c74d;
 const LABEL_DEPTH = 100_000;
@@ -124,7 +124,7 @@ export class WorldScene extends Phaser.Scene {
     this.renderZoneLabels();
 
     this.mapSize = { width: tilemap.widthInPixels, height: tilemap.heightInPixels };
-    this.cameras.main.setRoundPixels(true);
+    this.cameras.main.setRoundPixels(true).setZoom((ZOOM_LEVELS[this.zoomIndex] ?? 1) * baseZoom());
     this.fitCamera();
     this.scale.on(Phaser.Scale.Events.RESIZE, () => this.fitCamera());
 
@@ -431,7 +431,7 @@ export class WorldScene extends Phaser.Scene {
     if (!avatar) return null;
     const camera = this.cameras.main;
     const view = camera.worldView;
-    const scale = camera.zoom * RENDER_SCALE;
+    const scale = canvasToCss(camera.zoom);
     return {
       x: (avatar.sprite.x - view.x) * scale,
       y: (avatar.sprite.y - avatar.sprite.height - view.y) * scale,
@@ -443,7 +443,7 @@ export class WorldScene extends Phaser.Scene {
     const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, this.zoomIndex + delta));
     if (next === this.zoomIndex) return;
     this.zoomIndex = next;
-    this.cameras.main.setZoom(ZOOM_LEVELS[next]);
+    this.cameras.main.setZoom((ZOOM_LEVELS[next] ?? 1) * baseZoom());
     this.fitCamera();
   }
 

@@ -1,18 +1,18 @@
-import { RENDER_SCALE } from '@pixelwork/shared';
 import * as Phaser from 'phaser';
+import { dpr } from './scale.ts';
 import { WorldScene, type WorldSceneOptions } from './WorldScene.ts';
 
-/** Jogo do Phaser com escala inteira, preenchendo o elemento e acompanhando o tamanho dele. */
+/** Jogo do Phaser em resolução de tela, preenchendo o elemento e acompanhando o tamanho dele. */
 export function mountGame<S extends Phaser.Scene>(parent: HTMLElement, scene: S): { game: Phaser.Game; scene: S } {
   const size = () => ({
-    width: Math.max(1, Math.floor(parent.clientWidth / RENDER_SCALE)),
-    height: Math.max(1, Math.floor(parent.clientHeight / RENDER_SCALE)),
+    width: Math.max(1, Math.floor(parent.clientWidth * dpr())),
+    height: Math.max(1, Math.floor(parent.clientHeight * dpr())),
   });
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
     ...size(),
-    zoom: RENDER_SCALE,
+    zoom: 1 / dpr(),
     pixelArt: true,
     // Fora do mapa: o mesmo creme do palco da UI clara.
     backgroundColor: '#ebe3d9',
