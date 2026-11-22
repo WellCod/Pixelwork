@@ -158,7 +158,7 @@ export class ClientWorld {
   }
 
   /** Espelha a regra do servidor: sala trancada só para quem já está dentro ou foi liberado. */
-  private readonly canEnter: CanEnter = (from, x, y) => {
+  readonly canEnter: CanEnter = (from, x, y) => {
     const zone = zoneAt(this.map, x, y);
     if (zone.type !== 'meeting' || !this.zones.get(zone.key)?.locked) return true;
     return zoneAt(this.map, from.x, from.y).key === zone.key || this.allowedZones.has(zone.key);
