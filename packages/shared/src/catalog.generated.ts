@@ -303,7 +303,11 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "37": "framed-photo",
       "38": "backpack",
       "39": "vase-tall",
-      "40": "cat"
+      "40": "cat",
+      "41": "divider",
+      "42": "divider-wide-l",
+      "43": "divider-wide-r",
+      "44": "divider-side"
     }
   },
   "furniture-2x1": {

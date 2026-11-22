@@ -51,6 +51,35 @@ export class NamePill extends Phaser.GameObjects.Container {
   }
 }
 
+/**
+ * Cargo embaixo do nome: pílula clara com texto legível, centrada em x com o topo em y. Fonte de
+ * 6 px sem fundo ficava ilegível sobre o piso.
+ */
+export class TitlePill extends Phaser.GameObjects.Container {
+  private readonly bg: Phaser.GameObjects.Graphics;
+  private readonly label: Phaser.GameObjects.Text;
+  value = '';
+
+  constructor(scene: Phaser.Scene) {
+    super(scene, 0, 0);
+    this.bg = scene.add.graphics();
+    this.label = text(scene, '', '#3e3546', 7, true);
+    this.add([this.bg, this.label]);
+    scene.add.existing(this);
+  }
+
+  set(value: string): this {
+    this.value = value;
+    this.label.setText(value);
+    const w = Math.ceil(this.label.width) + 8;
+    const h = 10;
+    const left = -Math.round(w / 2);
+    this.bg.clear().fillStyle(0xffffff, 0.9).fillRoundedRect(left, 0, w, h, h / 2);
+    this.label.setPosition(left + 4, Math.round((h - this.label.height) / 2));
+    return this;
+  }
+}
+
 /** Rótulo de zona: pílula clara translúcida com texto discreto, no alto à esquerda da zona. */
 export function zonePill(scene: Phaser.Scene, x: number, y: number, value: string): Phaser.GameObjects.Container {
   const label = text(scene, value, '#625565', 7, true);

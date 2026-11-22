@@ -16,9 +16,9 @@ import * as Phaser from 'phaser';
 import type { ClientWorld, WorldEvent } from '../net/client-world.ts';
 import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
-import { LABEL_FONT, NamePill, chatBubble, deskPlaque, zonePill } from './labels.ts';
+import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
-import { SLOT_OFFSET, SLOT_OFFSET_WIDE, isNear, seatedFacing, type Slot } from './presence.ts';
+import { SLOT_OFFSET, SLOT_OFFSET_WIDE, dividerLayout, isNear, seatedFacing, type Slot } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
@@ -47,7 +47,7 @@ interface Avatar {
   ring: Phaser.GameObjects.Ellipse;
   shadow: Phaser.GameObjects.Ellipse;
   label: NamePill;
-  title: Phaser.GameObjects.Text;
+  title: TitlePill;
   mover: Mover;
   textureKey: string;
   dir: Dir;
@@ -220,7 +220,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
-      avatar.title.setVisible(avatar.title.text !== '' && (near || avatar.hovered));
+      avatar.title.setVisible(avatar.title.value !== '' && (near || avatar.hovered));
 
       const walking = avatar.mover.moving || (id === world.selfId && held !== undefined);
       const seated = walking
@@ -370,10 +370,7 @@ export class WorldScene extends Phaser.Scene {
     const shadow = this.add.ellipse(0, 0, 12, 5, SHADOW_COLOR, SHADOW_ALPHA);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = new NamePill(this).setDepth(LABEL_DEPTH);
-    const title = this.add
-      .text(0, 0, '', { fontFamily: LABEL_FONT, fontSize: '6px', fontStyle: '500', color: '#625565', resolution: 8 })
-      .setOrigin(0.5, 0)
-      .setDepth(LABEL_DEPTH);
+    const title = new TitlePill(this).setDepth(LABEL_DEPTH);
     const avatar: Avatar = {
       sprite,
       ring,
@@ -401,7 +398,7 @@ export class WorldScene extends Phaser.Scene {
     if (!avatar) return;
     const self = player.id === this.options.world.selfId;
     avatar.label.set(player.statusEmoji ? `${player.name} ${player.statusEmoji}` : player.name, player.status, self);
-    avatar.title.setText(player.title ?? '');
+    avatar.title.set(player.title ?? '');
     const textureKey = ensureAvatarTexture(this, player.avatar);
     if (textureKey !== avatar.textureKey) {
       avatar.textureKey = textureKey;
@@ -487,13 +484,14 @@ export class WorldScene extends Phaser.Scene {
 
     const x = desk.x * TILE_PX;
     const bottom = (desk.y + desk.h) * TILE_PX;
-    const item = (itemId: string | null, dx: number, dy: number, depth: number) => {
+    const item = (itemId: string | null, dx: number, dy: number, depth: number, flip = false) => {
       const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
       if (frame === undefined) return;
       objects.push(
         this.add
           .image(x + dx, bottom + dy, sheetKey(DESK_TILESET), frame)
           .setOrigin(0, 1)
+          .setFlipX(flip)
           .setDepth(depth),
       );
     };
@@ -514,10 +512,16 @@ export class WorldScene extends Phaser.Scene {
     }
     const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, -2] as const };
     item(monitor, offsets.monitor[0], offsets.monitor[1], bottom + 0.1);
+    // Sem parede atrás, a decoração "de parede" vai presa numa divisória em vez de flutuar.
+    const divider = decor?.slots.back ? dividerLayout(desk) : null;
+    if (divider) {
+      for (const piece of divider.pieces) item(piece.item, piece.dx, piece.dy, divider.behind ? bottom - 0.2 : bottom + 0.3, piece.flip);
+    }
     if (decor) {
       for (const slot of SLOTS) {
-        const [dx, dy] = offsets[slot];
-        item(decor.slots[slot], dx, dy, bottom + (slot === 'back' ? -0.1 : 0.2));
+        const [dx, dy] = slot === 'back' && divider ? divider.back : offsets[slot];
+        const backDepth = divider ? (divider.behind ? bottom - 0.15 : bottom + 0.35) : bottom - 0.1;
+        item(decor.slots[slot], dx, dy, slot === 'back' ? backDepth : bottom + 0.2);
       }
     }
 

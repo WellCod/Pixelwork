@@ -143,4 +143,8 @@ export const DESK_DECOR: TileArt[] = [
   { pixels: D.backpack, itemId: 'backpack' },
   { pixels: D.vaseTall, itemId: 'vase-tall' },
   { pixels: D.sleepingCat, itemId: 'cat' },
+  { pixels: D.dividerSingle, itemId: 'divider' },
+  { pixels: D.dividerWide[0] ?? [], itemId: 'divider-wide-l' },
+  { pixels: D.dividerWide[1] ?? [], itemId: 'divider-wide-r' },
+  { pixels: D.dividerSide, itemId: 'divider-side' },
 ]

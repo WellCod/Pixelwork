@@ -28,6 +28,11 @@ export interface CompiledDesk {
   orientation: Dir;
   chairX: number;
   chairY: number;
+  /**
+   * A borda de trás da mesa (o lado oposto à cadeira) encosta inteira em parede. O cliente usa
+   * para pendurar a decoração de parede nela, ou numa divisória quando não há parede.
+   */
+  wallBehind: boolean;
 }
 
 export interface CompiledMap {
@@ -310,7 +315,11 @@ export function compileMap(json: unknown): CompileResult {
     }
     // Cadeira na frente do tile de âncora, encostada na borda da pegada.
     const chair = { down: [x, y + h], up: [x, y - 1], left: [x - 1, y], right: [x + w, y] }[dir];
-    desks.push({ key, x, y, w, h, orientation: dir, chairX: chair[0] ?? x, chairY: chair[1] ?? y });
+    const back: [number, number][] = facesUpDown
+      ? Array.from({ length: w }, (_, i) => [x + i, dir === 'down' ? y - 1 : y + h])
+      : Array.from({ length: h }, (_, i) => [dir === 'left' ? x + w : x - 1, y + i]);
+    const wallBehind = back.every(([bx, by]) => inside(bx, by) && (num(walls[by * width + bx]) & GID_MASK) > 0);
+    desks.push({ key, x, y, w, h, orientation: dir, chairX: chair[0] ?? x, chairY: chair[1] ?? y, wallBehind });
     for (let ty = y; ty < y + h; ty++) for (let tx = x; tx < x + w; tx++) block(tx, ty);
   }
   const chairs = new Map<number, string>();

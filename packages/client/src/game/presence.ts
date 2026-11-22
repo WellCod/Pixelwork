@@ -57,3 +57,38 @@ export const SLOT_OFFSET: Record<Dir, Record<Slot, [x: number, y: number]>> = {
   left: { left: [-3, 5], right: [-3, -5], back: [-14, 0], floor: [2, 14] },
   right: { left: [3, -5], right: [3, 5], back: [14, 0], floor: [-2, -14] },
 };
+
+export interface DividerLayout {
+  /** Peças do desk-decor, deslocadas a partir do canto esquerdo e da base da pegada. */
+  pieces: { item: string; dx: number; dy: number; flip: boolean }[];
+  /** Onde o item "de parede" fica preso no painel. */
+  back: [x: number, y: number];
+  /** A divisória fica atrás da mesa (virada para baixo) ou na frente dela (para cima). */
+  behind: boolean;
+}
+
+/**
+ * Divisória de baia para mesa sem parede atrás: a decoração "de parede" fica presa nela em vez
+ * de flutuar. Na mesa de frente (para cima/baixo) o painel corre ao longo da borda de trás; na
+ * lateral, é um painel estreito do lado de trás, espelhado conforme o lado.
+ */
+export function dividerLayout(desk: CompiledDesk): DividerLayout | null {
+  if (desk.wallBehind) return null;
+  const T = 16;
+  if (desk.orientation === 'down' || desk.orientation === 'up') {
+    const down = desk.orientation === 'down';
+    const dy = down ? -7 : 6;
+    const pieces =
+      desk.w === 2
+        ? [
+            { item: 'divider-wide-l', dx: 0, dy, flip: false },
+            { item: 'divider-wide-r', dx: T, dy, flip: false },
+          ]
+        : [{ item: 'divider', dx: 0, dy, flip: false }];
+    return { pieces, back: [desk.w === 2 ? 8 : 0, down ? -9 : 4], behind: down };
+  }
+  const left = desk.orientation === 'left';
+  const dx = left ? desk.w * T - 12 : -4;
+  const pieces = Array.from({ length: desk.h }, (_, i) => ({ item: 'divider-side', dx, dy: -(desk.h - 1 - i) * T, flip: !left }));
+  return { pieces, back: [left ? desk.w * T - 8 : -8, desk.h === 2 ? -10 : -2], behind: true };
+}
