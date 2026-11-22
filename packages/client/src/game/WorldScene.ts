@@ -17,7 +17,7 @@ import type { ClientWorld, WorldEvent } from '../net/client-world.ts';
 import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
 import { Mover } from './mover.ts';
-import { SLOT_OFFSET, isNear, seatedFacing, type Slot } from './presence.ts';
+import { SLOT_OFFSET, SLOT_OFFSET_WIDE, isNear, seatedFacing, type Slot } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
@@ -476,7 +476,7 @@ export class WorldScene extends Phaser.Scene {
     const objects: Phaser.GameObjects.GameObject[] = [];
 
     const x = desk.x * TILE_PX;
-    const bottom = (desk.y + 1) * TILE_PX;
+    const bottom = (desk.y + desk.h) * TILE_PX;
     const item = (itemId: string | null, dx: number, dy: number, depth: number) => {
       const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
       if (frame === undefined) return;
@@ -488,11 +488,25 @@ export class WorldScene extends Phaser.Scene {
       );
     };
 
-    item(decor?.variant ?? 'basic', 0, 0, bottom);
-    item(`monitor-${decor?.monitor ?? 'single'}`, 0, -2, bottom + 0.1);
+    const variant = decor?.variant ?? 'basic';
+    const monitor = `monitor-${decor?.monitor ?? 'single'}`;
+    const wide = desk.w === 2;
+    const tall = desk.h === 2;
+    // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
+    if (wide) {
+      item(`${variant}-wide-l`, 0, 0, bottom);
+      item(`${variant}-wide-r`, TILE_PX, 0, bottom);
+    } else if (tall) {
+      item(`${variant}-tall-t`, 0, -TILE_PX, bottom);
+      item(`${variant}-tall-b`, 0, 0, bottom);
+    } else {
+      item(variant, 0, 0, bottom);
+    }
+    const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, -2] as const };
+    item(monitor, offsets.monitor[0], offsets.monitor[1], bottom + 0.1);
     if (decor) {
       for (const slot of SLOTS) {
-        const [dx, dy] = SLOT_OFFSET[desk.orientation][slot];
+        const [dx, dy] = offsets[slot];
         item(decor.slots[slot], dx, dy, bottom + (slot === 'back' ? -0.1 : 0.2));
       }
     }

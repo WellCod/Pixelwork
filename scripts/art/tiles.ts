@@ -1,11 +1,10 @@
 // Tiles 16x16 de piso, parede, móveis e itens de mesa. A ordem de cada lista é a posição no
 // tileset: só acrescentar no fim (os mapas salvos referenciam os tiles pela posição).
-import { grid, type Pixels } from '../lib/pixels.ts';
+import type { Pixels } from '../lib/pixels.ts';
+import * as D from './desk-decor.ts';
 import * as F from './furniture-small.ts';
 import * as S from './surfaces.ts';
 
-const T = 16;
-const g = (label: string, rows: string[]) => grid(rows, T, label);
 
 export interface TileArt {
   pixels: Pixels;
@@ -97,208 +96,51 @@ export const FURNITURE: TileArt[] = [
 // ---- itens de mesa (desenhados por cima do tile da mesa) ----
 
 
-const monitorSingle = g('monitor', [
-  '................',
-  '...KKKKKKKKKK...',
-  '...KuuuuuuuuK...',
-  '...KuUcUUUUuK...',
-  '...KuUUUUUUuK...',
-  '...KuUUUUUUuK...',
-  '...KuuuuuuuuK...',
-  '...KKKKKKKKKK...',
-  '.......Kg.......',
-  '......KggK......',
-  '.....KKKKKK.....',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const monitorDual = g('monitores', [
-  '................',
-  'KKKKKKKKKKKKKKK.',
-  'KuuuuuuKuuuuuuK.',
-  'KuUcUUuKuUcUUuK.',
-  'KuUUUUuKuUUUUuK.',
-  'KuUUUUuKuUUUUuK.',
-  'KuuuuuuKuuuuuuK.',
-  'KKKKKKKKKKKKKKK.',
-  '...KgK....KgK...',
-  '..KKKKK..KKKKK..',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const laptop = g('notebook', [
-  '................',
-  '................',
-  '....KKKKKKKK....',
-  '....KuuuuuuK....',
-  '....KuUcUUuK....',
-  '....KuUUUUuK....',
-  '....KuuuuuuK....',
-  '...KKKKKKKKKK...',
-  '...KLLLLLLLLK...',
-  '...KLGLGLGLLK...',
-  '...KGGGGGGGGK...',
-  '...KKKKKKKKKK...',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const mug = g('caneca', [
-  '................',
-  '................',
-  '................',
-  '................',
-  '......KKKK......',
-  '.....KWWWWK.....',
-  '.....KbbbbKK....',
-  '.....KWWWWKWK...',
-  '.....KRRRRKWK...',
-  '.....KWWWWKK....',
-  '.....KLLLLK.....',
-  '......KKKK......',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const poster = g('poster', [
-  '..KKKKKKKKKKKK..',
-  '..KWWWWWWWWWWK..',
-  '..KWUUUUUUUUWK..',
-  '..KWUUUUZUUUWK..',
-  '..KWUUUZZZUUWK..',
-  '..KWUUUUZUUUWK..',
-  '..KWVVUUUUVVWK..',
-  '..KWvVVUUVVvWK..',
-  '..KWvvVVVVvvWK..',
-  '..KWWWWWWWWWWK..',
-  '..KKKKKKKKKKKK..',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const plantSmall = g('planta-pequena', [
-  '................',
-  '................',
-  '................',
-  '.......KK.......',
-  '.....KKVvKK.....',
-  '....KvVvVVvK....',
-  '....KVfvVfVK....',
-  '.....KvVvfK.....',
-  '.....KKKKKK.....',
-  '.....KQQQqK.....',
-  '.....KQQQqK.....',
-  '......KKKK......',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const lamp = g('luminaria', [
-  '................',
-  '................',
-  '......KKKKK.....',
-  '.....KOZZZOK....',
-  '....KOOOOOOOK...',
-  '....KKKKKKKKK...',
-  '........Kg......',
-  '.......Kg.......',
-  '......Kg........',
-  '.....KgK........',
-  '....KKKKKK......',
-  '....KggggK......',
-  '....KKKKKK......',
-  '................',
-  '................',
-  '................',
-]);
-
-const books = g('livros', [
-  '................',
-  '................',
-  '................',
-  '................',
-  '....KKKKKKKK....',
-  '....KRRRRRRK....',
-  '....KrrrrrrK....',
-  '...KKKKKKKKKK...',
-  '...KUUUUUUUUK...',
-  '...KuuuuuuuuK...',
-  '....KKKKKKKK....',
-  '....KVVVVVVK....',
-  '....KvvvvvvK....',
-  '....KKKKKKKK....',
-  '................',
-  '................',
-]);
-
-const clock = g('relogio', [
-  '.....KKKKKK.....',
-  '....KWWWWWWK....',
-  '...KWWWKWWWWK...',
-  '...KWWWKWWWWK...',
-  '...KWWWKKKWWK...',
-  '...KWWWWWWWWK...',
-  '....KWWWWWWK....',
-  '.....KKKKKK.....',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-]);
-
-const bin = g('lixeira', [
-  '................',
-  '................',
-  '................',
-  '................',
-  '................',
-  '.....KKKKKK.....',
-  '....KGGGGGGK....',
-  '....KKKKKKKK....',
-  '....KLGLGLGK....',
-  '....KLGLGLGK....',
-  '....KLGLGLGK....',
-  '....KLGLGLGK....',
-  '.....KKKKKK.....',
-  '................',
-  '................',
-  '................',
-]);
+const halves = {
+  basic: D.deskHalves(D.DESK_STYLES.basic),
+  dark: D.deskHalves(D.DESK_STYLES.dark),
+  white: D.deskHalves(D.DESK_STYLES.white),
+};
+/** Metades da mesa larga de uma variante: `-wide-l`/`-wide-r` (32x16) e `-tall-t`/`-tall-b` (16x32). */
+const halvesOf = (variant: keyof typeof halves): TileArt[] => [
+  { pixels: halves[variant].wide[0] ?? [], collides: true, itemId: `${variant}-wide-l` },
+  { pixels: halves[variant].wide[1] ?? [], collides: true, itemId: `${variant}-wide-r` },
+  { pixels: halves[variant].tall[0] ?? [], collides: true, itemId: `${variant}-tall-t` },
+  { pixels: halves[variant].tall[1] ?? [], collides: true, itemId: `${variant}-tall-b` },
+];
 
 export const DESK_DECOR: TileArt[] = [
   { pixels: F.desk, collides: true, itemId: 'basic' },
-  { pixels: monitorSingle, itemId: 'monitor-single' },
-  { pixels: monitorDual, itemId: 'monitor-dual' },
-  { pixels: laptop, itemId: 'monitor-laptop' },
-  { pixels: mug, itemId: 'mug' },
-  { pixels: poster, itemId: 'poster' },
-  { pixels: plantSmall, itemId: 'plant-small' },
+  { pixels: D.monitorSingle, itemId: 'monitor-single' },
+  { pixels: D.monitorDual, itemId: 'monitor-dual' },
+  { pixels: D.laptop, itemId: 'monitor-laptop' },
+  { pixels: D.mug, itemId: 'mug' },
+  { pixels: D.poster, itemId: 'poster' },
+  { pixels: D.plantSmall, itemId: 'plant-small' },
   // Daqui para baixo, só acrescentar.
   { pixels: F.deskDarkWood, collides: true, itemId: 'dark' },
-  { pixels: lamp, itemId: 'lamp' },
-  { pixels: books, itemId: 'books' },
-  { pixels: clock, itemId: 'clock' },
-  { pixels: bin, itemId: 'bin' },
-];
+  { pixels: D.lamp, itemId: 'lamp' },
+  { pixels: D.books, itemId: 'books' },
+  { pixels: D.clock, itemId: 'clock' },
+  { pixels: D.bin, itemId: 'bin' },
+  { pixels: D.whiteDesk, collides: true, itemId: 'white' },
+  ...halvesOf('basic'),
+  ...halvesOf('dark'),
+  ...halvesOf('white'),
+  { pixels: D.pencilCup, itemId: 'pencil-cup' },
+  { pixels: D.headphones, itemId: 'headphones' },
+  { pixels: D.miniCactus, itemId: 'cactus-mini' },
+  { pixels: D.photoFrame, itemId: 'photo' },
+  { pixels: D.waterBottle, itemId: 'water-bottle' },
+  { pixels: D.stickyNotes, itemId: 'sticky-notes' },
+  { pixels: D.deskSpeaker, itemId: 'speaker' },
+  { pixels: D.takeawayCoffee, itemId: 'takeaway-coffee' },
+  { pixels: D.trophy, itemId: 'trophy' },
+  { pixels: D.rubberDuck, itemId: 'duck' },
+  { pixels: D.calendar, itemId: 'calendar' },
+  { pixels: D.wallShelfMini, itemId: 'shelf-mini' },
+  { pixels: D.framedPhoto, itemId: 'framed-photo' },
+  { pixels: D.backpack, itemId: 'backpack' },
+  { pixels: D.vaseTall, itemId: 'vase-tall' },
+  { pixels: D.sleepingCat, itemId: 'cat' },
+]
