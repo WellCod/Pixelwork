@@ -1,6 +1,6 @@
 // Tiles 16x16 de piso, parede, móveis e itens de mesa. A ordem de cada lista é a posição no
 // tileset: só acrescentar no fim (os mapas salvos referenciam os tiles pela posição).
-import { grid, pattern, type Pixels } from '../lib/pixels.ts';
+import { grid, type Pixels } from '../lib/pixels.ts';
 import * as F from './furniture-small.ts';
 import * as S from './surfaces.ts';
 
