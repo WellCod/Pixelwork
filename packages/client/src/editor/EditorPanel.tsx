@@ -4,6 +4,9 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
 import { describeMapError } from '../ui/MapModal.tsx';
+import { TileThumb } from '../ui/TileThumb.tsx';
+import { label } from '../ui/labels.ts';
+import { categorize } from './categories.ts';
 import { FLOOR_OPTIONS, FURNITURE_OPTIONS, RUG_OPTIONS, WALL_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
 
 const TOOLS: { tool: Tool; label: string; hint: string }[] = [
@@ -196,22 +199,33 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
           </label>
         )}
         {controller.tool === 'furniture' && (
-          <label className="fields">
-            Móvel
-            <select
-              value={`${controller.furniture.tileset}:${controller.furniture.frame}`}
-              onChange={(e) => {
-                const choice = FURNITURE_OPTIONS.find((o) => `${o.tileset}:${o.frame}` === e.target.value);
-                if (choice) controller.setOption({ furniture: { tileset: choice.tileset, frame: choice.frame } });
-              }}
-            >
-              {FURNITURE_OPTIONS.map((o) => (
-                <option key={`${o.tileset}:${o.frame}`} value={`${o.tileset}:${o.frame}`}>
-                  {o.item}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="furniture-palette">
+            {categorize(FURNITURE_OPTIONS).map((group) => (
+              <fieldset key={group.label} className="picker">
+                <legend>{group.label}</legend>
+                <div role="radiogroup" aria-label={group.label} className="furniture-grid">
+                  {group.items.map((o) => {
+                    const selected = controller.furniture.tileset === o.tileset && controller.furniture.frame === o.frame;
+                    const name = label(o.item, 'furniture');
+                    return (
+                      <button
+                        key={`${o.tileset}:${o.frame}`}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={name}
+                        title={name}
+                        className={selected ? 'furniture-option selected' : 'furniture-option'}
+                        onClick={() => controller.setOption({ furniture: { tileset: o.tileset, frame: o.frame } })}
+                      >
+                        <TileThumb tileset={o.tileset} frame={o.frame} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+          </div>
         )}
         {controller.tool === 'desk' && (
           <label className="fields">
