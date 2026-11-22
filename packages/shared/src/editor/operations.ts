@@ -1,5 +1,6 @@
 // Operações do editor: montam comandos a partir do documento atual. Devolvem null quando não
 // há o que mudar, para não empilhar desfazer vazio.
+import { TILESETS, TILESET_IDS, type TilesetId } from '../catalog.generated.ts';
 import { TILE_PX } from '../constants.ts';
 import type { Dir } from '../protocol.ts';
 import {
@@ -10,6 +11,7 @@ import {
   type TiledDoc,
   type TiledObject,
   type TiledProperty,
+  type TilesetRef,
   type TileLayerName,
 } from './commands.ts';
 
@@ -120,11 +122,24 @@ export function paint(doc: TiledDoc, layer: TileLayerName, tiles: readonly [numb
 // ---- móveis ----
 
 /** Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo. */
-export function placeFurniture(doc: TiledDoc, gid: number, tx: number, ty: number): EditorCommand | null {
+/**
+ * Móvel do `frame` do `tileset`, ancorado no canto inferior esquerdo do tile clicado, com o
+ * tamanho da célula do tileset. Mapa salvo antes do tileset existir ganha a referência (bloco de
+ * 100 gids na ordem do catálogo) no mesmo comando, então desfazer volta o documento exato.
+ */
+export function placeFurniture(doc: TiledDoc, tileset: TilesetId, frame: number, tx: number, ty: number): EditorCommand | null {
   if (!inside(doc, tx, ty)) return null;
-  return addWithKey(doc, 'furniture', (id) =>
-    baseObject(id, { gid, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: TILE_PX, height: TILE_PX }),
+  const refs = (doc.tilesets as TilesetRef[] | undefined) ?? [];
+  const source = `${tileset}.tsj`;
+  const existing = refs.find((r) => r.source === source);
+  const firstgid = existing?.firstgid ?? 1 + TILESET_IDS.indexOf(tileset) * 100;
+  const { tileWidth, tileHeight } = TILESETS[tileset];
+  const add = addWithKey(doc, 'furniture', (id) =>
+    baseObject(id, { gid: firstgid + frame, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: tileWidth, height: tileHeight }),
   );
+  if (existing) return add;
+  const tilesets = [...refs, { firstgid, source }].sort((a, b) => a.firstgid - b.firstgid);
+  return { kind: 'batch', commands: [{ kind: 'setDocFields', fields: { tilesets } }, add] };
 }
 
 // ---- zonas ----
@@ -254,7 +269,12 @@ export function objectAt(doc: TiledDoc, layer: ObjectLayerName, tx: number, ty: 
   const py = ty * TILE_PX;
   return [...objects].reverse().find((o) => {
     if (layer === 'zones') return px >= o.x && px < o.x + o.width && py >= o.y && py < o.y + o.height;
-    if (layer === 'furniture') return Math.floor(o.x / TILE_PX) === tx && Math.round(o.y / TILE_PX) - 1 === ty;
+    // Móvel ancorado no canto inferior esquerdo: a pegada sobe `height` a partir de `y`.
+    if (layer === 'furniture') {
+      const w = o.width || TILE_PX;
+      const h = o.height || TILE_PX;
+      return px >= o.x && px < o.x + w && py >= o.y - h && py < o.y;
+    }
     return Math.floor(o.x / TILE_PX) === tx && Math.floor(o.y / TILE_PX) === ty;
   });
 }

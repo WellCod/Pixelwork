@@ -36,7 +36,10 @@ export class EditorScene extends Phaser.Scene {
   preload(): void {
     for (const id of TILESET_IDS) {
       this.load.image(tilesKey(id), tilesetImageUrl(id));
-      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), { frameWidth: TILE_PX, frameHeight: TILE_PX });
+      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), {
+        frameWidth: TILESETS[id].tileWidth,
+        frameHeight: TILESETS[id].tileHeight,
+      });
     }
   }
 
@@ -201,7 +204,9 @@ export class EditorScene extends Phaser.Scene {
     if (!tile) return;
     const image = this.add.image(o.x, o.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(4);
     this.content.push(image);
-    if (selected) this.content.push(this.outline(o.x, o.y - TILE_PX, TILE_PX, TILE_PX));
+    const w = o.width || TILE_PX;
+    const h = o.height || TILE_PX;
+    if (selected) this.content.push(this.outline(o.x, o.y - h, w, h));
   }
 
   private drawDesk(o: TiledObject, selected: boolean): void {

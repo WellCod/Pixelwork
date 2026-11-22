@@ -36,6 +36,11 @@ export interface ObjectLayer {
   [key: string]: unknown;
 }
 
+export interface TilesetRef {
+  firstgid: number;
+  source: string;
+}
+
 export interface TiledDoc {
   width: number;
   height: number;
@@ -62,6 +67,8 @@ export type EditorCommand =
 export interface DocFields {
   nextobjectid?: number | undefined;
   properties?: TiledProperty[] | undefined;
+  /** Referências aos tilesets do catálogo; cresce quando o mapa passa a usar um tileset novo. */
+  tilesets?: TilesetRef[] | undefined;
 }
 
 export class EditorError extends Error {}
@@ -155,6 +162,11 @@ export function apply(doc: TiledDoc, command: EditorCommand): { doc: TiledDoc; i
         previous.properties = doc.properties;
         if (command.fields.properties === undefined) delete next.properties;
         else next.properties = command.fields.properties;
+      }
+      if ('tilesets' in command.fields) {
+        previous.tilesets = doc.tilesets as TilesetRef[] | undefined;
+        if (command.fields.tilesets === undefined) delete next.tilesets;
+        else next.tilesets = command.fields.tilesets;
       }
       return { doc: next, inverse: { kind: 'setDocFields', fields: previous } };
     }

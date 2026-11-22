@@ -1,4 +1,4 @@
-import { TILESETS, TILE_PX, tilesetImageUrl, type TilesetId } from '@pixelwork/shared';
+import { TILESETS, tilesetImageUrl, type TilesetId } from '@pixelwork/shared';
 
 type Json = Record<string, unknown>;
 
@@ -25,10 +25,10 @@ export function embedTilesets(map: Json): Json {
       firstgid: ref.firstgid,
       name: id,
       image: tilesetImageUrl(id),
-      imagewidth: meta.columns * TILE_PX,
-      imageheight: Math.ceil(meta.tilecount / meta.columns) * TILE_PX,
-      tilewidth: TILE_PX,
-      tileheight: TILE_PX,
+      imagewidth: meta.columns * meta.tileWidth,
+      imageheight: Math.ceil(meta.tilecount / meta.columns) * meta.tileHeight,
+      tilewidth: meta.tileWidth,
+      tileheight: meta.tileHeight,
       columns: meta.columns,
       tilecount: meta.tilecount,
       margin: 0,
