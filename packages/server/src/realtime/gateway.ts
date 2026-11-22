@@ -9,6 +9,7 @@ import { parseCookies } from '../cookies.ts';
 import type { Db } from '../db.ts';
 import { resolveMembership } from '../spaces/members.ts';
 import type { Clock, Scheduler } from './clock.ts';
+import type { Metrics } from '../metrics.ts';
 import type { MediaService } from './media.ts';
 import { SpaceRuntime, type Conn } from './space-runtime.ts';
 
@@ -19,6 +20,7 @@ export interface GatewayDeps {
   scheduler: Scheduler;
   media: MediaService;
   log: { error: (obj: unknown, msg: string) => void };
+  metrics?: Metrics;
   /** Intervalo do ping de heartbeat e da varredura de sessões e runtimes ociosos. */
   heartbeatMs?: number;
   /** Tempo sem ninguém conectado até o runtime sair da memória. */
@@ -28,6 +30,10 @@ export interface GatewayDeps {
 export interface Gateway {
   /** Conexões abertas em todos os coworkings; usado pelos testes para sincronizar. */
   connections(): number;
+  /** Jogadores em todos os runtimes carregados (inclui a tolerância de reconexão). */
+  players(): number;
+  /** Coworkings com runtime em memória. */
+  runtimesLoaded(): number;
   /**
    * Runtime já carregado do coworking; não existe enquanto ninguém conectou. Chamado pelas rotas
    * depois de gravar: se o runtime estiver carregando, ele é recarregado para não nascer velho.
@@ -206,6 +212,10 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
             ws.terminate();
             return;
           }
+          if (deps.metrics) {
+            deps.metrics.messagesOut++;
+            deps.metrics.bytesOut += Buffer.byteLength(data);
+          }
           ws.send(data);
         },
         close: (code, reason) => {
@@ -221,7 +231,9 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
             ws.close(CLOSE_REMOVED, 'removed');
             return;
           }
+          if (deps.metrics) deps.metrics.connectionsOpened++;
           ws.on('message', (data, isBinary) => {
+            if (deps.metrics) deps.metrics.messagesIn++;
             runtime.onMessage(userId, conn, !isBinary && Buffer.isBuffer(data) ? data.toString('utf8') : null);
           });
           ws.on('close', () => {
@@ -280,6 +292,8 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
 
   return {
     connections: () => sockets.size,
+    players: () => [...loaded.values()].reduce((sum, r) => sum + r.memberCount(), 0),
+    runtimesLoaded: () => loaded.size,
     runtime: (spaceId) => {
       const runtime = loaded.get(spaceId);
       if (!runtime && runtimes.has(spaceId)) stale.add(spaceId);

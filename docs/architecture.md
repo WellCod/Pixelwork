@@ -804,6 +804,15 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
   sobe com `docker run`, porque o service container do GitHub não aceita `--dev --bind 0.0.0.0`.
   O estado de debug do E2E é o mesmo `window.__pixelwork` do modo de desenvolvimento.
 
+## Observabilidade
+
+- `GET /metrics` no formato de texto do Prometheus, escrito à mão (sem dependência): conexões,
+  jogadores, runtimes carregados, mensagens e bytes por direção, tokens de mídia emitidos,
+  histograma da duração do tick, memória, CPU e atraso do event loop (p99).
+- Não é público: o Caddy só repassa as rotas da API listadas, então `/metrics` fica acessível só
+  na rede interna do compose (`app:3000/metrics`) ou em `localhost:3000` no desenvolvimento.
+- A duração do tick usa `performance.now()`; a simulação continua no relógio injetado.
+
 ## 15. Deploy (futuro)
 
 - Uma VPS, `docker-compose.prod.yml` com Caddy (TLS automático), app, Postgres e LiveKit.

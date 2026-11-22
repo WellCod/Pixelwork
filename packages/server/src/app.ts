@@ -6,6 +6,7 @@ import { registerAuthRoutes } from './auth/routes.ts';
 import type { AppConfig } from './config.ts';
 import type { Db } from './db.ts';
 import { registerStateGuards } from './guards.ts';
+import { Metrics } from './metrics.ts';
 import { systemClock, type Clock, type Scheduler } from './realtime/clock.ts';
 import { attachGateway, type Gateway } from './realtime/gateway.ts';
 import { liveKitMedia, type MediaService } from './realtime/media.ts';
@@ -81,6 +82,17 @@ export function buildApp({
     }
   });
 
+  const metrics = new Metrics();
+  // Só na rede interna: o Caddy não repassa /metrics (fora da lista de rotas da API).
+  app.get('/metrics', { logLevel: 'warn' }, (_request, reply) => {
+    void reply.type('text/plain; version=0.0.4');
+    return metrics.render({
+      connections: gateway.connections(),
+      runtimes: gateway.runtimesLoaded(),
+      players: gateway.players(),
+    });
+  });
+
   registerStateGuards(app, config.publicUrl);
   // Escopo filho: o plugin de limite precisa estar carregado antes de as rotas serem declaradas.
   void app.register(async (api) => {
@@ -102,10 +114,12 @@ export function buildApp({
     scheduler,
     media,
     log: app.log,
+    metrics,
   });
   app.decorate('realtime', gateway);
   app.addHook('onClose', () => {
     gateway.close();
+    metrics.stop();
   });
 
   return app;

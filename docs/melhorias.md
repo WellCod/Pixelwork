@@ -72,7 +72,7 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 - [x] `ping`/`pong` com RTT no HUD
 - [x] Overlay de netcode e simulador de latência (F3 ou botão "Rede")
-- [ ] Métricas `/metrics` (Prometheus)
+- [x] Métricas `/metrics` (Prometheus)
 - [ ] Clicar para andar e seguir alguém (A* em `shared`)
 - [ ] Replay determinístico de entradas
 - [ ] Tick binário com ids curtos
