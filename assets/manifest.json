@@ -70,6 +70,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "curly",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "bun",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "afro",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "outfit": [
@@ -84,6 +102,30 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "shirt",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "dress",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "jacket",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "sweater",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "accessory": [
@@ -95,6 +137,24 @@
       },
       {
         "id": "cap",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "headphones",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "beanie",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "bow",
         "license": "own",
         "author": "Pixelwork",
         "source": null

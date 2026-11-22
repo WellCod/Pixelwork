@@ -23,8 +23,8 @@ const HEAD: Record<Facing, Pixels> = {
     'K3433333343K',
     'K33K3333K33K',
     'K33K3333K33K',
-    'K3333333333K',
-    'K2333223332K',
+    'K2333333332K',
+    'K3333223333K',
     '.K22333322K.',
     '..KKKKKKKK..',
   ]),
@@ -145,7 +145,7 @@ function overPart(
 
 // ---- roupa ----
 
-type OutfitStyle = 'basic' | 'hoodie';
+type OutfitStyle = 'basic' | 'hoodie' | 'shirt' | 'dress' | 'jacket' | 'sweater';
 
 function outfit(style: OutfitStyle, pose: Pose): Pixels {
   const { facing, phase, seated } = pose;
@@ -161,6 +161,26 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
       if (facing === 'down' && y >= 1 && y <= 3 && (x === 5 || x === 6)) return 'F'; // cordão
       return sleeve ? 'A' : x >= 8 && facing !== 'left' ? 'C' : 'C';
     }
+    const front = facing === 'down';
+    if (style === 'shirt') {
+      if (front && y === 1 && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'F' : 'D'; // gola
+      if (front && (x === 5 || x === 6) && y >= 2 && y <= 4) return x === 5 ? 'A' : 'D'; // abotoamento
+      return sleeve ? 'C' : x >= 8 && facing !== 'left' ? 'C' : 'D';
+    }
+    if (style === 'jacket') {
+      // Jaqueta aberta: laterais na cor da roupa, camiseta clara por dentro.
+      if (front && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'A' : 'F';
+      return sleeve ? 'A' : 'C';
+    }
+    if (style === 'sweater') {
+      if (y === 3) return 'F'; // listra
+      if (front && y === 1 && x >= 4 && x <= 7) return 'C';
+      return sleeve ? 'C' : 'D';
+    }
+    if (style === 'dress') {
+      if (front && y === 1 && x >= 4 && x <= 7) return 'F';
+      return sleeve ? 'D' : x >= 8 && facing !== 'left' ? 'C' : 'D';
+    }
     if (facing === 'down' && y === 1 && (x === 5 || x === 6)) return 'F'; // gola
     if (sleeve) return 'C';
     return x >= 8 && facing !== 'left' ? 'C' : 'D';
@@ -169,6 +189,12 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
     // Capuz caído atrás do pescoço, um pixel mais largo que os ombros.
     const hood = facing === 'left' ? '....KCCCK...' : facing === 'up' ? '.KCCCCCCCCK.' : '.KC......CK.';
     overPart(frame, part('capuz', [hood]), X0, TORSO_Y - 1 + dy, (ch) => ch);
+  }
+  if (style === 'dress') {
+    // Saia em trapézio por cima do alto das pernas; daí para baixo a pele aparece.
+    const skirt = facing === 'left' ? ['..KCDDDCK...', '.KCDDDDDCK..', '.KKKKKKKKK..'] : ['.KCDDDDDDCK.', 'KCDDDDDDDDCK', 'KKKKKKKKKKKK'];
+    stamp(frame, part('saia', skirt), X0, LEGS_Y + dy - (seated ? 1 : 0));
+    return frame;
   }
   // Calça escura sobre a pele das pernas; o sapato do corpo continua aparecendo.
   const legPart = seated ? seatedLegs(facing) : legs(facing, phase);
@@ -181,7 +207,7 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
 
 // ---- cabelo ----
 
-type HairStyle = 'short' | 'long' | 'spiky';
+type HairStyle = 'short' | 'long' | 'spiky' | 'curly' | 'bun' | 'afro';
 
 function hairShade(x: number, y: number, facing: Facing): string {
   if (y <= 1 && x >= 3 && x <= 5 && facing !== 'up') return '8';
@@ -226,6 +252,86 @@ const SHORT_HAIR: Record<Facing, Pixels> = {
   ]),
 };
 
+/**
+ * Cabelos com frente desenhada à mão. `top` é quantas linhas o desenho começa acima de HEAD_Y
+ * (volume acima da cabeça) e `dx` o deslocamento horizontal (o black power passa da cabeça).
+ * Costas e perfil reaproveitam o volume de cima e cobrem a cabeça até `back` linhas.
+ */
+const FRONT_HAIR: Partial<Record<HairStyle, { rows: string[]; top: number; dx: number; back: number }>> = {
+  curly: {
+    top: 2,
+    dx: 0,
+    back: 8,
+    rows: [
+      '.KK.KK.KK.K.',
+      'K77K77K77K7K',
+      'K7777887777K',
+      'K7787777877K',
+      'K7777777777K',
+      'K787.77.787K',
+      'K77......77K',
+      'K6K......K6K',
+    ],
+  },
+  bun: {
+    top: 3,
+    dx: 0,
+    back: 7,
+    rows: [
+      '....KKKK....',
+      '...K7887K...',
+      '..KK6776KK..',
+      '.K77788777K.',
+      'K7778887777K',
+      'K7777777776K',
+      'K76......67K',
+      'K6K......K6K',
+    ],
+  },
+  afro: {
+    top: 3,
+    dx: -1,
+    back: 9,
+    rows: [
+      '...KKKKKKKK...',
+      '..K77787777K..',
+      '.K7787777877K.',
+      'K778777777877K',
+      'K777778877777K',
+      'K787777777787K',
+      'K778777777877K',
+      'K77K......K77K',
+      'K77K......K77K',
+      '.KKK......KKK.',
+    ],
+  },
+};
+
+function frontHair(style: HairStyle, facing: Facing, dy: number): Pixels | null {
+  const spec = FRONT_HAIR[style];
+  if (!spec) return null;
+  const frame = blank(FRAME_W, FRAME_H);
+  const width = spec.rows[0]?.length ?? PART_W;
+  const grid0 = grid(spec.rows, width, `cabelo ${style}`);
+  if (facing === 'down') {
+    stamp(frame, grid0, X0 + spec.dx, HEAD_Y - spec.top + dy);
+    return frame;
+  }
+  // Volume acima da cabeça igual ao de frente; a cabeça coberta até `back` linhas.
+  stamp(frame, grid0.slice(0, spec.top), X0 + spec.dx, HEAD_Y - spec.top + dy);
+  overPart(frame, HEAD[facing], X0, HEAD_Y + dy, (ch, x, y) => {
+    const covered = facing === 'up' ? y <= spec.back : y <= 2 || (x >= 6 && y <= spec.back) || (y === 3 && x >= 3);
+    if (!covered) return null;
+    return ch === 'K' ? 'K' : hairShade(x, y, facing);
+  });
+  if (style === 'afro') {
+    // Volume lateral do black power, que passa da cabeça.
+    const side = facing === 'up' ? ['K7K......K7K'] : ['.......K777K'];
+    for (let r = 0; r < 5; r++) stamp(frame, part('volume', side), X0, HEAD_Y + 1 + r + dy);
+  }
+  return frame;
+}
+
 function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
   const frame = blank(FRAME_W, FRAME_H);
   const dy = seated ? 2 : 0;
@@ -233,6 +339,8 @@ function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
     stamp(frame, SHORT_HAIR[facing], X0, HEAD_Y - 1 + dy);
     return frame;
   }
+  const front = frontHair(style, facing, dy);
+  if (front) return front;
   const covers = (x: number, y: number): boolean => {
     const long = style === 'long';
     if (facing === 'up') return y <= (long ? 9 : 7);
@@ -256,11 +364,39 @@ function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
 
 // ---- acessórios ----
 
-type AccessoryStyle = 'glasses' | 'cap';
+type AccessoryStyle = 'glasses' | 'cap' | 'headphones' | 'beanie' | 'bow';
 
 function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
   const frame = blank(FRAME_W, FRAME_H);
   const y0 = HEAD_Y + (seated ? 2 : 0);
+  if (style === 'headphones') {
+    // Arco por cima da cabeça e conchas nas orelhas.
+    if (facing === 'left') {
+      stamp(frame, part('arco de lado', ['....KKKK....', '...K....K...']), X0, y0 - 2);
+      stamp(frame, [['K', 'p', 'p', 'K'], ['K', 'p', 'R', 'K'], ['K', 'K', 'K', 'K']], X0 + 6, y0 + 4);
+    } else {
+      stamp(frame, part('arco', ['..KKKKKKKK..', '.K........K.']), X0, y0 - 2);
+      stamp(frame, [['K', 'p'], ['K', 'R'], ['K', 'K']], X0 - 1, y0 + 4);
+      stamp(frame, [['p', 'K'], ['R', 'K'], ['K', 'K']], X0 + 11, y0 + 4);
+    }
+    return frame;
+  }
+  if (style === 'beanie') {
+    // Gorro de lã com barra dobrada e pompom.
+    overPart(frame, HEAD[facing], X0, y0, (ch, x, y) => {
+      if (y > 3) return null;
+      if (ch === 'K' && y < 3) return 'K';
+      return y === 3 ? (x % 2 === 0 ? 'U' : 'c') : y === 1 && x >= 3 && x <= 5 ? 'c' : 'U';
+    });
+    stamp(frame, [['K', 'K', 'K'], ['K', 'W', 'K']], X0 + 4, y0 - 2);
+    return frame;
+  }
+  if (style === 'bow') {
+    // Laço de lado, no alto da cabeça.
+    const x = facing === 'left' ? X0 + 7 : X0 + 8;
+    stamp(frame, [['K', 'K', '.', 'K', 'K'], ['K', 'p', 'K', 'p', 'K'], ['K', 'R', 'K', 'R', 'K'], ['K', 'K', '.', 'K', 'K']], x, y0 - 1);
+    return frame;
+  }
   if (style === 'glasses') {
     if (facing === 'down') stamp(frame, [['K', 'u', 'K', 'K', 'K', 'K', 'u', 'K']], X0 + 2, y0 + 4);
     if (facing === 'left') stamp(frame, [['K', 'u', 'K', 'K', 'K', 'K']], X0 + 1, y0 + 4);
@@ -299,13 +435,13 @@ function sheet(layer: Layer): Pixels {
   return out;
 }
 
+const OUTFITS: OutfitStyle[] = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater'];
+const HAIRS: HairStyle[] = ['short', 'long', 'spiky', 'curly', 'bun', 'afro'];
+const ACCESSORIES: AccessoryStyle[] = ['glasses', 'cap', 'headphones', 'beanie', 'bow'];
+
 export const CHARACTER_SHEETS: Record<string, Pixels> = {
   'body/base': sheet(body),
-  'outfit/basic': sheet((pose) => outfit('basic', pose)),
-  'outfit/hoodie': sheet((pose) => outfit('hoodie', pose)),
-  'hair/short': sheet((pose) => hair('short', pose)),
-  'hair/long': sheet((pose) => hair('long', pose)),
-  'hair/spiky': sheet((pose) => hair('spiky', pose)),
-  'accessory/glasses': sheet((pose) => accessory('glasses', pose)),
-  'accessory/cap': sheet((pose) => accessory('cap', pose)),
+  ...Object.fromEntries(OUTFITS.map((id) => [`outfit/${id}`, sheet((pose) => outfit(id, pose))])),
+  ...Object.fromEntries(HAIRS.map((id) => [`hair/${id}`, sheet((pose) => hair(id, pose))])),
+  ...Object.fromEntries(ACCESSORIES.map((id) => [`accessory/${id}`, sheet((pose) => accessory(id, pose))])),
 };
