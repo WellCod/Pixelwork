@@ -8,6 +8,8 @@ import {
   ClientMsg,
   DIR_DELTA,
   KNOCK_TIMEOUT_MS,
+  MAX_QUEUED_MOVES,
+  MIN_STEP_INTERVAL_MS,
   RECONNECT_GRACE_MS,
   TICK_MS,
   chatRecipients,
@@ -18,6 +20,7 @@ import {
   type CompiledDesk,
   type CompiledMap,
   type DeskState,
+  type Dir,
   type Player,
   type ServerMsg,
   type SimPlayer,
@@ -52,8 +55,11 @@ const CHAT_PER_SECOND = 1;
 interface Member {
   profile: PlayerProfile;
   conn: Conn | null;
-  /** Maior `seq` processado desde a conexão atual; vai no `ack` do tick. */
+  /** Maior `seq` decidido (aplicado ou recusado) desde a conexão atual; vai no `ack` do tick. */
   lastSeq: number;
+  /** Maior `seq` recebido; os que chegaram cedo demais esperam em `queued`. */
+  lastReceived: number;
+  queued: { seq: number; dir: Dir }[];
   ackDirty: boolean;
   leaveTimer: Timer | null;
   invalid: WindowCounter;
@@ -181,6 +187,8 @@ export class SpaceRuntime {
         profile,
         conn: null,
         lastSeq: 0,
+        lastReceived: 0,
+        queued: [],
         ackDirty: false,
         leaveTimer: null,
         invalid: new WindowCounter(clock, INVALID_WINDOW_MS, MAX_INVALID),
@@ -201,6 +209,8 @@ export class SpaceRuntime {
 
     // O cliente recomeça a contagem de seq a cada welcome.
     member.lastSeq = 0;
+    member.lastReceived = 0;
+    member.queued = [];
     member.ackDirty = false;
     member.conn = conn;
     // Conexão nova sempre recebe a sala atual, mesmo que seja a mesma de antes.
@@ -226,27 +236,27 @@ export class SpaceRuntime {
     }
 
     const msg = raw === null ? null : parseClientMsg(raw);
-    if (!msg || (msg.t === 'move' && msg.seq <= member.lastSeq)) {
+    if (!msg || (msg.t === 'move' && msg.seq <= member.lastReceived)) {
       if (member.invalid.hit()) conn.close(CLOSE_POLICY, 'invalid messages');
       return;
     }
 
     switch (msg.t) {
       case 'move': {
-        member.lastSeq = msg.seq;
-        member.ackDirty = true;
-        const result = step(
-          this.world,
-          [{ playerId: userId, seq: msg.seq, dir: msg.dir }],
-          this.deps.clock.now(),
-          this.map,
-          this.rules,
-        );
-        this.world = result.state;
-        for (const event of result.events) this.moved.add(event.id);
-        this.afterMove(userId);
+        member.lastReceived = msg.seq;
+        member.queued.push({ seq: msg.seq, dir: msg.dir });
+        // Fila cheia: o mais antigo é descartado e confirmado; o cliente corrige pelo ack.
+        while (member.queued.length > MAX_QUEUED_MOVES) {
+          const dropped = member.queued.shift();
+          if (dropped) member.lastSeq = dropped.seq;
+          member.ackDirty = true;
+        }
+        this.drainMoves(userId, member);
         break;
       }
+      case 'ping':
+        this.send(conn, { t: 'pong', id: msg.id, ts: this.deps.clock.now() });
+        break;
       case 'chat.say':
         this.chat(userId, member, conn, msg.text);
         break;
@@ -274,10 +284,38 @@ export class SpaceRuntime {
     }
   }
 
+  /**
+   * Aplica os passos da fila que já respeitam o intervalo mínimo. O cliente anda a cada
+   * `STEP_MS`, mas o jitter da rede junta dois passos; descartá-los puxava o avatar de volta.
+   */
+  private drainMoves(userId: string, member: Member): void {
+    for (;;) {
+      const next = member.queued[0];
+      const player = this.world.players.get(userId);
+      if (!next || !player) return;
+      if (this.deps.clock.now() - player.lastStepAt < MIN_STEP_INTERVAL_MS) return;
+      member.queued.shift();
+      member.lastSeq = next.seq;
+      member.ackDirty = true;
+      const result = step(
+        this.world,
+        [{ playerId: userId, seq: next.seq, dir: next.dir }],
+        this.deps.clock.now(),
+        this.map,
+        this.rules,
+      );
+      this.world = result.state;
+      for (const event of result.events) this.moved.add(event.id);
+      this.afterMove(userId);
+      // Passo recusado (parede, sala trancada) também conta: vira o avatar e marca o intervalo.
+    }
+  }
+
   onClose(userId: string, conn: Conn): void {
     const member = this.members.get(userId);
     if (member?.conn !== conn) return;
     member.conn = null;
+    member.queued = [];
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
     if (call) this.endCall(call, 'left');
@@ -286,6 +324,7 @@ export class SpaceRuntime {
 
   /** Envia a lista de quem se moveu, serializada uma vez; só o `ack` muda por cliente. */
   tick(): void {
+    for (const [id, member] of this.members) if (member.queued.length > 0) this.drainMoves(id, member);
     const moves: TickMove[] = [];
     for (const id of this.moved) {
       const p = this.world.players.get(id);

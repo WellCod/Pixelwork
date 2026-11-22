@@ -8,6 +8,12 @@ export const PROXIMITY_ENTER_TILES = 3;
 export const PROXIMITY_EXIT_TILES = 4;
 export const MAX_VIDEO_BUBBLES = 6;
 export const RECONNECT_GRACE_MS = 10_000;
+/** Intervalo do `ping` de aplicação do cliente (RTT e detecção de conexão morta). */
+export const PING_INTERVAL_MS = 5_000;
+/** Sem nenhuma mensagem do servidor por este tempo, o cliente derruba e reconecta. */
+export const CONNECTION_TIMEOUT_MS = 15_000;
+/** Passos que chegaram cedo demais (jitter) e esperam o intervalo mínimo no servidor. */
+export const MAX_QUEUED_MOVES = 2;
 export const CHAT_MAX_CHARS = 280;
 export const CHAT_BUBBLE_MS = 6_000;
 export const KNOCK_TIMEOUT_MS = 30_000;

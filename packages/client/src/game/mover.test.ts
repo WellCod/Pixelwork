@@ -10,16 +10,37 @@ describe('Mover', () => {
     expect(m.x).toBeCloseTo(0.5);
     m.update(STEP_MS / 2);
     expect(m.x).toBe(1);
+    // A animação segura um pouco esperando o próximo passo, que vem no tick seguinte.
+    expect(m.moving).toBe(true);
+    m.update(200);
     expect(m.moving).toBe(false);
   });
 
-  it('vários passos no mesmo tick não acumulam atraso', () => {
+  it('dois passos na fila (jitter do tick) andam na velocidade normal', () => {
+    const m = new Mover(0, 0);
+    m.push(1, 0);
+    m.push(2, 0);
+    m.update(STEP_MS);
+    expect(m.x).toBe(1);
+  });
+
+  it('fila acima de dois passos acelera para não acumular atraso', () => {
     const m = new Mover(0, 0);
     m.push(1, 0);
     m.push(2, 0);
     m.push(3, 0);
-    m.update(2 * STEP_MS);
+    m.update(2.5 * STEP_MS);
     expect(m.x).toBe(3);
+  });
+
+  it('correção de até um tile desliza; maior que isso teleporta', () => {
+    const m = new Mover(3, 0);
+    m.correct(2, 0);
+    expect(m.x).toBe(3);
+    m.update(STEP_MS);
+    expect(m.x).toBe(2);
+    m.correct(8, 8);
+    expect([m.x, m.y]).toEqual([8, 8]);
   });
 
   it('em ritmo constante fica no máximo um passo atrás', () => {

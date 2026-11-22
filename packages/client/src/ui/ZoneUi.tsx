@@ -1,5 +1,5 @@
 import { DIR_DELTA, KNOCK_TIMEOUT_MS, zoneAt, type ClientMsg } from '@pixelwork/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useWorld } from './useWorld.ts';
 
@@ -18,25 +18,37 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (msg: Client
   const [requests, setRequests] = useState<Request[]>([]);
   const [knocking, setKnocking] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
-  useEffect(
-    () =>
-      world.subscribe((event) => {
-        if (event.type === 'knockRequest') {
-          const request = { requestId: event.requestId, zoneKey: event.zoneKey, from: event.from };
-          setRequests((list) => [...list, request]);
-          // Sem mensagem de "resolvido" para os outros ocupantes: o pedido some com o prazo.
-          setTimeout(() => {
-            setRequests((list) => list.filter((r) => r.requestId !== request.requestId));
-          }, KNOCK_TIMEOUT_MS);
-        }
-        if (event.type === 'knockResult') {
-          setKnocking(null);
-          setResult(event.allowed ? 'Pode entrar.' : 'Não liberaram a entrada.');
-        }
-      }),
-    [world],
-  );
+  const later = (fn: () => void, ms: number) => {
+    const timer = setTimeout(() => {
+      timers.current.delete(timer);
+      fn();
+    }, ms);
+    timers.current.add(timer);
+  };
+
+  useEffect(() => {
+    const pending = timers.current;
+    const stop = world.subscribe((event) => {
+      if (event.type === 'knockRequest') {
+        const request = { requestId: event.requestId, zoneKey: event.zoneKey, from: event.from };
+        setRequests((list) => [...list, request]);
+        // Sem mensagem de "resolvido" para os outros ocupantes: o pedido some com o prazo.
+        later(() => setRequests((list) => list.filter((r) => r.requestId !== request.requestId)), KNOCK_TIMEOUT_MS);
+      }
+      if (event.type === 'knockResult') {
+        setKnocking(null);
+        setResult(event.allowed ? 'Pode entrar.' : 'Não liberaram a entrada.');
+        later(() => setResult(null), 5_000);
+      }
+    });
+    return () => {
+      stop();
+      for (const timer of pending) clearTimeout(timer);
+      pending.clear();
+    };
+  }, [world]);
 
   const { map, self } = world;
   const here = zoneAt(map, self.x, self.y);
@@ -74,6 +86,8 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (msg: Client
               setResult(null);
               setKnocking(door.key);
               send({ t: 'zone.knock', zoneKey: door.key });
+              // Se o resultado se perder (queda de conexão), o botão não fica preso em "Aguardando…".
+              later(() => setKnocking((k) => (k === door.key ? null : k)), KNOCK_TIMEOUT_MS + 2_000);
             }}
           >
             {knocking === door.key ? 'Aguardando…' : 'Bater na porta'}

@@ -11,12 +11,16 @@ export interface PendingMove {
   dir: Dir;
 }
 
-/** Predição de um passo: anda se o tile for caminhável, senão só vira. */
-export function predictStep(pos: Pos, dir: Dir, map: CompiledMap): Pos {
+/** Regra extra da predição (sala trancada); a mesma ideia do `canEnter` do servidor. */
+export type CanEnter = (from: Pos, x: number, y: number) => boolean;
+
+/** Predição de um passo: anda se o tile for caminhável (e liberado), senão só vira. */
+export function predictStep(pos: Pos, dir: Dir, map: CompiledMap, canEnter?: CanEnter): Pos {
   const [dx, dy] = DIR_DELTA[dir];
   const x = pos.x + dx;
   const y = pos.y + dy;
-  return isWalkable(map, x, y) ? { x, y, dir } : { ...pos, dir };
+  const allowed = isWalkable(map, x, y) && (canEnter?.(pos, x, y) ?? true);
+  return allowed ? { x, y, dir } : { ...pos, dir };
 }
 
 /**
@@ -28,8 +32,9 @@ export function reconcile(
   ack: number,
   pending: readonly PendingMove[],
   map: CompiledMap,
+  canEnter?: CanEnter,
 ): { pos: Pos; pending: PendingMove[] } {
   const remaining = pending.filter((p) => p.seq > ack);
-  const pos = remaining.reduce((current, move) => predictStep(current, move.dir, map), authoritative);
+  const pos = remaining.reduce((current, move) => predictStep(current, move.dir, map, canEnter), authoritative);
   return { pos, pending: remaining };
 }

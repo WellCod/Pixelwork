@@ -1,5 +1,5 @@
 import { compileMap, type CompiledMap } from '@pixelwork/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, orgApi, type Me, type SpaceDetail, type SpaceSummary } from './api.ts';
 import { GameView } from './GameView.tsx';
 import { EditorController } from './editor/editor-controller.ts';
@@ -71,6 +71,14 @@ export function App() {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [modal, setModal] = useState<'create' | 'invite' | 'map' | null>(null);
   const [editor, setEditor] = useState<{ controller: EditorController; baseVersion: number } | null>(null);
+
+  // Só a resposta do pedido mais recente vale: trocas rápidas de coworking chegam fora de ordem.
+  const openRequest = useRef(0);
+  /** Erro passageiro com a sessão ainda válida vira aviso; não manda para o login. */
+  const warn = useCallback((error: unknown) => {
+    const text = error instanceof Error ? error.message : 'Não deu para abrir o coworking.';
+    setState((prev) => (prev.kind === 'ready' ? { ...prev, notice: text } : { kind: 'login', error: text }));
+  }, []);
 
   const fail = useCallback((error: unknown) => {
     setState({ kind: 'login', error: error instanceof Error ? error.message : 'Falha ao entrar.' });
@@ -152,12 +160,16 @@ export function App() {
   }
 
   const select = (spaceId: string) => {
+    const request = ++openRequest.current;
     openSpace(spaceId)
       .then((next) => {
+        if (request !== openRequest.current) return;
         setEditor(null);
-        setState({ ...state, current: next });
+        setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next, notice: '' } : prev));
       })
-      .catch(fail);
+      .catch((error: unknown) => {
+        if (request === openRequest.current) warn(error);
+      });
   };
 
   return (
@@ -212,7 +224,7 @@ export function App() {
       {state.notice && (
         <p className="notice-bar">
           {state.notice}{' '}
-          <button type="button" onClick={() => setState({ ...state, notice: '' })}>
+          <button type="button" onClick={() => setState((prev) => (prev.kind === 'ready' ? { ...prev, notice: '' } : prev))}>
             Ok
           </button>
         </p>
@@ -232,9 +244,15 @@ export function App() {
           onEditorBaseVersion={(version) => setEditor((e) => (e ? { ...e, baseVersion: version } : e))}
           onEditorClose={() => setEditor(null)}
           onMapUpdated={() => {
+            const request = ++openRequest.current;
             openSpace(current.space.id)
-              .then((next) => setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev)))
-              .catch(fail);
+              .then((next) => {
+                if (request !== openRequest.current) return;
+                setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev));
+              })
+              .catch((error: unknown) => {
+                if (request === openRequest.current) warn(error);
+              });
           }}
         />
       ) : (

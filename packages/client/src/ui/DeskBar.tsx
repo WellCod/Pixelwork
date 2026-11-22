@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { DeskDecor } from '@pixelwork/shared';
 import { profileApi } from '../api.ts';
 import { deskAtChair } from '../game/presence.ts';
 import type { ClientWorld } from '../net/client-world.ts';
@@ -14,12 +15,21 @@ interface Props {
 /** Ações da mesa cuja cadeira está sob o próprio avatar. */
 export function DeskBar({ world, spaceId, isAdmin }: Props) {
   useWorld(world);
-  const [decorating, setDecorating] = useState(false);
+  // Fica fora da condição da cadeira: levantar com o editor aberto não perde a edição.
+  const [decorating, setDecorating] = useState<{ deskKey: string; decor: DeskDecor } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const editor = decorating && (
+    <DecorEditor
+      spaceId={spaceId}
+      deskKey={decorating.deskKey}
+      initial={decorating.decor}
+      onClose={() => setDecorating(null)}
+    />
+  );
   const desk = deskAtChair(world.map, world.self.x, world.self.y);
   const state = desk ? world.desks.get(desk.key) : undefined;
-  if (!desk || !state) return null;
+  if (!desk || !state) return editor || null;
 
   const mine = state.userId === world.selfId;
   const run = (task: Promise<unknown>) => {
@@ -41,7 +51,11 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
     content = (
       <>
         <span>Sua mesa</span>
-        <button type="button" onClick={() => setDecorating(true)}>
+        <button
+          type="button"
+          disabled={!state.decor}
+          onClick={() => state.decor && setDecorating({ deskKey: desk.key, decor: state.decor })}
+        >
           Decorar
         </button>
         <button type="button" onClick={() => run(profileApi.releaseDesk(spaceId, desk.key))}>
@@ -66,14 +80,7 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
     <div className="desk-bar">
       {content}
       {error && <span className="error">{error}</span>}
-      {decorating && state.decor && (
-        <DecorEditor
-          spaceId={spaceId}
-          deskKey={desk.key}
-          initial={state.decor}
-          onClose={() => setDecorating(false)}
-        />
-      )}
+      {editor}
     </div>
   );
 }
