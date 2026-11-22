@@ -1,9 +1,13 @@
 // Desenho por grades de caracteres: um caractere por pixel, mapeado para a paleta (docs/art.md).
 import { PNG } from 'pngjs';
+import { PALETTE, nearest, type ColorName } from './colors.ts';
 import { KEY_RAMPS } from './palette.ts';
 
-/** Paleta Endesga 32 por letra, mais as rampas-chave da troca de paleta (1-4 pele, 5-8 cabelo, A C D F roupa). */
-export const COLORS: Record<string, string> = {
+/**
+ * Legado das grades antigas: letra -> cor Endesga 32, levada para a cor Resurrect 64 mais próxima
+ * (`nearest`) até cada peça ser redesenhada com `sprite`. Rampas-chave: 1-4 pele, 5-8 cabelo, A C D F roupa.
+ */
+const ENDESGA: Record<string, string> = {
   K: '#181425',
   k: '#262b44',
   n: '#3a4466',
@@ -49,7 +53,40 @@ export const COLORS: Record<string, string> = {
   F: KEY_RAMPS.outfit[3],
 };
 
-/** Matriz de caracteres; '.' é transparente. */
+const KEY_HEX = new Set<string>(Object.values(KEY_RAMPS).flat());
+export const COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(ENDESGA).map(([ch, hex]) => [ch, KEY_HEX.has(hex) ? hex : nearest(hex)]),
+);
+
+/** Nomes das cores-chave da troca de paleta, para as legendas dos sprites de personagem. */
+export type KeyName = `${'skin' | 'hair' | 'outfit'}${1 | 2 | 3 | 4}`;
+
+function keyHex(name: KeyName): string {
+  const kind = name.slice(0, -1) as keyof typeof KEY_RAMPS;
+  const index = Number(name.slice(-1)) - 1;
+  const hex = KEY_RAMPS[kind][index];
+  if (!hex) throw new Error(`cor-chave inválida: ${name}`);
+  return hex;
+}
+
+/**
+ * Sprite desenhado em grade com legenda própria: cada caractere vira a cor nomeada da legenda
+ * (ou uma cor-chave), '.' é transparente. A matriz guarda o hex de cada pixel.
+ */
+export function sprite(rows: readonly string[], legend: Record<string, ColorName | KeyName>, label: string): Pixels {
+  const width = rows[0]?.length ?? 0;
+  return rows.map((row, y) => {
+    if (row.length !== width) throw new Error(`${label}: linha ${y} tem ${row.length} colunas, esperado ${width}`);
+    return Array.from(row, (ch, x) => {
+      if (ch === '.') return '.';
+      const name = legend[ch];
+      if (!name) throw new Error(`${label}: caractere "${ch}" sem cor na legenda em (${x},${y})`);
+      return name in PALETTE ? PALETTE[name as ColorName] : keyHex(name as KeyName);
+    });
+  });
+}
+
+/** Matriz de pixels: '.' transparente, hex (`sprite`) ou letra do legado (`grid`). */
 export type Pixels = string[][];
 
 export function blank(width: number, height: number): Pixels {
@@ -90,7 +127,8 @@ export function toPng(pixels: Pixels): PNG {
   pixels.forEach((row, y) =>
     row.forEach((ch, x) => {
       if (ch === '.') return;
-      const hex = COLORS[ch];
+      // Pixel de `sprite` já é hex; pixel de `grid` (legado) é uma letra de COLORS.
+      const hex = ch.startsWith('#') ? ch : COLORS[ch];
       if (!hex) throw new Error(`cor desconhecida "${ch}" em (${x},${y})`);
       const i = (y * width + x) * 4;
       png.data[i] = parseInt(hex.slice(1, 3), 16);
