@@ -160,7 +160,7 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "tileWidth": 16,
     "tileHeight": 16,
     "columns": 8,
-    "tilecount": 16,
+    "tilecount": 64,
     "collides": [],
     "items": {}
   },
@@ -168,7 +168,7 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "tileWidth": 16,
     "tileHeight": 16,
     "columns": 8,
-    "tilecount": 8,
+    "tilecount": 16,
     "collides": [],
     "items": {}
   },
