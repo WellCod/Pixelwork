@@ -79,5 +79,15 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 ## 6. Fechamento
 
-- [ ] README, `docs/architecture.md`, `docs/deploy.md` e CLAUDE.md atualizados
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test` e `pnpm e2e` passando
+- [x] README, `docs/architecture.md`, `docs/deploy.md` e CLAUDE.md atualizados
+- [x] `pnpm typecheck`, `pnpm lint` e `pnpm test` (266 testes) passando; imagens Docker construindo
+- [ ] `pnpm e2e` no CI: localmente (macOS + Docker Desktop) o ICE do segundo participante falha
+  também no código anterior; conferir na primeira execução do CI desta branch
+
+## Pendências conhecidas
+
+- TURN para redes que só liberam a 443: as opções estão em `docs/deploy.md`, mas nenhuma foi
+  configurada (exige domínio e certificado próprios, ou um IP extra).
+- A CSP do Caddy foi conferida contra o bundle, mas só dá para validar no primeiro deploy com HTTPS.
+- Área de interesse no tick continua fora: o tick binário adiou a necessidade; medir com
+  `pnpm load` acima de 200 bots antes de fazer.
