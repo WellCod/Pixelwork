@@ -9,13 +9,16 @@ const RESOLUTION = 8;
 const STATUS_COLOR: Record<Status, number> = { available: 0x1ebc73, focus: 0xe83b3b, away: 0xf79617 };
 
 function text(scene: Phaser.Scene, value: string, color: string, size: number, bold = false): Phaser.GameObjects.Text {
-  return scene.add.text(0, 0, value, {
+  const label = scene.add.text(0, 0, value, {
     fontFamily: LABEL_FONT,
     fontSize: `${size}px`,
     fontStyle: bold ? '600' : '500',
     color,
     resolution: RESOLUTION,
   });
+  // O jogo é pixelArt (filtro nearest em tudo); texto em alta resolução reduzido com nearest serrilha.
+  label.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+  return label;
 }
 
 /** Troca o texto e redesenha mesmo se igual: depois que a fonte carrega, o texto é o mesmo. */
