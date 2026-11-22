@@ -144,12 +144,16 @@ medição):
 
 ## Testes
 
-- Unitários: `compileMap` com uma fixture por código de erro, simulação, proximidade com histerese,
-  reconciliação, interpolação, validação, comandos do editor (ida e volta exata e sequências
+- Unitários: `compileMap` com uma fixture por código de erro (e um teste de custo com retângulos
+  gigantes), simulação, proximidade com histerese, reconciliação, interpolação, A*, codec do tick
+  binário, replay, validação do ambiente, comandos do editor (ida e volta exata e sequências
   aleatórias com semente fixa).
 - Integração: servidor no processo de teste, porta aleatória, relógio manual e banco criado e
   apagado por execução. Bots WebSocket cobrem entrada, saída, tolerância de reconexão, limites de
-  taxa, trancas, batidas, chamadas e a autorização de mídia contra um dublê do LiveKit.
+  taxa, trancas, batidas, chamadas e a autorização de mídia contra um dublê do LiveKit. Também:
+  ECONNRESET no meio do upgrade, falha do banco ao carregar o runtime, logout e expiração fechando
+  o WebSocket, fila de passos adiantados, replay chegando às mesmas posições do servidor,
+  `/metrics` e o limite de taxa HTTP.
 - E2E de fumaça (Playwright, dois contextos do Chromium com mídia falsa): um anda até o outro e o
   teste confere que a trilha remota foi assinada. Roda no CI com o LiveKit num container.
 - Renderização do Phaser e layout do React não têm teste automatizado; a lógica fica fora das
@@ -165,7 +169,8 @@ e um coworking inteiro recebe os movimentos de todos. Para crescer:
 2. **Avisos entre nós:** a rota REST grava no banco e publica num Redis; o nó dono do coworking
    faz o broadcast.
 3. **Área de interesse:** mandar no tick só quem está perto da câmera de cada cliente, quando um
-   coworking passar de algumas centenas de pessoas.
+   coworking passar de algumas centenas de pessoas. O tick binário já cortou o tamanho por
+   movimento em ~10x, o que adia essa necessidade.
 4. **LiveKit em cluster:** o LiveKit já escala horizontalmente com Redis; o servidor só emite
    tokens.
 

@@ -14,6 +14,8 @@ técnica nele a amplitude de features.
   testes). Leia as seções relevantes antes de qualquer tarefa.
 - `docs/art.md`: paleta, grade, layout dos spritesheets, manifesto de assets e licenças.
 - `docs/prompts/`: um prompt por fase de implementação.
+- `docs/deploy.md`: deploy na VPS, backup e restauração.
+- `docs/melhorias.md`: lista de trabalho da revisão de 2026-11 (o que foi feito e o que ficou).
 
 ## Stack
 
