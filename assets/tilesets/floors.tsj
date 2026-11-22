@@ -4,11 +4,11 @@
   "name": "floors",
   "image": "floors.png",
   "imagewidth": 128,
-  "imageheight": 16,
+  "imageheight": 32,
   "tilewidth": 16,
   "tileheight": 16,
   "columns": 8,
-  "tilecount": 8,
+  "tilecount": 16,
   "margin": 0,
   "spacing": 0,
   "tiles": []

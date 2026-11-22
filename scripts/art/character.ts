@@ -189,9 +189,50 @@ function hairShade(x: number, y: number, facing: Facing): string {
   return '7';
 }
 
+/**
+ * Cabelo curto desenhado à mão por direção (a direita é o espelho da esquerda): volume um pixel
+ * acima da cabeça, franja com falhas e costeleta. Começa uma linha acima de HEAD_Y.
+ */
+const SHORT_HAIR: Record<Facing, Pixels> = {
+  down: part('cabelo curto de frente', [
+    '..KKKKKKKK..',
+    '.K77788777K.',
+    'K7778888777K',
+    'K7777777776K',
+    'K767767.766K',
+    'K6K......K6K',
+    'K6K......K6K',
+  ]),
+  up: part('cabelo curto de costas', [
+    '..KKKKKKKK..',
+    '.K77788777K.',
+    'K7778887777K',
+    'K7777777777K',
+    'K7777777777K',
+    'K6777777776K',
+    'K6677777766K',
+    'K6666666666K',
+    '.KKKKKKKKKK.',
+  ]),
+  left: part('cabelo curto de lado', [
+    '..KKKKKKKK..',
+    '.K77788777K.',
+    'K7778887777K',
+    'K7777777776K',
+    'K76.7777766K',
+    'K6...K77766K',
+    '.....K7766K.',
+    '......KKKK..',
+  ]),
+};
+
 function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
   const frame = blank(FRAME_W, FRAME_H);
   const dy = seated ? 2 : 0;
+  if (style === 'short') {
+    stamp(frame, SHORT_HAIR[facing], X0, HEAD_Y - 1 + dy);
+    return frame;
+  }
   const covers = (x: number, y: number): boolean => {
     const long = style === 'long';
     if (facing === 'up') return y <= (long ? 9 : 7);
