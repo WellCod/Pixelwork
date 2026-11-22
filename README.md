@@ -33,15 +33,18 @@ proximidade e autorização de mídia feitas no servidor.
 
 ## Telas
 
+![Coworking de demonstração: mesas por equipe, sala de reunião, lounge, copa, jogos e jardim](docs/prints/coworking.png)
+
+O coworking de demonstração inteiro, desenhado por `scripts/render-map.ts`.
+
 | | |
 |---|---|
-| ![Sala de reunião trancada, com o pedido de entrada do Bruno](docs/prints/reuniao.png) | ![Editor de mapa com zonas, mesas e validação do contrato](docs/prints/editor.png) |
-| Sala trancada: quem bate na porta espera a aprovação de quem está dentro. | Editor de mapa no app, validado pelo mesmo `compileMap` do upload. |
-| ![Editor de avatar por camadas com troca de paleta](docs/prints/avatar.png) | ![Decoração da mesa ocupada](docs/prints/mesa-decorar.png) |
-| Avatar por camadas: corpo, roupa, cabelo e acessório, com as cores trocadas no cliente. | Mesa própria com variação, tela e itens por posição. |
+| ![Sala de reunião trancada, vista de dentro](docs/prints/reuniao.png) | ![Editor de mapa com a paleta de móveis por categoria](docs/prints/editor.png) |
+| Sala de reunião trancada: quem bate na porta espera a aprovação de quem está dentro. | Editor de mapa no app, com móveis por categoria, validado pelo mesmo `compileMap` do upload. |
+| ![Editor de avatar por camadas com troca de paleta](docs/prints/avatar.png) | ![Decoração da mesa larga com prévia ao vivo](docs/prints/mesa-decorar.png) |
+| Avatar por camadas: corpo, roupa, cabelo e acessório, com as cores trocadas no cliente. | Mesa larga própria: variação, tela e itens por posição, com prévia ao vivo. |
 
-Os prints saem de `docs/prints/`, gerados com três convidados no coworking de demo e câmeras
-falsas do Chromium.
+Os prints de tela saem do app rodando localmente com o coworking de demo.
 
 ## Como rodar
 
@@ -179,6 +182,9 @@ O deploy numa VPS está preparado (Caddy com TLS, app, Postgres, LiveKit), mas n
 
 ## Arte
 
-A arte é gerada em código (`pnpm assets:art`, a partir de `scripts/art/`), na paleta Endesga 32 e
-no layout final dos spritesheets; peça desenhada à mão substitui a gerada sem mudar código. Licenças aceitas e créditos em
+A arte é original e gerada em código (`pnpm assets:art`, a partir de `scripts/art/`), na paleta
+Resurrect 64 e num guia de estilo próprio (luz de cima à esquerda, contorno no tom do material,
+fundo claro e calmo): 12 pisos, 3 tapetes, 15 paredes, 54 móveis em quatro tamanhos de célula, mesa
+larga com 23 itens de decoração e avatares com 6 cabelos, 6 roupas e 5 acessórios. Peça desenhada à
+mão substitui a gerada sem mudar código. Licenças aceitas e créditos em
 `docs/art.md` e na página `/creditos` do app.
