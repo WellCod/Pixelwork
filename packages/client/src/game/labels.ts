@@ -18,6 +18,12 @@ function text(scene: Phaser.Scene, value: string, color: string, size: number, b
   });
 }
 
+/** Troca o texto e redesenha mesmo se igual: depois que a fonte carrega, o texto é o mesmo. */
+function setLabel(label: Phaser.GameObjects.Text, value: string): void {
+  if (label.text === value) label.updateText();
+  else label.setText(value);
+}
+
 /**
  * Nome em pílula escura com bolinha de status, centrada em x e com o topo em y (a pílula fica
  * embaixo dos pés, para não brigar com o balão de vídeo acima da cabeça). A própria pessoa usa o
@@ -38,7 +44,7 @@ export class NamePill extends Phaser.GameObjects.Container {
   }
 
   set(value: string, status: Status, self: boolean): this {
-    this.label.setText(value);
+    setLabel(this.label, value);
     const padX = 4;
     const dotSpace = 6;
     const w = Math.ceil(this.label.width) + padX * 2 + dotSpace;
@@ -70,7 +76,7 @@ export class TitlePill extends Phaser.GameObjects.Container {
 
   set(value: string): this {
     this.value = value;
-    this.label.setText(value);
+    setLabel(this.label, value);
     const w = Math.ceil(this.label.width) + 8;
     const h = 10;
     const left = -Math.round(w / 2);

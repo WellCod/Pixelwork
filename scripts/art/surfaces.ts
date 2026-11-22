@@ -101,9 +101,9 @@ export const grayCarpet = texture((x, y) => {
   return 'gray';
 });
 
-// ---- tapetes (9 tiles: NO, N, NE, O, centro, L, SO, S, SE) ----
+// ---- tapetes (16 tiles, um por combinação de bordas: máscara N=1, S=2, O=4, L=8) ----
 
-interface RugColors {
+export interface RugColors {
   edge: ColorName;
   stripe: ColorName;
   field: ColorName;

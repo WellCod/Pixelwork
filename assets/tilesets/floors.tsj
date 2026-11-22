@@ -11,5 +11,156 @@
   "tilecount": 64,
   "margin": 0,
   "spacing": 0,
-  "tiles": []
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wood-light"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "carpet-lilac"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "kitchen-checker"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "tile-cream"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "carpet-gray"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "rug-lavender"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "rug-sage"
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "rug-cream"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wood-herringbone"
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wood-dark"
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grass"
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "stone-path"
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "concrete"
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "tile-sage"
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "carpet-ice"
+        }
+      ]
+    }
+  ]
 }

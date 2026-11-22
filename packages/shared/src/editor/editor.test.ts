@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileMap, type MapError } from '../map.ts';
+import { TILESETS } from '../catalog.generated.ts';
 import { DIRS } from '../protocol.ts';
 import { FIRSTGID, FURNITURE, buildTestMap } from '../testing.ts';
 import { apply, objectLayer, prop, type EditorCommand, type ObjectLayerName, type TiledDoc } from './commands.ts';
@@ -273,6 +274,35 @@ describe('móveis de várias células', () => {
     const stack = new CommandStack(baseDoc());
     stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
     expect(lastFurniture(stack.doc)).toMatchObject({ x: 3 * 16, y: 7 * 16, width: 32, height: 16 });
+  });
+
+  it('móvel de várias células não é colocado nem movido com parte fora do mapa', () => {
+    const doc = baseDoc();
+    expect(placeFurniture(doc, 'furniture-2x1', 0, doc.width - 1, 6)).toBeNull();
+    expect(placeFurniture(doc, 'furniture-2x2', 0, 3, 0)).toBeNull();
+    expect(placeFurniture(doc, 'furniture-2x1', 0, doc.width - 2, 6)).not.toBeNull();
+    const stack = new CommandStack(doc);
+    stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
+    const id = lastFurniture(stack.doc)?.id ?? -1;
+    expect(moveObject(stack.doc, 'furniture', id, doc.width - 1, 6)).toBeNull();
+  });
+
+  it('tileset novo ganha um firstgid que não cruza com os do mapa (mapa editado no Tiled)', () => {
+    const doc = baseDoc();
+    const refs = (doc.tilesets as { firstgid: number; source: string }[]).filter((t) => t.source !== 'furniture-2x1.tsj');
+    // O Tiled compacta os firstgid: aqui o desk-decor ocupa a faixa onde o bloco de 100 do 2x1 cairia.
+    const decor = refs.find((t) => t.source === 'desk-decor.tsj');
+    if (decor) decor.firstgid = 390;
+    doc.tilesets = refs;
+    const stack = new CommandStack(doc);
+    stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
+    const ranges = (stack.doc.tilesets as { firstgid: number; source: string }[]).map((t) => {
+      const id = t.source.replace(/\.tsj$/, '') as keyof typeof TILESETS;
+      return [t.firstgid, t.firstgid + TILESETS[id].tilecount] as const;
+    });
+    for (const [a0, a1] of ranges) {
+      expect(ranges.filter(([b0, b1]) => a0 < b1 && b0 < a1)).toHaveLength(1);
+    }
   });
 
   it('mesa larga não é criada nem movida com um tile para fora do mapa', () => {

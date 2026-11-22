@@ -1,7 +1,7 @@
-import { compileMap, type CompiledMap, type DeskState } from '@pixelwork/shared';
+import { compileMap, type CompiledDesk, type CompiledMap, type DeskDecor, type DeskState } from '@pixelwork/shared';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { describe, expect, it } from 'vitest';
-import { isNear, seatedFacing, dividerLayout } from './presence.ts';
+import { deskSprites, dividerLayout, isNear, seatedFacing } from './presence.ts';
 
 function testMap(): CompiledMap {
   const result = compileMap(buildTestMap({ desks: [{ key: 'mesa', x: 3, y: 1, orientation: 'down' }] }));
@@ -52,5 +52,42 @@ describe('dividerLayout', () => {
     const layout = dividerLayout(desk('right', 1, 2));
     expect(layout?.pieces).toHaveLength(2);
     expect(layout?.pieces.every((p) => p.item === 'divider-side' && p.flip)).toBe(true);
+  });
+});
+
+describe('deskSprites', () => {
+  const desk = (o: Partial<CompiledDesk>): CompiledDesk => ({
+    key: 'm', x: 0, y: 0, w: 2, h: 1, orientation: 'down', chairX: 0, chairY: 1, wallBehind: true, ...o,
+  });
+  const decor: DeskDecor = { variant: 'white', monitor: 'dual', slots: { left: 'duck', right: 'pencil-cup', back: 'calendar', floor: 'cat' } };
+  const at = (sprites: ReturnType<typeof deskSprites>, item: string) => sprites.find((s) => s.item === item);
+
+  it('mesa larga virada para baixo: metades, monitor no meio e itens nas pontas', () => {
+    const sprites = deskSprites(desk({}), decor);
+    expect(at(sprites, 'white-wide-l')).toMatchObject({ dx: 0, dy: 0 });
+    expect(at(sprites, 'white-wide-r')).toMatchObject({ dx: 16, dy: 0 });
+    expect(at(sprites, 'monitor-dual')).toMatchObject({ dx: 8, dy: -2 });
+    expect(at(sprites, 'duck')).toMatchObject({ dx: -3, dy: -3 });
+    expect(at(sprites, 'calendar')).toMatchObject({ dx: 8, dy: -14 });
+  });
+
+  it('mesa lateral virada para a esquerda usa as metades de cima e de baixo e os deslocamentos dela', () => {
+    const sprites = deskSprites(desk({ w: 1, h: 2, orientation: 'left' }), decor);
+    expect(at(sprites, 'white-tall-t')).toMatchObject({ dx: 0, dy: -16 });
+    expect(at(sprites, 'white-tall-b')).toMatchObject({ dx: 0, dy: 0 });
+    expect(at(sprites, 'monitor-dual')).toMatchObject({ dx: 0, dy: -17 });
+    expect(at(sprites, 'cat')).toMatchObject({ dx: 2, dy: 14 });
+  });
+
+  it('sem parede atrás o item de parede vai na divisória, que fica atrás dele', () => {
+    const sprites = deskSprites(desk({ wallBehind: false }), decor);
+    const panel = at(sprites, 'divider-wide-l');
+    const calendar = at(sprites, 'calendar');
+    expect(calendar).toMatchObject({ dx: 8, dy: -9 });
+    expect(panel && calendar && panel.z < calendar.z).toBe(true);
+  });
+
+  it('mesa livre (sem decoração): variação padrão e um monitor, sem itens', () => {
+    expect(deskSprites(desk({ w: 1 }), null).map((s) => s.item)).toEqual(['basic', 'monitor-single']);
   });
 });

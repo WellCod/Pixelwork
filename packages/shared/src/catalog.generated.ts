@@ -162,7 +162,23 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "columns": 8,
     "tilecount": 64,
     "collides": [],
-    "items": {}
+    "items": {
+      "0": "wood-light",
+      "1": "carpet-lilac",
+      "2": "kitchen-checker",
+      "3": "tile-cream",
+      "4": "carpet-gray",
+      "5": "rug-lavender",
+      "21": "rug-sage",
+      "37": "rug-cream",
+      "53": "wood-herringbone",
+      "54": "wood-dark",
+      "55": "grass",
+      "56": "stone-path",
+      "57": "concrete",
+      "58": "tile-sage",
+      "59": "carpet-ice"
+    }
   },
   "walls": {
     "tileWidth": 16,
@@ -170,7 +186,23 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "columns": 8,
     "tilecount": 16,
     "collides": [],
-    "items": {}
+    "items": {
+      "0": "wall-top",
+      "1": "wall",
+      "2": "wall-window",
+      "3": "wall-sage",
+      "4": "wall-cream",
+      "5": "wall-painting",
+      "6": "wall-poster",
+      "7": "wall-clock",
+      "8": "wall-whiteboard",
+      "9": "wall-shelf",
+      "10": "wall-lilac",
+      "11": "wall-corkboard",
+      "12": "wall-plant",
+      "13": "wall-tv",
+      "14": "wall-window-curtain"
+    }
   },
   "furniture": {
     "tileWidth": 16,
