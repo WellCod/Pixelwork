@@ -14,7 +14,8 @@ export function mountGame<S extends Phaser.Scene>(parent: HTMLElement, scene: S)
     ...size(),
     zoom: RENDER_SCALE,
     pixelArt: true,
-    backgroundColor: '#181425',
+    // Fora do mapa: o mesmo creme do palco da UI clara.
+    backgroundColor: '#ebe3d9',
     scene: [scene],
   });
   // O container muda de tamanho sem a janela mudar (aviso no topo, sidebar): observa ele.
