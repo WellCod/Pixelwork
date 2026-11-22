@@ -40,6 +40,19 @@ describe('buildCatalog', () => {
     expect(code).toContain('"kind": "tileset"');
   });
 
+  it('leva o tamanho de célula de cada tileset para o catálogo', () => {
+    const code = buildCatalog(
+      input({ readTileset: () => ({ tilewidth: 32, tileheight: 16, columns: 8, tilecount: 8, tiles: [] }) }),
+    );
+    expect(code).toContain('"tileWidth": 32');
+    expect(code).toContain('"tileHeight": 16');
+  });
+
+  it('recusa célula que não é 16, 32 ou 48', () => {
+    const result = problems(input({ readTileset: () => ({ tilewidth: 20, tileheight: 16, columns: 8, tilecount: 8, tiles: [] }) }));
+    expect(result.some((p) => p.includes('tilewidth'))).toBe(true);
+  });
+
   it('falha quando um asset do manifesto não tem licença', () => {
     const semLicenca = { id: 'floors', author: 'Pixelwork', source: null };
     const found = problems(

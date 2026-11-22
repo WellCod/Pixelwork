@@ -154,21 +154,27 @@ export const RAMPS = {
   }
 } as const;
 
-// Metadados dos .tsj: colisão e item_id por índice de tile.
-export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = {
+// Metadados dos .tsj: tamanho da célula, colisão e item_id por índice de tile.
+export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number; columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = {
   "floors": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
     "tilecount": 8,
     "collides": [],
     "items": {}
   },
   "walls": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
     "tilecount": 8,
     "collides": [],
     "items": {}
   },
   "furniture": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
     "tilecount": 16,
     "collides": [
@@ -198,6 +204,8 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
     }
   },
   "desk-decor": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
     "tilecount": 16,
     "collides": [
