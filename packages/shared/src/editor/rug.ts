@@ -1,14 +1,15 @@
 // Tapetes pintados na camada `floor` (docs/art.md): cada tapete tem 16 tiles no tileset de pisos,
 // um para cada combinação de bordas, então qualquer retângulo, até 1x1, fecha a borda certinho.
+import { frameOf } from '../assets.ts';
 import type { EditorCommand, TiledDoc, TilesetRef } from './commands.ts';
 
 export type RugId = 'lavender' | 'sage' | 'cream';
 
-/** Primeiro frame de cada tapete no tileset `floors`; o frame é `first + máscara`. */
+/** Primeiro frame de cada tapete no tileset `floors` (o do item `rug-<cor>`); o frame é `first + máscara`. */
 export const RUGS: Record<RugId, { first: number }> = {
-  lavender: { first: 5 },
-  sage: { first: 21 },
-  cream: { first: 37 },
+  lavender: { first: frameOf('floors', 'rug-lavender') },
+  sage: { first: frameOf('floors', 'rug-sage') },
+  cream: { first: frameOf('floors', 'rug-cream') },
 };
 
 /** Bordas de fora do retângulo `w`x`h` no tile (x, y) relativo: N=1, S=2, O=4, L=8. */

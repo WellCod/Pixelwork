@@ -1,4 +1,4 @@
-import { TILESETS, TILESET_IDS, compileMap, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
+import { TILESETS, TILESET_IDS, compileMap, frameOf, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
 import {
   CommandStack,
   addDesk,
@@ -26,39 +26,42 @@ export interface Selection {
   id: number;
 }
 
+/** Opções do pincel, pelo item_id do catálogo (o frame vem dele, não da posição no tileset). */
+const option = (tileset: 'floors' | 'walls') => (o: { item: string; label: string }) => ({ ...o, frame: frameOf(tileset, o.item) });
+
 export const FLOOR_OPTIONS = [
-  { frame: 0, label: 'Madeira clara' },
-  { frame: 53, label: 'Taco' },
-  { frame: 54, label: 'Madeira escura' },
-  { frame: 3, label: 'Ladrilho creme' },
-  { frame: 58, label: 'Ladrilho sálvia' },
-  { frame: 2, label: 'Copa (xadrez)' },
-  { frame: 4, label: 'Carpete cinza' },
-  { frame: 1, label: 'Carpete lavanda' },
-  { frame: 59, label: 'Carpete azul' },
-  { frame: 57, label: 'Cimento' },
-  { frame: 56, label: 'Calçada' },
-  { frame: 55, label: 'Grama' },
-] as const;
+  { item: 'wood-light', label: 'Madeira clara' },
+  { item: 'wood-herringbone', label: 'Taco' },
+  { item: 'wood-dark', label: 'Madeira escura' },
+  { item: 'tile-cream', label: 'Ladrilho creme' },
+  { item: 'tile-sage', label: 'Ladrilho sálvia' },
+  { item: 'kitchen-checker', label: 'Copa (xadrez)' },
+  { item: 'carpet-gray', label: 'Carpete cinza' },
+  { item: 'carpet-lilac', label: 'Carpete lavanda' },
+  { item: 'carpet-ice', label: 'Carpete azul' },
+  { item: 'concrete', label: 'Cimento' },
+  { item: 'stone-path', label: 'Calçada' },
+  { item: 'grass', label: 'Grama' },
+].map(option('floors'));
 
 /** Tiles do pincel de parede: faces lisas, janelas e decoração (tudo colide, como parede). */
 export const WALL_OPTIONS = [
-  { frame: 1, label: 'Parede clara' },
-  { frame: 3, label: 'Parede sálvia' },
-  { frame: 4, label: 'Parede creme' },
-  { frame: 10, label: 'Parede lilás' },
-  { frame: 0, label: 'Topo da parede' },
-  { frame: 2, label: 'Janela' },
-  { frame: 14, label: 'Janela com cortina' },
-  { frame: 5, label: 'Quadro' },
-  { frame: 6, label: 'Pôster' },
-  { frame: 7, label: 'Relógio' },
-  { frame: 8, label: 'Lousa' },
-  { frame: 9, label: 'Prateleira' },
-  { frame: 11, label: 'Mural de cortiça' },
-  { frame: 12, label: 'Planta pendurada' },
-  { frame: 13, label: 'TV' },
-] as const;
+  { item: 'wall', label: 'Parede clara' },
+  { item: 'wall-sage', label: 'Parede sálvia' },
+  { item: 'wall-cream', label: 'Parede creme' },
+  { item: 'wall-lilac', label: 'Parede lilás' },
+  { item: 'wall-top', label: 'Topo da parede' },
+  { item: 'wall-window', label: 'Janela' },
+  { item: 'wall-window-curtain', label: 'Janela com cortina' },
+  { item: 'wall-painting', label: 'Quadro' },
+  { item: 'wall-poster', label: 'Pôster' },
+  { item: 'wall-clock', label: 'Relógio' },
+  { item: 'wall-whiteboard', label: 'Lousa' },
+  { item: 'wall-shelf', label: 'Prateleira' },
+  { item: 'wall-corkboard', label: 'Mural de cortiça' },
+  { item: 'wall-plant', label: 'Planta pendurada' },
+  { item: 'wall-tv', label: 'TV' },
+].map(option('walls'));
 
 export const RUG_OPTIONS: { rug: RugId; label: string }[] = [
   { rug: 'lavender', label: 'Tapete lavanda' },
@@ -75,7 +78,6 @@ function firstGid(doc: TiledDoc, id: TilesetId): number | null {
   return refs?.find((t) => t.source === `${id}.tsj`)?.firstgid ?? null;
 }
 
-/** Móveis do catálogo com o frame no tileset `furniture`. */
 /** Tilesets de móveis colocáveis: o `furniture` (16x16) e os de várias células. */
 export const FURNITURE_TILESETS = TILESET_IDS.filter((id) => id.startsWith('furniture'));
 
@@ -92,8 +94,8 @@ export type FurnitureChoice = { tileset: TilesetId; frame: number };
 export class EditorController {
   readonly stack: CommandStack;
   tool: Tool = 'select';
-  floorFrame: number = FLOOR_OPTIONS[0].frame;
-  wallFrame: number = WALL_OPTIONS[0].frame;
+  floorFrame: number = FLOOR_OPTIONS[0]?.frame ?? 0;
+  wallFrame: number = WALL_OPTIONS[0]?.frame ?? 0;
   rug: RugId = 'lavender';
   furniture: FurnitureChoice = FURNITURE_OPTIONS[0] ?? { tileset: 'furniture', frame: 0 };
   eraseLayer: 'walls' | 'floor' = 'walls';
