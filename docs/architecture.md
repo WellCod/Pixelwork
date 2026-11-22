@@ -270,7 +270,11 @@ Restrições (o servidor rejeita com código de erro):
   objeto é ancorado no canto de cima à esquerda, a pegada inteira bloqueia, e a cadeira fica na
   frente do tile de âncora, encostada na borda da pegada (para baixo `(x, y+h)`, para cima
   `(x, y-1)`, à esquerda `(x-1, y)`, à direita `(x+w, y)`). `CompiledDesk` ganhou `w` e `h`. O
-  editor cria mesas de 2 tiles e, ao girar, troca largura e altura.
+  editor cria mesas de 2 tiles e, ao girar, troca largura e altura. A pegada inteira tem que estar
+  no mapa (senão `desk_outside`); o editor não cria, move nem gira mesa para fora.
+- `CompiledDesk.wallBehind`: todos os tiles logo atrás da pegada (do lado oposto à cadeira) têm
+  parede. Sem parede atrás, o item do slot "fundo" fica pendurado numa divisória baixa desenhada
+  pelo cliente (`dividerLayout`), em vez de flutuar.
 - Decisões da fase 1: caminhável = tem piso, não tem parede e não tem móvel com `collides`. A
   própria mesa ocupa e bloqueia o seu tile. Objetos de tile (móveis) seguem a âncora do Tiled, no
   canto inferior esquerdo. Entrada que não é objeto JSON devolve `not_orthogonal` (não há
@@ -296,7 +300,7 @@ export interface CompiledMap {
   walkable: Uint8Array;          // 1 = caminhável, índice y * width + x
   zoneIndex: Uint16Array;        // índice em zones para cada tile
   zones: { key: string; type: 'open' | 'meeting'; name: string; tiles: number }[];
-  desks: { key: string; x: number; y: number; orientation: Dir; chairX: number; chairY: number }[];
+  desks: { key: string; x: number; y: number; w: number; h: number; orientation: Dir; chairX: number; chairY: number; wallBehind: boolean }[];
   spawn: { x: number; y: number };
   tilesets: string[];            // catalogIds referenciados
 }

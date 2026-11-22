@@ -165,6 +165,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
   pintados pela ferramenta Tapete do editor (`paintRug`). Qualquer retângulo, até 1x1, fecha a borda.
 - Mesa larga: desenhada inteira (32x16 e 16x32) e cortada em metades no `desk-decor`
   (`<variante>-wide-l`/`-r`, `<variante>-tall-t`/`-b`); o cliente remonta.
+- Divisória (`divider`, `divider-wide-l`/`-r`, `divider-side`): painel baixo sage atrás da mesa
+  sem parede, onde o item "Na parede" fica pendurado. A de lado é desenhada para a mesa virada à
+  esquerda e espelhada para a direita.
 - Personagem: 1 corpo, 6 cabelos (curto, comprido, espetado, cacheado, coque, black power), 6 roupas
   (camiseta, moletom, camisa, vestido, jaqueta, suéter), 5 acessórios (óculos, boné, fone, gorro,
   laço). Rampas: 6 de pele, 8 de cabelo, 8 de roupa.
