@@ -2,6 +2,7 @@ import {
   CALL_RING_TIMEOUT_MS,
   TICK_MS,
   compileMap,
+  replay,
   KNOCK_TIMEOUT_MS,
   RECONNECT_GRACE_MS,
   type Dir,
@@ -225,6 +226,40 @@ describe('salas de reunião e chamadas', () => {
       expect(await position(outside.guest)).toEqual([1, 1]);
       expect(await position(inside.guest)).not.toEqual([1, 1]);
       expect(media.roomsFor(outside.guest.id)).not.toContain(zoneRoom());
+    });
+  });
+
+  describe('replay', () => {
+    it('reproduzir a gravação chega às mesmas posições do servidor, com tranca e batida', async () => {
+      const inside = await online();
+      const knocker = await online();
+      const walker = await online();
+      await enterRoom(inside);
+      inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
+      await knocker.bot.next('zone.state', (m) => m.zone.locked);
+      // Quem não foi liberado bate na trancada e não entra; quem foi liberado entra.
+      await knocker.bot.walk(server.clock, [...TO_DOOR, 'up']);
+      await walker.bot.walk(server.clock, ['down', 'down', 'right', 'right', 'left', 'up']);
+      knocker.bot.send({ t: 'zone.knock', zoneKey: 'sala' });
+      const request = await inside.bot.next('zone.knockRequest');
+      inside.bot.send({ t: 'zone.knockReply', requestId: request.requestId, allow: true });
+      await knocker.bot.next('zone.knockResult');
+      await knocker.bot.walk(server.clock, ['up', 'up']);
+      server.clock.advance(TICK_MS);
+
+      const runtime = server.app.realtime.runtime(server.spaceId);
+      if (!runtime) throw new Error('sem runtime');
+      const recording = runtime.recording();
+      // O mapa do runtime, não o da fixture: um teste anterior troca o mapa deste servidor.
+      const replayed = replay(runtime.compiledMap(), recording);
+      for (const u of [inside, knocker, walker]) {
+        const p = replayed.players.get(u.guest.id);
+        expect([p?.x, p?.y]).toEqual(await position(u.guest));
+      }
+      expect(recording.events.some((e) => e.type === 'lock' && e.locked)).toBe(true);
+
+      const admin = await api(server, inside.guest, 'GET', `/spaces/${server.spaceId}/replay`);
+      expect(admin.status).toBe(403);
     });
   });
 

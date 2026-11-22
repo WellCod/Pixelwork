@@ -21,6 +21,7 @@ import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
 import { Welcome } from './ui/Welcome.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
 import { NetOverlay } from './ui/NetOverlay.tsx';
+import { ReplayModal } from './ui/ReplayModal.tsx';
 import { NetSim } from './net/net-sim.ts';
 
 interface Props {
@@ -53,6 +54,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [netSim] = useState(() => new NetSim());
   const [following, setFollowing] = useState<string | null>(null);
+  const [replayOpen, setReplayOpen] = useState(false);
   const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
   const send = (msg: ClientMsg) => connection.current?.send(msg);
@@ -154,6 +156,20 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           </div>
           {!editor && <ChatBox world={world} send={send} />}
           {!editor && <NetOverlay sim={netSim} world={world} stats={netStats} />}
+          {!editor && space.role === 'admin' && (
+            <button type="button" className="replay-toggle" title="Replay da simulação" onClick={() => setReplayOpen(true)}>
+              Replay
+            </button>
+          )}
+          {replayOpen && (
+            <ReplayModal
+              spaceId={space.id}
+              map={map}
+              mapVersion={space.mapVersion}
+              nameOf={(id) => world.players.get(id)?.name ?? 'Quem já saiu'}
+              onClose={() => setReplayOpen(false)}
+            />
+          )}
           {!editor && (
             <div className="zoom-controls" aria-label="Zoom do mapa">
               <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => scene.current?.zoom(-1)}>

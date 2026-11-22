@@ -32,6 +32,17 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
         .where(eq(deskAssignments.spaceId, spaceId))
     ).map((r) => r.deskKey);
 
+  /**
+   * Gravação do replay (só admin): entradas da simulação desde a última troca de mapa. Sem
+   * ninguém conectado desde que o servidor subiu, não há runtime e a gravação vem nula.
+   */
+  app.get<{ Params: SpaceParams }>('/spaces/:spaceId/replay', async (request, reply) => {
+    const access = await requireMember(deps, request, reply);
+    if (!access) return reply;
+    if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
+    return { recording: app.realtime.runtime(access.spaceId)?.recording() ?? null };
+  });
+
   /** Ensaio: erros do mapa e as mesas atribuídas que deixariam de existir. */
   app.post<{ Params: SpaceParams }>(
     '/spaces/:spaceId/map/validate',

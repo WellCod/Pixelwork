@@ -573,6 +573,8 @@ DELETE /spaces/:spaceId/desks/:deskKey          dono ou admin
 POST   /spaces/:spaceId/map/validate      admin -> { errors, orphanDesks }
 PUT    /spaces/:spaceId/map               admin { map, baseVersion } -> 409 se baseVersion != atual
 GET    /spaces/:spaceId/map/export        admin -> zip
+GET    /spaces/:spaceId/replay            admin -> { recording } (gravação da simulação)
+GET    /metrics                           texto do Prometheus (só rede interna)
 ```
 
 ## 10. Mídia
@@ -808,6 +810,19 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
   de carga; `GET /internal/stats` (CPU e memória) só existe com `LOAD_TEST=true`. O LiveKit do E2E
   sobe com `docker run`, porque o service container do GitHub não aceita `--dev --bind 0.0.0.0`.
   O estado de debug do E2E é o mesmo `window.__pixelwork` do modo de desenvolvimento.
+
+## Replay determinístico (revisão de 2026-11)
+
+- Cada runtime grava o que a simulação recebeu: `join` (com a posição), `leave`, cada passo
+  entregue ao `step` (aplicado ou recusado, com o tempo do relógio injetado) e cada mudança de
+  tranca (estado e lista de permitidos). Troca de mapa ou gravação cheia (20 mil eventos)
+  recomeça a gravação a partir de um retrato de quem está no mapa e das trancas ativas.
+- `replay` (em `shared`) reproduz a gravação com o mesmo `step` puro e a mesma regra de tranca, e
+  chega às mesmas posições: um teste de integração confere isso num cenário com tranca e batida.
+- `GET /spaces/:spaceId/replay` (só admin) devolve a gravação; o botão "Replay" do cliente a
+  reproduz num canvas com linha do tempo e velocidade.
+- Fica de fora o que não entra na simulação (chat, mídia, chamadas, mesas): o replay é do
+  movimento.
 
 ## Observabilidade
 

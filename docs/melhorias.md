@@ -74,7 +74,7 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 - [x] Overlay de netcode e simulador de latência (F3 ou botão "Rede")
 - [x] Métricas `/metrics` (Prometheus)
 - [x] Clicar para andar e seguir alguém (A* em `shared`)
-- [ ] Replay determinístico de entradas
+- [x] Replay determinístico de entradas
 - [ ] Tick binário com ids curtos
 
 ## 6. Fechamento

@@ -28,6 +28,8 @@ proximidade e autorização de mídia feitas no servidor.
 - Clicar no chão para andar até lá (A*) e clicar em alguém para seguir a pessoa.
 - Overlay de rede (F3): RTT, jitter, passos pendentes, correções, posição confirmada pelo
   servidor e simulador de latência para ver a predição e a reconciliação funcionando.
+- Replay da simulação para admins: a gravação das entradas do servidor reproduzida no navegador
+  com o mesmo `step` puro.
 
 ## Telas
 
