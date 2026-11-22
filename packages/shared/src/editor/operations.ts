@@ -1,5 +1,6 @@
 // Operações do editor: montam comandos a partir do documento atual. Devolvem null quando não
 // há o que mudar, para não empilhar desfazer vazio.
+import { TILESETS, TILESET_IDS, type TilesetId } from '../catalog.generated.ts';
 import { TILE_PX } from '../constants.ts';
 import type { Dir } from '../protocol.ts';
 import {
@@ -10,6 +11,7 @@ import {
   type TiledDoc,
   type TiledObject,
   type TiledProperty,
+  type TilesetRef,
   type TileLayerName,
 } from './commands.ts';
 
@@ -26,6 +28,9 @@ const LAYER = { zone: 'zones', desk: 'desks' } as const;
 const CLOCKWISE: Record<Dir, Dir> = { up: 'right', right: 'down', down: 'left', left: 'up' };
 
 const inside = (doc: TiledDoc, x: number, y: number) => x >= 0 && y >= 0 && x < doc.width && y < doc.height;
+/** Pegada em pixels (canto superior esquerdo em x, y) cabe inteira no mapa. */
+const fits = (doc: TiledDoc, x: number, y: number, width: number, height: number) =>
+  x >= 0 && y >= 0 && x + width <= doc.width * TILE_PX && y + height <= doc.height * TILE_PX;
 
 function allObjects(doc: TiledDoc): TiledObject[] {
   return doc.layers.flatMap((l) => (l.type === 'objectgroup' ? l.objects : []));
@@ -120,11 +125,24 @@ export function paint(doc: TiledDoc, layer: TileLayerName, tiles: readonly [numb
 // ---- móveis ----
 
 /** Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo. */
-export function placeFurniture(doc: TiledDoc, gid: number, tx: number, ty: number): EditorCommand | null {
+/**
+ * Móvel do `frame` do `tileset`, ancorado no canto inferior esquerdo do tile clicado, com o
+ * tamanho da célula do tileset. Mapa salvo antes do tileset existir ganha a referência (bloco de
+ * 100 gids na ordem do catálogo) no mesmo comando, então desfazer volta o documento exato.
+ */
+export function placeFurniture(doc: TiledDoc, tileset: TilesetId, frame: number, tx: number, ty: number): EditorCommand | null {
   if (!inside(doc, tx, ty)) return null;
-  return addWithKey(doc, 'furniture', (id) =>
-    baseObject(id, { gid, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: TILE_PX, height: TILE_PX }),
+  const refs = (doc.tilesets as TilesetRef[] | undefined) ?? [];
+  const source = `${tileset}.tsj`;
+  const existing = refs.find((r) => r.source === source);
+  const firstgid = existing?.firstgid ?? 1 + TILESET_IDS.indexOf(tileset) * 100;
+  const { tileWidth, tileHeight } = TILESETS[tileset];
+  const add = addWithKey(doc, 'furniture', (id) =>
+    baseObject(id, { gid: firstgid + frame, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: tileWidth, height: tileHeight }),
   );
+  if (existing) return add;
+  const tilesets = [...refs, { firstgid, source }].sort((a, b) => a.firstgid - b.firstgid);
+  return { kind: 'batch', commands: [{ kind: 'setDocFields', fields: { tilesets } }, add] };
 }
 
 // ---- zonas ----
@@ -187,7 +205,8 @@ export function setZoneProps(doc: TiledDoc, id: number, values: { name?: string;
 // ---- mesas ----
 
 export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir): EditorCommand | null {
-  if (!inside(doc, tx, ty)) return null;
+  const size = deskSize(orientation, 2);
+  if (!fits(doc, tx * TILE_PX, ty * TILE_PX, size.width, size.height)) return null;
   return addWithKey(
     doc,
     'desks',
@@ -195,8 +214,8 @@ export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir)
       baseObject(id, {
         x: tx * TILE_PX,
         y: ty * TILE_PX,
-        width: TILE_PX,
-        height: TILE_PX,
+        // Mesa nova é a larga: 2 tiles de frente para a cadeira (docs/architecture.md, seção 6).
+        ...size,
         properties: [
           { name: 'desk_key', type: 'string', value: key ?? '' },
           { name: 'orientation', type: 'string', value: orientation },
@@ -206,11 +225,22 @@ export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir)
   );
 }
 
-export function rotateDesk(doc: TiledDoc, id: number): EditorCommand {
+/** Largura e altura em pixels da mesa de `tiles` tiles virada para `orientation`. */
+function deskSize(orientation: Dir, tiles: 1 | 2): { width: number; height: number } {
+  const across = orientation === 'up' || orientation === 'down';
+  return { width: (across ? tiles : 1) * TILE_PX, height: (across ? 1 : tiles) * TILE_PX };
+}
+
+/** Gira no sentido horário; a mesa larga troca largura e altura para continuar de frente. */
+export function rotateDesk(doc: TiledDoc, id: number): EditorCommand | null {
   const desk = find(doc, 'desks', id);
   const current = prop(desk, 'orientation');
   const next = CLOCKWISE[(current as Dir | undefined) ?? 'down'];
-  return { kind: 'replaceObject', layer: 'desks', object: setProps(desk, { orientation: next }) };
+  const tiles = Math.max(desk.width, desk.height) > TILE_PX ? 2 : 1;
+  const rotated = { ...setProps(desk, { orientation: next }), ...deskSize(next, tiles) };
+  // Na borda do mapa, girar a mesa larga poria um tile para fora: não gira.
+  if (!fits(doc, rotated.x, rotated.y, rotated.width, rotated.height)) return null;
+  return { kind: 'replaceObject', layer: 'desks', object: rotated };
 }
 
 // ---- comuns ----
@@ -226,8 +256,8 @@ export function moveObject(doc: TiledDoc, layer: ObjectLayerName, id: number, tx
     y += TILE_PX / 2;
   }
   if (!inside(doc, tx, ty)) return null;
-  // Zona inteira tem que caber no mapa depois de mover.
-  if (layer === 'zones' && (x + object.width > doc.width * TILE_PX || y + object.height > doc.height * TILE_PX)) return null;
+  // Zona e mesa inteiras têm que caber no mapa depois de mover.
+  if ((layer === 'zones' || layer === 'desks') && !fits(doc, x, y, object.width || TILE_PX, object.height || TILE_PX)) return null;
   if (x === object.x && y === object.y) return null;
   return { kind: 'replaceObject', layer, object: { ...object, x, y } };
 }
@@ -254,8 +284,16 @@ export function objectAt(doc: TiledDoc, layer: ObjectLayerName, tx: number, ty: 
   const py = ty * TILE_PX;
   return [...objects].reverse().find((o) => {
     if (layer === 'zones') return px >= o.x && px < o.x + o.width && py >= o.y && py < o.y + o.height;
-    if (layer === 'furniture') return Math.floor(o.x / TILE_PX) === tx && Math.round(o.y / TILE_PX) - 1 === ty;
-    return Math.floor(o.x / TILE_PX) === tx && Math.floor(o.y / TILE_PX) === ty;
+    // Móvel ancorado no canto inferior esquerdo: a pegada sobe `height` a partir de `y`.
+    if (layer === 'furniture') {
+      const w = o.width || TILE_PX;
+      const h = o.height || TILE_PX;
+      return px >= o.x && px < o.x + w && py >= o.y - h && py < o.y;
+    }
+    // Mesa ancorada no canto superior esquerdo: a pegada desce `height` a partir de `y`.
+    const w = o.width || TILE_PX;
+    const h = o.height || TILE_PX;
+    return px >= o.x && px < o.x + w && py >= o.y && py < o.y + h;
   });
 }
 

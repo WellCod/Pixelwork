@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { TILESET_IDS } from './catalog.generated.ts';
 import { compileMap, isWalkable, relocate, zoneAt, type MapError } from './map.ts';
+import smallOfficeV1 from './fixtures/small-office-v1.json';
 import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testing.ts';
 
 type Mutate = (map: Record<string, unknown>) => void;
@@ -35,14 +37,15 @@ describe('compileMap: mapas válidos', () => {
     expect(isWalkable(map, 7, 5)).toBe(false);
     expect(isWalkable(map, 2, 2)).toBe(false);
     expect(map.desks).toEqual([
-      { key: 'mesa-1', x: 2, y: 2, orientation: 'down', chairX: 2, chairY: 3 },
+      { key: 'mesa-1', x: 2, y: 2, w: 1, h: 1, orientation: 'down', chairX: 2, chairY: 3, wallBehind: false },
     ]);
     expect(map.spawn).toEqual({ x: 1, y: 6 });
     expect(zoneAt(map, 1, 1)).toMatchObject({ key: 'produto', type: 'open', name: 'Product team' });
     expect(zoneAt(map, 6, 2)).toMatchObject({ key: 'sala-1', type: 'meeting' });
     expect(zoneAt(map, 6, 5).key).toBe('__open');
     expect(map.zones.find((z) => z.key === 'sala-1')?.tiles).toBe(12);
-    expect(map.tilesets).toEqual(['floors', 'walls', 'furniture', 'desk-decor']);
+    // O mapa de teste referencia todos os tilesets do catálogo, na ordem dos gids.
+    expect(map.tilesets).toEqual([...TILESET_IDS]);
   });
 
   it('móvel sem colisão não bloqueia', () => {
@@ -56,6 +59,98 @@ describe('compileMap: mapas válidos', () => {
     walls[11] = FIRSTGID.walls | 0x80000000;
     const compiled = compileMap(flipped);
     expect(compiled.ok && isWalkable(compiled.map, 1, 1)).toBe(false);
+  });
+});
+
+describe('compileMap: móveis de várias células', () => {
+  it('móvel 2x2 colidível bloqueia os 4 tiles da pegada', () => {
+    const result = compileMap(buildTestMap({ furniture: [{ x: 3, y: 3, tile: FURNITURE.plant, w: 2, h: 2 }] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    // Âncora no canto inferior esquerdo: (3,3) é o tile de baixo à esquerda.
+    for (const [x, y] of [[3, 3], [4, 3], [3, 2], [4, 2]] as const) expect(isWalkable(result.map, x, y)).toBe(false);
+    expect(isWalkable(result.map, 5, 3)).toBe(true);
+  });
+
+  it('móvel grande na última coluna bloqueia só o que está dentro do mapa', () => {
+    const result = compileMap(buildTestMap({ furniture: [{ x: 9, y: 4, tile: FURNITURE.plant, w: 3, h: 2 }] }));
+    expect(result.ok).toBe(true);
+  });
+
+  it('o template salvo antes do redesenho continua compilando com o mesmo resultado', () => {
+    const result = compileMap(smallOfficeV1);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect({
+      size: [result.map.width, result.map.height],
+      walkable: result.map.walkable.reduce((sum, v) => sum + v, 0),
+      desks: result.map.desks.map((d) => d.key),
+      zones: result.map.zones.map((z) => [z.key, z.tiles]),
+    }).toMatchSnapshot();
+  });
+});
+
+describe('compileMap: mesa de 2 tiles', () => {
+  const compiled = (desks: NonNullable<TestMapOptions['desks']>) => compileMap(buildTestMap({ width: 12, height: 10, desks }));
+
+  it('mesa 32x16 virada para baixo bloqueia os dois tiles e a cadeira fica na frente da âncora', () => {
+    const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'down', size: 2 }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(isWalkable(result.map, 3, 2)).toBe(false);
+    expect(isWalkable(result.map, 4, 2)).toBe(false);
+    expect(result.map.desks[0]).toMatchObject({ key: 'mesa-1', x: 3, y: 2, w: 2, h: 1, orientation: 'down', chairX: 3, chairY: 3 });
+  });
+
+  it('mesa 16x32 virada para a direita bloqueia os dois tiles e a cadeira fica à direita da âncora', () => {
+    const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'right', size: 2 }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(isWalkable(result.map, 3, 3)).toBe(false);
+    expect(result.map.desks[0]).toMatchObject({ w: 1, h: 2, chairX: 4, chairY: 2 });
+  });
+
+  it('pegada fora de 1x1, 2x1 de frente ou 1x2 de lado é desk_size', () => {
+    const json = buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-1', x: 3, y: 2, orientation: 'down' }] });
+    const desk = (layerOf(json, 'desks').objects as Record<string, unknown>[])[0] ?? {};
+    desk.width = 32;
+    desk.height = 32;
+    const result = compileMap(json);
+    expect(result.ok ? [] : result.errors).toContainEqual({ code: 'desk_size', deskKey: 'mesa-1' });
+    const sideways = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'left', size: 2 }]);
+    expect(sideways.ok).toBe(true);
+    const json2 = buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-2', x: 3, y: 2, orientation: 'left' }] });
+    const desk2 = (layerOf(json2, 'desks').objects as Record<string, unknown>[])[0] ?? {};
+    desk2.width = 32;
+    const result2 = compileMap(json2);
+    expect(result2.ok ? [] : result2.errors).toContainEqual({ code: 'desk_size', deskKey: 'mesa-2' });
+  });
+
+  it('mesa larga com a âncora dentro e o outro tile fora do mapa é desk_outside', () => {
+    const result = compiled([{ key: 'mesa-1', x: 11, y: 2, orientation: 'down', size: 2 }]);
+    expect(result.ok ? [] : result.errors).toContainEqual({ code: 'desk_outside', deskKey: 'mesa-1' });
+  });
+
+  it('mesa de 1 tile continua igual (w e h valem 1)', () => {
+    const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'down' }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(result.map.desks[0]).toMatchObject({ key: 'mesa-1', x: 3, y: 2, w: 1, h: 1, orientation: 'down', chairX: 3, chairY: 3 });
+  });
+});
+
+describe('compileMap: parede atrás da mesa', () => {
+  it('mesa encostada na parede de cima, virada para baixo, tem parede atrás', () => {
+    const result = compileMap(buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-1', x: 3, y: 1, orientation: 'down', size: 2 }] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(result.map.desks[0]?.wallBehind).toBe(true);
+  });
+
+  it('mesa no meio da sala não tem parede atrás', () => {
+    const result = compileMap(buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-1', x: 3, y: 4, orientation: 'down', size: 2 }] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(result.map.desks[0]?.wallBehind).toBe(false);
+  });
+
+  it('a borda de trás depende da orientação (virada para a esquerda: parede à direita)', () => {
+    const result = compileMap(buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-1', x: 10, y: 3, orientation: 'left', size: 2 }] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(result.map.desks[0]?.wallBehind).toBe(true);
   });
 });
 

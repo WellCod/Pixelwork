@@ -1,15 +1,19 @@
 import { DIRS, type Dir } from '@pixelwork/shared';
-import { adoptDocument, textProp, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
+import { adoptDocument, textProp, type RugId, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
 import { describeMapError } from '../ui/MapModal.tsx';
-import { FLOOR_OPTIONS, FURNITURE_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
+import { TileThumb } from '../ui/TileThumb.tsx';
+import { label } from '../ui/labels.ts';
+import { categorize } from './categories.ts';
+import { FLOOR_OPTIONS, FURNITURE_OPTIONS, RUG_OPTIONS, WALL_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
 
 const TOOLS: { tool: Tool; label: string; hint: string }[] = [
   { tool: 'select', label: 'Selecionar', hint: 'Clique para selecionar; arraste para mover.' },
   { tool: 'floor', label: 'Piso', hint: 'Arraste para pintar o piso.' },
   { tool: 'wall', label: 'Parede', hint: 'Arraste para levantar paredes.' },
+  { tool: 'rug', label: 'Tapete', hint: 'Arraste para desenhar o tapete, de qualquer tamanho.' },
   { tool: 'erase', label: 'Borracha', hint: 'Arraste para apagar a camada escolhida.' },
   { tool: 'furniture', label: 'Móvel', hint: 'Clique para pôr o móvel escolhido.' },
   { tool: 'zone', label: 'Zona', hint: 'Arraste para desenhar a zona.' },
@@ -158,6 +162,30 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
             </select>
           </label>
         )}
+        {controller.tool === 'wall' && (
+          <label className="fields">
+            Tipo de parede
+            <select value={controller.wallFrame} onChange={(e) => controller.setOption({ wallFrame: Number(e.target.value) })}>
+              {WALL_OPTIONS.map((o) => (
+                <option key={o.frame} value={o.frame}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {controller.tool === 'rug' && (
+          <label className="fields">
+            Tapete
+            <select value={controller.rug} onChange={(e) => controller.setOption({ rug: e.target.value as RugId })}>
+              {RUG_OPTIONS.map((o) => (
+                <option key={o.rug} value={o.rug}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {controller.tool === 'erase' && (
           <label className="fields">
             Apagar
@@ -171,19 +199,33 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
           </label>
         )}
         {controller.tool === 'furniture' && (
-          <label className="fields">
-            Móvel
-            <select
-              value={controller.furnitureFrame}
-              onChange={(e) => controller.setOption({ furnitureFrame: Number(e.target.value) })}
-            >
-              {FURNITURE_OPTIONS.map((o) => (
-                <option key={o.frame} value={o.frame}>
-                  {o.item}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="furniture-palette">
+            {categorize(FURNITURE_OPTIONS).map((group) => (
+              <fieldset key={group.label} className="picker">
+                <legend>{group.label}</legend>
+                <div role="radiogroup" aria-label={group.label} className="furniture-grid">
+                  {group.items.map((o) => {
+                    const selected = controller.furniture.tileset === o.tileset && controller.furniture.frame === o.frame;
+                    const name = label(o.item, 'furniture');
+                    return (
+                      <button
+                        key={`${o.tileset}:${o.frame}`}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={name}
+                        title={name}
+                        className={selected ? 'furniture-option selected' : 'furniture-option'}
+                        onClick={() => controller.setOption({ furniture: { tileset: o.tileset, frame: o.frame } })}
+                      >
+                        <TileThumb tileset={o.tileset} frame={o.frame} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            ))}
+          </div>
         )}
         {controller.tool === 'desk' && (
           <label className="fields">

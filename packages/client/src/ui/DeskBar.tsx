@@ -16,13 +16,14 @@ interface Props {
 export function DeskBar({ world, spaceId, isAdmin }: Props) {
   useWorld(world);
   // Fica fora da condição da cadeira: levantar com o editor aberto não perde a edição.
-  const [decorating, setDecorating] = useState<{ deskKey: string; decor: DeskDecor } | null>(null);
+  const [decorating, setDecorating] = useState<{ deskKey: string; decor: DeskDecor; wallBehind: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const editor = decorating && (
     <DecorEditor
       spaceId={spaceId}
       deskKey={decorating.deskKey}
+      wallBehind={decorating.wallBehind}
       initial={decorating.decor}
       onClose={() => setDecorating(null)}
     />
@@ -54,7 +55,7 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
         <button
           type="button"
           disabled={!state.decor}
-          onClick={() => state.decor && setDecorating({ deskKey: desk.key, decor: state.decor })}
+          onClick={() => state.decor && setDecorating({ deskKey: desk.key, decor: state.decor, wallBehind: desk.wallBehind })}
         >
           Decorar
         </button>

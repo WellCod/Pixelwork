@@ -61,6 +61,8 @@ Para o Phaser, avalie 3.x vs 4 e registre a escolha em `docs/architecture.md`.
 - `pnpm maps:demo`: regera `maps/templates/small-office.json`. Só enquanto o mapa não for editado
   no Tiled.
 - `pnpm assets:art`: regera toda a arte (tilesets e camadas do personagem) a partir de `scripts/art/`. `pnpm tsx scripts/art-preview.ts <saida.png>` monta uma folha de revisão ampliada.
+- `pnpm tsx scripts/render-map.ts [mapa.json] [saida.png] [escala]`: desenha um mapa salvo em PNG;
+  `scripts/art-sheet.ts`, `scripts/art-avatars.ts` e `scripts/art-pilot.ts` montam folhas de revisão.
 - `pnpm assets:catalog`: gera `packages/shared/src/catalog.generated.ts` do manifesto.
 - `pnpm assets:check`: confere se todo PNG usa só a paleta e as cores-chave.
 - `pnpm load --bots 50 [--seconds 30]`: teste de carga; sobe o servidor na porta 3100 com

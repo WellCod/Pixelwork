@@ -1,4 +1,4 @@
-import { CREDITS, RECONNECT_GRACE_MS, compileMap, type Dir, type ServerMsg } from '@pixelwork/shared';
+import { CREDITS, RECONNECT_GRACE_MS, TILESET_IDS, compileMap, type Dir, type ServerMsg } from '@pixelwork/shared';
 import { deskAssignments, spaceMembers, spaces } from '@pixelwork/shared/schema';
 import { buildTestMap, type TestMapOptions } from '@pixelwork/shared/testing';
 import { and, eq, sql } from 'drizzle-orm';
@@ -195,7 +195,7 @@ describe('mapas: upload, troca ao vivo e export', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('application/zip');
     const files = unzipSync(new Uint8Array(await response.arrayBuffer()));
-    const tilesets = ['floors', 'walls', 'furniture', 'desk-decor'];
+    const tilesets = [...TILESET_IDS];
     expect(Object.keys(files).sort()).toEqual(
       ['CREDITS.txt', 'map.json', ...tilesets.flatMap((t) => [`${t}.png`, `${t}.tsj`])].sort(),
     );

@@ -1,0 +1,106 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "name": "furniture-3x2",
+  "image": "furniture-3x2.png",
+  "imagewidth": 384,
+  "imageheight": 32,
+  "tilewidth": 48,
+  "tileheight": 32,
+  "columns": 8,
+  "tilecount": 8,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "meeting-table-long"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "kitchen-counter"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "ping-pong"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "sofa-l"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "reception"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "foosball"
+        }
+      ]
+    }
+  ]
+}

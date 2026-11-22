@@ -36,7 +36,10 @@ export class EditorScene extends Phaser.Scene {
   preload(): void {
     for (const id of TILESET_IDS) {
       this.load.image(tilesKey(id), tilesetImageUrl(id));
-      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), { frameWidth: TILE_PX, frameHeight: TILE_PX });
+      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), {
+        frameWidth: TILESETS[id].tileWidth,
+        frameHeight: TILESETS[id].tileHeight,
+      });
     }
   }
 
@@ -94,7 +97,7 @@ export class EditorScene extends Phaser.Scene {
     const { tool } = this.controller;
     if (tool === 'floor' || tool === 'wall' || tool === 'erase') {
       this.stroke = [[tile.x, tile.y]];
-    } else if (tool === 'zone') {
+    } else if (tool === 'zone' || tool === 'rug') {
       this.dragStart = tile;
     } else if (tool === 'select') {
       this.controller.click(tile.x, tile.y);
@@ -122,13 +125,16 @@ export class EditorScene extends Phaser.Scene {
     if (this.dragStart) {
       const start = this.dragStart;
       this.dragStart = null;
+      const rect = {
+        x: Math.min(start.x, tile.x),
+        y: Math.min(start.y, tile.y),
+        w: Math.abs(tile.x - start.x) + 1,
+        h: Math.abs(tile.y - start.y) + 1,
+      };
       if (this.controller.tool === 'zone') {
-        this.controller.drawZone({
-          x: Math.min(start.x, tile.x),
-          y: Math.min(start.y, tile.y),
-          w: Math.abs(tile.x - start.x) + 1,
-          h: Math.abs(tile.y - start.y) + 1,
-        });
+        this.controller.drawZone(rect);
+      } else if (this.controller.tool === 'rug') {
+        this.controller.drawRug(rect);
       } else if (start.x !== tile.x || start.y !== tile.y) {
         const selected = this.controller.selected();
         if (selected && this.controller.selection) {
@@ -201,19 +207,26 @@ export class EditorScene extends Phaser.Scene {
     if (!tile) return;
     const image = this.add.image(o.x, o.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(4);
     this.content.push(image);
-    if (selected) this.content.push(this.outline(o.x, o.y - TILE_PX, TILE_PX, TILE_PX));
+    const w = o.width || TILE_PX;
+    const h = o.height || TILE_PX;
+    if (selected) this.content.push(this.outline(o.x, o.y - h, w, h));
   }
 
   private drawDesk(o: TiledObject, selected: boolean): void {
+    const w = o.width || TILE_PX;
+    const h = o.height || TILE_PX;
     const image = this.add.image(o.x, o.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4);
-    const [dx, dy] = ARROW[textProp(o, 'orientation', 'down')] ?? [0, 1];
-    // Seta apontando para a cadeira, no tile à frente da mesa.
-    const cx = o.x + TILE_PX / 2 + dx * TILE_PX;
-    const cy = o.y + TILE_PX / 2 + dy * TILE_PX;
+    if (w > TILE_PX) this.content.push(this.add.image(o.x + TILE_PX, o.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    if (h > TILE_PX) this.content.push(this.add.image(o.x, o.y + TILE_PX, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    const orientation = textProp(o, 'orientation', 'down');
+    const [dx, dy] = ARROW[orientation] ?? [0, 1];
+    // Marca da cadeira na frente do tile de âncora, encostada na borda da pegada.
+    const cx = o.x + TILE_PX / 2 + (dx > 0 ? w : dx * TILE_PX);
+    const cy = o.y + TILE_PX / 2 + (dy > 0 ? h : dy * TILE_PX);
     const chair = this.add.circle(cx, cy, 3, 0xfee761, 0.8).setDepth(5);
     const label = this.text(o.x, o.y - 8, textProp(o, 'desk_key')).setDepth(6);
     this.content.push(image, chair, label);
-    if (selected) this.content.push(this.outline(o.x, o.y, TILE_PX, TILE_PX));
+    if (selected) this.content.push(this.outline(o.x, o.y, w, h));
   }
 
   private drawSpawn(o: TiledObject, selected: boolean): void {
@@ -234,7 +247,7 @@ export class EditorScene extends Phaser.Scene {
       g.lineStyle(1, 0xffffff, 0.6).strokeRect(this.hover.x * TILE_PX, this.hover.y * TILE_PX, TILE_PX, TILE_PX);
     }
     for (const [x, y] of this.stroke) g.fillStyle(0xfee761, 0.35).fillRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
-    if (this.dragStart && this.hover && this.controller.tool === 'zone') {
+    if (this.dragStart && this.hover && (this.controller.tool === 'zone' || this.controller.tool === 'rug')) {
       const x = Math.min(this.dragStart.x, this.hover.x);
       const y = Math.min(this.dragStart.y, this.hover.y);
       const w = Math.abs(this.hover.x - this.dragStart.x) + 1;

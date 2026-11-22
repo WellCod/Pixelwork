@@ -40,6 +40,8 @@ export function describeMapError(error: MapError): string {
       return `A zona ${error.key} está inteira fora do mapa.`;
     case 'chair_blocked':
       return `A cadeira da mesa ${error.deskKey} está num tile bloqueado.`;
+    case 'desk_size':
+      return `A mesa ${error.deskKey} precisa ocupar 1 tile, ou 2 tiles alinhados com a frente.`;
     case 'desk_outside':
       return `A mesa ${error.deskKey} está fora do mapa.`;
     case 'chair_shared':

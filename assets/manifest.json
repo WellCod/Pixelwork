@@ -23,6 +23,24 @@
       "license": "own",
       "author": "Pixelwork",
       "source": null
+    },
+    {
+      "id": "furniture-2x1",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "furniture-2x2",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "furniture-3x2",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
     }
   ],
   "characters": {
@@ -52,6 +70,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "curly",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "bun",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "afro",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "outfit": [
@@ -63,6 +99,30 @@
       },
       {
         "id": "hoodie",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "shirt",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "dress",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "jacket",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "sweater",
         "license": "own",
         "author": "Pixelwork",
         "source": null
@@ -80,6 +140,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "headphones",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "beanie",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "bow",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ]
   },
@@ -93,6 +171,12 @@
       },
       {
         "id": "dark",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "white",
         "license": "own",
         "author": "Pixelwork",
         "source": null
@@ -116,6 +200,66 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "pencil-cup",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "headphones",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "cactus-mini",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "photo",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "water-bottle",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "sticky-notes",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "speaker",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "takeaway-coffee",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "trophy",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "duck",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "wallItems": [
@@ -130,6 +274,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "calendar",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "shelf-mini",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "framed-photo",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "floorItems": [
@@ -141,6 +303,24 @@
       },
       {
         "id": "bin",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "backpack",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "vase-tall",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "cat",
         "license": "own",
         "author": "Pixelwork",
         "source": null
