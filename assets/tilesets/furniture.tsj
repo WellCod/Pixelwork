@@ -4,11 +4,11 @@
   "name": "furniture",
   "image": "furniture.png",
   "imagewidth": 128,
-  "imageheight": 32,
+  "imageheight": 80,
   "tilewidth": 16,
   "tileheight": 16,
   "columns": 8,
-  "tilecount": 16,
+  "tilecount": 40,
   "margin": 0,
   "spacing": 0,
   "tiles": [
@@ -174,6 +174,296 @@
           "name": "item_id",
           "type": "string",
           "value": "plant-tall"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "chair-back"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "chair-left"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "chair-right"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "kitchen-chair"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "beanbag-blue"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "beanbag-pink"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "beanbag-yellow"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "cactus"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monstera"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "snake-plant"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "flowers"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "ficus"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "succulent"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "floor-lamp"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "trash-bin"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "printer"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "coat-rack"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "fire-extinguisher"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "cardboard-box"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "bar-stool"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "side-table"
         }
       ]
     }
