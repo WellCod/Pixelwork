@@ -63,8 +63,12 @@ export class EditorController {
   private readonly listeners = new Set<() => void>();
   private errorsCache: { version: number; errors: MapError[] } | null = null;
 
+  /** Documento salvo de referência, para saber se há edição a perder ao sair. */
+  private baseline: string;
+
   constructor(doc: TiledDoc) {
     this.stack = new CommandStack(doc);
+    this.baseline = JSON.stringify(doc);
     this.stack.subscribe(() => {
       // Objeto selecionado pode ter sumido num desfazer.
       if (this.selection && !this.selected()) this.selection = null;
@@ -192,6 +196,15 @@ export class EditorController {
   reset(doc: TiledDoc): void {
     this.selection = null;
     this.stack.reset(doc);
+  }
+
+  /** O documento atual passa a ser o salvo (depois de recarregar o mapa do servidor). */
+  markClean(): void {
+    this.baseline = JSON.stringify(this.doc);
+  }
+
+  get dirty(): boolean {
+    return JSON.stringify(this.doc) !== this.baseline;
   }
 
   private pick(tx: number, ty: number): Selection | null {

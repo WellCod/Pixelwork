@@ -71,6 +71,7 @@ export function App() {
   const [invite, setInvite] = useState(inviteToken);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [modal, setModal] = useState<'create' | 'invite' | 'map' | null>(null);
+  const [switching, setSwitching] = useState(false);
   const [editor, setEditor] = useState<{ controller: EditorController; baseVersion: number } | null>(null);
 
   // Só a resposta do pedido mais recente vale: trocas rápidas de coworking chegam fora de ordem.
@@ -122,7 +123,15 @@ export function App() {
   };
 
   if (location.pathname === '/creditos') return <CreditsPage />;
-  if (state.kind === 'loading') return <main className="center">Carregando…</main>;
+  if (state.kind === 'loading') {
+    return (
+      <main className="center">
+        <div className="loading" role="status">
+          Carregando…
+        </div>
+      </main>
+    );
+  }
 
   if (state.kind === 'login') {
     return (
@@ -162,8 +171,13 @@ export function App() {
   }
 
   const select = (spaceId: string) => {
+    if (editor?.controller.dirty && !confirm('Trocar de coworking descarta as mudanças do editor. Continuar?')) return;
     const request = ++openRequest.current;
+    setSwitching(true);
     openSpace(spaceId)
+      .finally(() => {
+        if (request === openRequest.current) setSwitching(false);
+      })
       .then((next) => {
         if (request !== openRequest.current) return;
         setEditor(null);
@@ -179,7 +193,12 @@ export function App() {
       <header className="bar">
         <strong>Pixelwork</strong>
         {spaces.length > 0 && (
-          <select aria-label="Coworking" value={current?.space.id ?? ''} onChange={(e) => select(e.target.value)}>
+          <select
+            aria-label="Coworking"
+            aria-busy={switching}
+            value={current?.space.id ?? ''}
+            onChange={(e) => select(e.target.value)}
+          >
             {spaces.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.orgName} · {s.name}
@@ -187,7 +206,11 @@ export function App() {
             ))}
           </select>
         )}
-        {current && <span className={`status status-${status}`}>{STATUS_TEXT[status]}</span>}
+        {current && (
+          <span className={`status status-${status}`} role="status">
+            {switching ? 'Abrindo…' : STATUS_TEXT[status]}
+          </span>
+        )}
         <span className="spacer" />
         {current?.space.role === 'admin' && (
           <>

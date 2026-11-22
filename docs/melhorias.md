@@ -56,17 +56,17 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 ## 4. UX/UI
 
-- [ ] Card "Como usar" dispensável; "Ligar" sempre visível com dica
-- [ ] Rótulos em português e miniaturas no DecorEditor e AvatarEditor
-- [ ] Região única de cards (zona, mesa, chamada) sem sobreposição
-- [ ] Ícones nos controles de mídia e anel em quem fala
-- [ ] Sidebar: pessoas primeiro, perfil recolhível
-- [ ] Chat: aviso quando ninguém está perto
-- [ ] Estados de carregamento/erro; confirmação ao sair do editor com edições; `beforeunload`
-- [ ] "Usar nesta aba" quando a sessão é substituída
-- [ ] Acessibilidade: balão de vídeo por teclado, status além da cor (foco no modal já feito)
-- [ ] Mobile: header que quebra linha
-- [ ] Polimento: mapa centralizado, zoom, variáveis CSS, transições
+- [x] Card "Como usar" dispensável; "Ligar" sempre visível com dica
+- [x] Rótulos em português e miniaturas no DecorEditor e AvatarEditor
+- [x] Região única de cards (zona, mesa, chamada) sem sobreposição
+- [x] Ícones nos controles de mídia e anel em quem fala
+- [x] Sidebar: pessoas primeiro, perfil recolhível
+- [x] Chat: aviso quando ninguém está perto
+- [x] Estados de carregamento/erro; confirmação ao sair do editor com edições; `beforeunload`
+- [x] "Usar nesta aba" quando a sessão é substituída
+- [x] Acessibilidade: balão de vídeo por teclado, status além da cor (foco no modal já feito)
+- [x] Mobile: header que quebra linha
+- [x] Polimento: mapa centralizado, zoom, variáveis CSS, transições
 
 ## 5. Features
 

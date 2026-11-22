@@ -692,6 +692,19 @@ Exibição no mapa:
 Descartados: posicionamento livre de itens na mesa (colisão e sobreposição sem ganho visual);
 tags de equipe gerenciadas pelo admin (tabela, tela e relação N:N para o mesmo problema).
 
+Decisões de interface (revisão de 2026-11):
+
+- Cards de zona, mesa, chamada e boas-vindas ficam num painel único (`.hud`, canto superior
+  direito; embaixo no celular), empilhados em vez de posicionados um por um.
+- Rótulos em português dos IDs do catálogo em `ui/labels.ts`; ID sem rótulo aparece como está.
+  A decoração da mesa usa miniaturas recortadas do tileset por CSS.
+- Zoom da câmera em degraus inteiros (1x, 2x, 3x sobre o `RENDER_SCALE`) para o pixel art não
+  borrar; mapa menor que a tela fica centralizado alargando os limites da câmera.
+- Quem fala (`ActiveSpeakersChanged` do LiveKit) ganha um anel sob o avatar e destaque na lista.
+- Status na lista também por forma (círculo, quadrado, anel) e texto, não só cor.
+- O canvas fica fora do fluxo do layout: o tamanho vem do container, observado por
+  `ResizeObserver`.
+
 ## 12. Mapas: upload, export, editor e troca ao vivo
 
 - Upload: `compileMap` no servidor; erros devolvidos com os códigos de `MapError`.
