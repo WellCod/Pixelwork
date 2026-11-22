@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { MediaManager } from '../media/media-manager.ts';
+import { CamIcon, MicIcon, ScreenIcon } from './icons.tsx';
 
 export function useMedia(media: MediaManager): MediaManager {
   useSyncExternalStore(
@@ -28,28 +29,33 @@ export function MediaControls({ media, onReconnect }: { media: MediaManager; onR
     <div className="media-controls">
       <button
         type="button"
-        className={media.micOn ? 'on' : 'off'}
+        className={media.micOn ? 'media-toggle on' : 'media-toggle off'}
         aria-pressed={media.micOn}
+        title={media.micOn ? 'Desligar microfone' : 'Ligar microfone'}
         onClick={() => void media.setMic(!media.micOn)}
       >
-        {media.micOn ? 'Microfone ligado' : 'Microfone desligado'}
+        <MicIcon off={!media.micOn} />
+        <span>{media.micOn ? 'Microfone' : 'Mudo'}</span>
       </button>
       <button
         type="button"
-        className={media.camOn ? 'on' : 'off'}
+        className={media.camOn ? 'media-toggle on' : 'media-toggle off'}
         aria-pressed={media.camOn}
+        title={media.camOn ? 'Desligar câmera' : 'Ligar câmera'}
         onClick={() => void media.setCamera(!media.camOn)}
       >
-        {media.camOn ? 'Câmera ligada' : 'Câmera desligada'}
+        <CamIcon off={!media.camOn} />
+        <span>{media.camOn ? 'Câmera' : 'Sem câmera'}</span>
       </button>
       {media.isPrivate && (
         <button
           type="button"
-          className={media.screenOn ? 'on' : 'off'}
+          className={media.screenOn ? 'media-toggle on' : 'media-toggle'}
           aria-pressed={media.screenOn}
           onClick={() => void media.setScreenShare(!media.screenOn)}
         >
-          {media.screenOn ? 'Parar de compartilhar' : 'Compartilhar tela'}
+          <ScreenIcon />
+          <span>{media.screenOn ? 'Parar de compartilhar' : 'Compartilhar tela'}</span>
         </button>
       )}
       {media.camOn && (
@@ -63,7 +69,7 @@ export function MediaControls({ media, onReconnect }: { media: MediaManager; onR
           Ativar áudio
         </button>
       )}
-      {!media.connected && !media.lost && <span className="muted">Áudio e vídeo conectando…</span>}
+      {!media.connected && !media.lost && !media.error && <span className="muted">Áudio e vídeo conectando…</span>}
       {media.lost && (
         <span className="error">
           Áudio e vídeo desconectados.{' '}

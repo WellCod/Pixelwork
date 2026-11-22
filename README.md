@@ -23,6 +23,8 @@ proximidade e autorização de mídia feitas no servidor.
 - Várias empresas e coworkings por conta, convites com limite de usos e validade.
 - Mapas: upload do JSON do Tiled, export em zip que volta a abrir no Tiled, editor dentro do app
   com desfazer e refazer. Quem está online vê o mapa novo sem recarregar.
+- Indicador de quem está falando (no mapa e na lista), zoom do mapa em degraus inteiros, card de
+  primeiros passos e decoração de mesa escolhida por miniaturas.
 
 ## Telas
 

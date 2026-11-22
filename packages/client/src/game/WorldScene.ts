@@ -26,6 +26,8 @@ export interface WorldSceneOptions {
   send: (msg: ClientMsg) => void;
   /** Fora do ar a predição andaria sozinha e voltaria no welcome: o input fica parado. */
   canMove?: () => boolean;
+  /** Quem está falando agora (LiveKit), para o anel sob o avatar. */
+  isSpeaking?: (id: string) => boolean;
   /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
   hasVideoBubble?: (id: string) => boolean;
 }
@@ -36,6 +38,7 @@ const CHAT_OFFSET_OVER_VIDEO = CHAT_OFFSET + 40;
 
 interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
+  ring: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
   title: Phaser.GameObjects.Text;
   mover: Mover;
@@ -47,6 +50,9 @@ interface Avatar {
 }
 
 const DESK_TILESET = 'desk-decor';
+/** Zoom da câmera sobre a escala base (RENDER_SCALE): inteiro, para o pixel art não borrar. */
+const ZOOM_LEVELS = [1, 2, 3] as const;
+const SPEAKING_COLOR = 0x63c74d;
 const LABEL_DEPTH = 100_000;
 const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
 
@@ -64,6 +70,8 @@ export class WorldScene extends Phaser.Scene {
   private keys!: Record<Dir, Phaser.Input.Keyboard.Key[]>;
   private lastStepAt = -Infinity;
   private unsubscribe: (() => void) | null = null;
+  private zoomIndex = 0;
+  private mapSize = { width: 0, height: 0 };
 
   constructor(private readonly options: WorldSceneOptions) {
     super('world');
@@ -96,7 +104,10 @@ export class WorldScene extends Phaser.Scene {
       this.text(object.x + 3, object.y + 2, name, '#c0cbdc').setAlpha(0.8).setDepth(LABEL_DEPTH - 1);
     }
 
-    this.cameras.main.setBounds(0, 0, tilemap.widthInPixels, tilemap.heightInPixels).setRoundPixels(true);
+    this.mapSize = { width: tilemap.widthInPixels, height: tilemap.heightInPixels };
+    this.cameras.main.setRoundPixels(true);
+    this.fitCamera();
+    this.scale.on(Phaser.Scale.Events.RESIZE, () => this.fitCamera());
 
     const keyboard = this.input.keyboard;
     if (!keyboard) throw new Error('teclado indisponível');
@@ -111,6 +122,11 @@ export class WorldScene extends Phaser.Scene {
     for (const [dir, keys] of Object.entries(this.keys) as [Dir, Phaser.Input.Keyboard.Key[]][]) {
       for (const key of keys) key.on('down', () => this.tryStep(dir));
     }
+    keyboard.on('keydown', (event: KeyboardEvent) => {
+      if (isTyping()) return;
+      if (event.key === '+' || event.key === '=') this.zoom(1);
+      if (event.key === '-') this.zoom(-1);
+    });
     // Campos de texto da UI em React precisam das teclas de seta e WASD.
     keyboard.disableGlobalCapture();
 
@@ -142,6 +158,7 @@ export class WorldScene extends Phaser.Scene {
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
       const y = avatar.mover.y * TILE_PX + TILE_PX;
       avatar.sprite.setPosition(x, y).setDepth(y);
+      avatar.ring.setPosition(x, y - 1).setDepth(y - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
       avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
       if (avatar.chat) {
@@ -228,10 +245,12 @@ export class WorldScene extends Phaser.Scene {
     const pos = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(pos.dir)).setOrigin(0.5, 1);
+    const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = this.text(0, 0, '', isSelf ? '#fee761' : '#ffffff').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
     const title = this.text(0, 0, '', '#8b9bb4').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
     const avatar: Avatar = {
       sprite,
+      ring,
       label,
       title,
       mover: new Mover(pos.x, pos.y),
@@ -265,6 +284,7 @@ export class WorldScene extends Phaser.Scene {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
     avatar.sprite.destroy();
+    avatar.ring.destroy();
     avatar.label.destroy();
     avatar.title.destroy();
     avatar.chat?.destroy();
@@ -276,11 +296,36 @@ export class WorldScene extends Phaser.Scene {
   screenPosition(id: string): { x: number; y: number } | null {
     const avatar = this.avatars.get(id);
     if (!avatar) return null;
-    const view = this.cameras.main.worldView;
+    const camera = this.cameras.main;
+    const view = camera.worldView;
+    const scale = camera.zoom * RENDER_SCALE;
     return {
-      x: (avatar.sprite.x - view.x) * RENDER_SCALE,
-      y: (avatar.sprite.y - avatar.sprite.height - view.y) * RENDER_SCALE,
+      x: (avatar.sprite.x - view.x) * scale,
+      y: (avatar.sprite.y - avatar.sprite.height - view.y) * scale,
     };
+  }
+
+  /** Aproxima ou afasta em degraus inteiros. */
+  zoom(delta: number): void {
+    const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, this.zoomIndex + delta));
+    if (next === this.zoomIndex) return;
+    this.zoomIndex = next;
+    this.cameras.main.setZoom(ZOOM_LEVELS[next]);
+    this.fitCamera();
+  }
+
+  /**
+   * Mapa menor que a tela fica centralizado: os limites da câmera crescem para os lados com o
+   * fundo vazio, em vez de o mapa grudar no canto superior esquerdo.
+   */
+  private fitCamera(): void {
+    const camera = this.cameras.main;
+    const viewW = this.scale.width / camera.zoom;
+    const viewH = this.scale.height / camera.zoom;
+    const { width, height } = this.mapSize;
+    const x = width < viewW ? -Math.floor((viewW - width) / 2) : 0;
+    const y = height < viewH ? -Math.floor((viewH - height) / 2) : 0;
+    camera.setBounds(x, y, Math.max(width, viewW), Math.max(height, viewH));
   }
 
   private showChat(id: string, text: string): void {

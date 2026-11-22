@@ -90,8 +90,19 @@ function Bubble({ id, name, media, expanded, register }: BubbleProps) {
     <div
       ref={register}
       className={expanded ? 'bubble expanded' : 'bubble'}
+      role="button"
+      tabIndex={0}
+      aria-pressed={expanded}
+      aria-label={`Vídeo de ${name}. ${expanded ? 'Reduzir' : 'Ampliar'}`}
       title={expanded ? 'Clique para reduzir' : 'Clique para ampliar'}
       onClick={() => media.setExpanded(expanded ? null : id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          media.setExpanded(expanded ? null : id);
+        }
+        if (e.key === 'Escape' && expanded) media.setExpanded(null);
+      }}
     >
       <video ref={video} muted playsInline autoPlay />
       <span>{name}</span>

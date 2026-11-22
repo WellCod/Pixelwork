@@ -1,4 +1,4 @@
-import { CHAT_MAX_CHARS, type ClientMsg } from '@pixelwork/shared';
+import { CHAT_MAX_CHARS, chatRecipients, type ClientMsg } from '@pixelwork/shared';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { focusIsFree, isTyping } from '../input-focus.ts';
 import type { ClientWorld } from '../net/client-world.ts';
@@ -41,9 +41,17 @@ export function ChatBox({ world, send }: { world: ClientWorld; send: (msg: Clien
 
   const submit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (text.trim()) send({ t: 'chat.say', text });
-    setText('');
     setError(null);
+    if (text.trim()) {
+      send({ t: 'chat.say', text });
+      // A mesma regra do servidor: avisa quando a mensagem não chega a ninguém além de você.
+      const self = world.selfId ? { id: world.selfId, ...world.self } : null;
+      const players = [...world.players.values()].map((p) => (p.id === world.selfId && self ? self : p));
+      if (self && chatRecipients(world.map, self, players).length <= 1) {
+        setError('Ninguém por perto: só você vê esta mensagem. Chegue mais perto de alguém.');
+      }
+    }
+    setText('');
     setOpen(false);
   };
 

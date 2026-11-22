@@ -18,6 +18,7 @@ import { MediaControls } from './ui/MediaControls.tsx';
 import { RoomPanel } from './ui/RoomPanel.tsx';
 import { Sidebar } from './ui/Sidebar.tsx';
 import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
+import { Welcome } from './ui/Welcome.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
 
 interface Props {
@@ -47,6 +48,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const scene = useRef<WorldScene | null>(null);
   const positionOf = useCallback((id: string) => scene.current?.screenPosition(id) ?? null, []);
   const [calls] = useState(() => new CallStore(world));
+  const [status, setStatus] = useState<ConnectionStatus>('connecting');
 
   const send = (msg: ClientMsg) => connection.current?.send(msg);
 
@@ -59,6 +61,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
         else world.handle(msg);
       },
       (next) => {
+        setStatus(next);
         statusListener.current(next);
         // Outra aba assumiu ou saiu do coworking: a mídia sai junto.
         if (next === 'replaced' || next === 'removed' || next === 'ended') void media.close();
@@ -105,6 +108,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       mapJson: worldMapJson as Record<string, unknown>,
       send: (msg) => connection.current?.send(msg),
       canMove: () => connection.current?.online ?? false,
+      isSpeaking: (id) => media.speaking.has(id),
       hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
     });
     scene.current = created.scene;
@@ -121,13 +125,35 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           {!editor && <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
           <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
-          <CallUi calls={calls} world={world} />
+          {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
+          <div className="hud">
+            <CallUi calls={calls} world={world} />
+            {!editor && (
+              <>
+                <Welcome />
+                <ZoneUi world={world} send={send} />
+                <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
+              </>
+            )}
+          </div>
+          {!editor && <ChatBox world={world} send={send} />}
           {!editor && (
-            <>
-              <ZoneUi world={world} send={send} />
-              <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
-              <ChatBox world={world} send={send} />
-            </>
+            <div className="zoom-controls" aria-label="Zoom do mapa">
+              <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => scene.current?.zoom(-1)}>
+                −
+              </button>
+              <button type="button" title="Aproximar (+)" aria-label="Aproximar" onClick={() => scene.current?.zoom(1)}>
+                +
+              </button>
+            </div>
+          )}
+          {status === 'replaced' && (
+            <div className="stage-overlay" role="alert">
+              <p>Este coworking foi aberto em outra aba.</p>
+              <button type="button" className="primary" onClick={() => connection.current?.reconnect()}>
+                Usar nesta aba
+              </button>
+            </div>
           )}
         </div>
         {editor ? (
@@ -139,7 +165,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             onClose={onEditorClose}
           />
         ) : (
-          <Sidebar world={world} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
+          <Sidebar world={world} media={media} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
         )}
       </div>
   );
