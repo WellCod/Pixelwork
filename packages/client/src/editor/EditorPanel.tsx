@@ -174,11 +174,14 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
           <label className="fields">
             Móvel
             <select
-              value={controller.furnitureFrame}
-              onChange={(e) => controller.setOption({ furnitureFrame: Number(e.target.value) })}
+              value={`${controller.furniture.tileset}:${controller.furniture.frame}`}
+              onChange={(e) => {
+                const choice = FURNITURE_OPTIONS.find((o) => `${o.tileset}:${o.frame}` === e.target.value);
+                if (choice) controller.setOption({ furniture: { tileset: choice.tileset, frame: choice.frame } });
+              }}
             >
               {FURNITURE_OPTIONS.map((o) => (
-                <option key={o.frame} value={o.frame}>
+                <option key={`${o.tileset}:${o.frame}`} value={`${o.tileset}:${o.frame}`}>
                   {o.item}
                 </option>
               ))}

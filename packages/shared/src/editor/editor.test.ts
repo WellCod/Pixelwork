@@ -65,7 +65,7 @@ describe('ida e volta de cada comando', () => {
   const cases: [string, (d: TiledDoc) => EditorCommand | null][] = [
     ['pintar parede', (d) => paint(d, 'walls', [[3, 6], [4, 6], [3, 6]], FIRSTGID.walls)],
     ['apagar piso', (d) => paint(d, 'floor', [[5, 7]], 0)],
-    ['pôr móvel', (d) => placeFurniture(d, FIRSTGID.furniture + FURNITURE.plant, 6, 7)],
+    ['pôr móvel', (d) => placeFurniture(d, 'furniture', FURNITURE.plant, 6, 7)],
     ['criar zona', (d) => addZone(d, { x: 1, y: 6, w: 3, h: 2 }, 'open', 'Copa')],
     ['redimensionar zona', (d) => resizeZone(d, objectId(d, 'zones'), { x: 1, y: 1, w: 5, h: 3 })],
     ['renomear e mudar o tipo da zona', (d) => setZoneProps(d, objectId(d, 'zones'), { name: 'Squad', type: 'meeting' })],
@@ -179,7 +179,7 @@ describe('sequências aleatórias', () => {
       case 1:
         return paint(doc, 'floor', [[x, y]], pick([FIRSTGID.floors, FIRSTGID.floors + 1, 0]) ?? 0);
       case 2:
-        return placeFurniture(doc, FIRSTGID.furniture + (pick([FURNITURE.plant, FURNITURE.chair]) ?? 0), x, y);
+        return placeFurniture(doc, 'furniture', pick([FURNITURE.plant, FURNITURE.chair]) ?? 0, x, y);
       case 3:
         return addZone(doc, { x, y, w: 1 + Math.floor(rand() * 4), h: 1 + Math.floor(rand() * 3) }, rand() < 0.5 ? 'open' : 'meeting', 'Z');
       case 4:
@@ -263,5 +263,39 @@ describe('adoptDocument', () => {
     expect(compileMap(adopted).ok).toBe(true);
     // O modelo original não é alterado.
     expect(objectLayer(template, 'desks').objects.map((o) => prop(o, 'desk_key'))).not.toEqual(keys);
+  });
+});
+
+describe('móveis de várias células', () => {
+  const lastFurniture = (doc: TiledDoc) => objectLayer(doc, 'furniture').objects.at(-1);
+
+  it('sofá 2x1 é gravado com 32x16, ancorado no canto inferior esquerdo do tile clicado', () => {
+    const stack = new CommandStack(baseDoc());
+    stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
+    expect(lastFurniture(stack.doc)).toMatchObject({ x: 3 * 16, y: 7 * 16, width: 32, height: 16 });
+  });
+
+  it('objectAt acha o sofá clicando em qualquer um dos dois tiles', () => {
+    const stack = new CommandStack(baseDoc());
+    stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
+    const id = lastFurniture(stack.doc)?.id;
+    expect(objectAt(stack.doc, 'furniture', 3, 6)?.id).toBe(id);
+    expect(objectAt(stack.doc, 'furniture', 4, 6)?.id).toBe(id);
+    expect(objectAt(stack.doc, 'furniture', 5, 6)?.id).not.toBe(id);
+  });
+
+  it('mapa sem o tileset ganha a referência no mesmo comando, e desfazer volta idêntico', () => {
+    const doc = baseDoc();
+    doc.tilesets = (doc.tilesets as { firstgid: number; source: string }[]).filter((t) => t.source !== 'furniture-2x1.tsj');
+    const before = json(doc);
+    const stack = new CommandStack(doc);
+    stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 1, 2, 6));
+    const refs = stack.doc.tilesets as { firstgid: number; source: string }[];
+    const ref = refs.find((t) => t.source === 'furniture-2x1.tsj');
+    expect(ref?.firstgid).toBe(FIRSTGID['furniture-2x1']);
+    expect(lastFurniture(stack.doc)?.gid).toBe(FIRSTGID['furniture-2x1'] + 1);
+    expect(compileMap(stack.doc).ok).toBe(true);
+    stack.undo();
+    expect(json(stack.doc)).toBe(before);
   });
 });

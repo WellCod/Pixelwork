@@ -1,4 +1,4 @@
-import { TILESETS, compileMap, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
+import { TILESETS, TILESET_IDS, compileMap, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
 import {
   CommandStack,
   addDesk,
@@ -42,10 +42,14 @@ function firstGid(doc: TiledDoc, id: TilesetId): number | null {
 }
 
 /** Móveis do catálogo com o frame no tileset `furniture`. */
-export const FURNITURE_OPTIONS = Object.entries(TILESETS.furniture.items).map(([frame, item]) => ({
-  frame: Number(frame),
-  item,
-}));
+/** Tilesets de móveis colocáveis: o `furniture` (16x16) e os de várias células. */
+export const FURNITURE_TILESETS = TILESET_IDS.filter((id) => id.startsWith('furniture'));
+
+export const FURNITURE_OPTIONS = FURNITURE_TILESETS.flatMap((tileset) =>
+  Object.entries(TILESETS[tileset].items).map(([frame, item]) => ({ tileset, frame: Number(frame), item })),
+);
+
+export type FurnitureChoice = { tileset: TilesetId; frame: number };
 
 /**
  * Estado do editor fora do Phaser: pilha de comandos, ferramenta, opções e seleção. A cena só
@@ -55,7 +59,7 @@ export class EditorController {
   readonly stack: CommandStack;
   tool: Tool = 'select';
   floorFrame = 0;
-  furnitureFrame = FURNITURE_OPTIONS[0]?.frame ?? 0;
+  furniture: FurnitureChoice = FURNITURE_OPTIONS[0] ?? { tileset: 'furniture', frame: 0 };
   eraseLayer: 'walls' | 'floor' = 'walls';
   deskOrientation: Dir = 'down';
   selection: Selection | null = null;
@@ -100,7 +104,7 @@ export class EditorController {
     this.changed();
   }
 
-  setOption(patch: Partial<Pick<EditorController, 'floorFrame' | 'furnitureFrame' | 'eraseLayer' | 'deskOrientation'>>): void {
+  setOption(patch: Partial<Pick<EditorController, 'floorFrame' | 'furniture' | 'eraseLayer' | 'deskOrientation'>>): void {
     Object.assign(this, patch);
     this.changed();
   }
@@ -132,8 +136,7 @@ export class EditorController {
     const { doc } = this;
     switch (this.tool) {
       case 'furniture': {
-        const base = firstGid(doc, 'furniture');
-        if (base !== null) this.stack.execute(placeFurniture(doc, base + this.furnitureFrame, tx, ty));
+        this.stack.execute(placeFurniture(doc, this.furniture.tileset, this.furniture.frame, tx, ty));
         break;
       }
       case 'desk': {

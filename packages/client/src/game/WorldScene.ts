@@ -44,6 +44,7 @@ const CHAT_OFFSET_OVER_VIDEO = CHAT_OFFSET + 40;
 interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
   ring: Phaser.GameObjects.Ellipse;
+  shadow: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
   title: Phaser.GameObjects.Text;
   mover: Mover;
@@ -55,6 +56,9 @@ interface Avatar {
 }
 
 const DESK_TILESET = 'desk-decor';
+/** Sombra de contato de móveis e avatares: a cor mais escura da paleta, translúcida. */
+const SHADOW_COLOR = 0x2e222f;
+const SHADOW_ALPHA = 0.18;
 /** Zoom da câmera sobre a escala base (RENDER_SCALE): inteiro, para o pixel art não borrar. */
 const ZOOM_LEVELS = [1, 2, 3] as const;
 const SPEAKING_COLOR = 0x63c74d;
@@ -90,7 +94,10 @@ export class WorldScene extends Phaser.Scene {
   preload(): void {
     for (const id of TILESET_IDS) {
       this.load.image(tilesKey(id), tilesetImageUrl(id));
-      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), { frameWidth: TILE_PX, frameHeight: TILE_PX });
+      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), {
+        frameWidth: TILESETS[id].tileWidth,
+        frameHeight: TILESETS[id].tileHeight,
+      });
     }
     preloadCharacterLayers(this);
   }
@@ -103,9 +110,15 @@ export class WorldScene extends Phaser.Scene {
     tilemap.createLayer('floor', tilesets).setDepth(-2);
     tilemap.createLayer('walls', tilesets).setDepth(-1);
 
+    // Sombra de contato sob cada móvel (docs/art.md, guia de estilo): elipse translúcida na base
+    // da pegada, desenhada abaixo dos móveis e acima do piso.
+    const shadows = this.add.graphics().setDepth(-0.5);
+    shadows.fillStyle(SHADOW_COLOR, SHADOW_ALPHA);
     for (const object of objectLayer(mapJson, 'furniture')) {
       const tile = object.gid ? resolveGid(mapJson, object.gid) : null;
       if (!tile) continue;
+      const w = object.width ?? TILE_PX;
+      if (TILESETS[tile.id].collides.includes(tile.frame)) shadows.fillEllipse(object.x + w / 2, object.y - 2, w - 2, 6);
       this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
     }
     for (const object of objectLayer(mapJson, 'zones')) {
@@ -192,6 +205,7 @@ export class WorldScene extends Phaser.Scene {
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
       const y = avatar.mover.y * TILE_PX + TILE_PX;
       avatar.sprite.setPosition(x, y).setDepth(y);
+      avatar.shadow.setPosition(x, y - 1).setDepth(y - 0.6);
       avatar.ring.setPosition(x, y - 1).setDepth(y - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
       avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
@@ -336,12 +350,14 @@ export class WorldScene extends Phaser.Scene {
     const pos = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(pos.dir)).setOrigin(0.5, 1);
+    const shadow = this.add.ellipse(0, 0, 12, 5, SHADOW_COLOR, SHADOW_ALPHA);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = this.text(0, 0, '', isSelf ? '#fee761' : '#ffffff').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
     const title = this.text(0, 0, '', '#8b9bb4').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
     const avatar: Avatar = {
       sprite,
       ring,
+      shadow,
       label,
       title,
       mover: new Mover(pos.x, pos.y),
@@ -378,6 +394,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.following === id) this.setFollowing(null);
     avatar.sprite.destroy();
     avatar.ring.destroy();
+    avatar.shadow.destroy();
     avatar.label.destroy();
     avatar.title.destroy();
     avatar.chat?.destroy();
