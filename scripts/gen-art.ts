@@ -20,10 +20,16 @@ function write(path: string, content: Buffer | string): void {
   console.log(`gerado ${relative(root, full)}`);
 }
 
-function tileset(id: string, tiles: TileArt[]): void {
+/** Célula de 16 px por padrão; móveis de várias células usam um tileset próprio com célula maior. */
+function tileset(id: string, tiles: TileArt[], cell: { w: number; h: number } = { w: TILE, h: TILE }): void {
   const rows = Math.max(1, Math.ceil(tiles.length / COLUMNS));
-  const sheet = blank(COLUMNS * TILE, rows * TILE);
-  tiles.forEach((tile, i) => stamp(sheet, tile.pixels, (i % COLUMNS) * TILE, Math.floor(i / COLUMNS) * TILE));
+  const sheet = blank(COLUMNS * cell.w, rows * cell.h);
+  tiles.forEach((tile, i) => {
+    const h = tile.pixels.length;
+    const w = tile.pixels[0]?.length ?? 0;
+    if (w !== cell.w || h !== cell.h) throw new Error(`${id}[${i}]: ${w}x${h}, esperado ${cell.w}x${cell.h}`);
+    stamp(sheet, tile.pixels, (i % COLUMNS) * cell.w, Math.floor(i / COLUMNS) * cell.h);
+  });
   write(`tilesets/${id}.png`, PNG.sync.write(toPng(sheet)));
 
   const properties = tiles.flatMap((tile, i) => {
@@ -38,10 +44,10 @@ function tileset(id: string, tiles: TileArt[]): void {
     version: '1.10',
     name: id,
     image: `${id}.png`,
-    imagewidth: COLUMNS * TILE,
-    imageheight: rows * TILE,
-    tilewidth: TILE,
-    tileheight: TILE,
+    imagewidth: COLUMNS * cell.w,
+    imageheight: rows * cell.h,
+    tilewidth: cell.w,
+    tileheight: cell.h,
     columns: COLUMNS,
     tilecount: COLUMNS * rows,
     margin: 0,

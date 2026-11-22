@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileMap, isWalkable, relocate, zoneAt, type MapError } from './map.ts';
+import smallOfficeV1 from './fixtures/small-office-v1.json';
 import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testing.ts';
 
 type Mutate = (map: Record<string, unknown>) => void;
@@ -56,6 +57,32 @@ describe('compileMap: mapas válidos', () => {
     walls[11] = FIRSTGID.walls | 0x80000000;
     const compiled = compileMap(flipped);
     expect(compiled.ok && isWalkable(compiled.map, 1, 1)).toBe(false);
+  });
+});
+
+describe('compileMap: móveis de várias células', () => {
+  it('móvel 2x2 colidível bloqueia os 4 tiles da pegada', () => {
+    const result = compileMap(buildTestMap({ furniture: [{ x: 3, y: 3, tile: FURNITURE.plant, w: 2, h: 2 }] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    // Âncora no canto inferior esquerdo: (3,3) é o tile de baixo à esquerda.
+    for (const [x, y] of [[3, 3], [4, 3], [3, 2], [4, 2]] as const) expect(isWalkable(result.map, x, y)).toBe(false);
+    expect(isWalkable(result.map, 5, 3)).toBe(true);
+  });
+
+  it('móvel grande na última coluna bloqueia só o que está dentro do mapa', () => {
+    const result = compileMap(buildTestMap({ furniture: [{ x: 9, y: 4, tile: FURNITURE.plant, w: 3, h: 2 }] }));
+    expect(result.ok).toBe(true);
+  });
+
+  it('o template salvo antes do redesenho continua compilando com o mesmo resultado', () => {
+    const result = compileMap(smallOfficeV1);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect({
+      size: [result.map.width, result.map.height],
+      walkable: result.map.walkable.reduce((sum, v) => sum + v, 0),
+      desks: result.map.desks.map((d) => d.key),
+      zones: result.map.zones.map((z) => [z.key, z.tiles]),
+    }).toMatchSnapshot();
   });
 });
 

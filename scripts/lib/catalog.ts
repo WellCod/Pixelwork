@@ -45,8 +45,9 @@ export interface CatalogInput {
 }
 
 const Tsj = z.object({
-  tilewidth: z.literal(16),
-  tileheight: z.literal(16),
+  // Célula de 16 px (pisos, paredes, móveis pequenos) ou maior para móveis de várias células.
+  tilewidth: z.union([z.literal(16), z.literal(32), z.literal(48)]),
+  tileheight: z.union([z.literal(16), z.literal(32), z.literal(48)]),
   columns: z.number().int().positive(),
   tilecount: z.number().int().positive(),
   tiles: z
@@ -62,6 +63,8 @@ const Tsj = z.object({
 });
 
 interface TilesetMeta {
+  tileWidth: number;
+  tileHeight: number;
   columns: number;
   tilecount: number;
   collides: number[];
@@ -69,7 +72,14 @@ interface TilesetMeta {
 }
 
 function tilesetMeta(tsj: z.infer<typeof Tsj>): TilesetMeta {
-  const meta: TilesetMeta = { columns: tsj.columns, tilecount: tsj.tilecount, collides: [], items: {} };
+  const meta: TilesetMeta = {
+    tileWidth: tsj.tilewidth,
+    tileHeight: tsj.tileheight,
+    columns: tsj.columns,
+    tilecount: tsj.tilecount,
+    collides: [],
+    items: {},
+  };
   for (const tile of tsj.tiles ?? []) {
     for (const prop of tile.properties ?? []) {
       if (prop.name === 'collides' && prop.value === true) meta.collides.push(tile.id);
@@ -194,8 +204,8 @@ export function buildCatalog(input: CatalogInput): string {
     list('OUTFIT_PALETTES', rampIds('outfit')),
     '\n',
     `export const RAMPS = ${JSON.stringify(ramps, null, 2)} as const;\n\n`,
-    '// Metadados dos .tsj: colisão e item_id por índice de tile.\n',
-    `export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = ${JSON.stringify(tilesetMetas, null, 2)};\n\n`,
+    '// Metadados dos .tsj: tamanho da célula, colisão e item_id por índice de tile.\n',
+    `export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number; columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = ${JSON.stringify(tilesetMetas, null, 2)};\n\n`,
     "export interface Credit {\n  kind: string;\n  id: string;\n  license: 'own' | 'CC0' | 'CC-BY';\n  author: string;\n  source: string | null;\n}\n\n",
     `export const CREDITS: readonly Credit[] = ${JSON.stringify(credits, null, 2)};\n\n`,
     'export type TilesetId = (typeof TILESET_IDS)[number];\n',

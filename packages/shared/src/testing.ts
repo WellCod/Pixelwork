@@ -1,9 +1,10 @@
 // Construtor de mapas Tiled para testes. Não entra no bundle do app.
+import { TILESET_IDS, type TilesetId } from './catalog.generated.ts';
 import { TILE_PX } from './constants.ts';
 
-// 100 gids por tileset: os tilesets só crescem (docs/art.md), e o firstgid contíguo do Tiled
-// faria um tileset que cresceu invadir os gids do seguinte.
-export const FIRSTGID = { floors: 1, walls: 101, furniture: 201, 'desk-decor': 301 } as const;
+// 100 gids por tileset, na ordem do catálogo: os tilesets só crescem (docs/art.md), e o firstgid
+// contíguo do Tiled faria um tileset que cresceu invadir os gids do seguinte.
+export const FIRSTGID = Object.fromEntries(TILESET_IDS.map((id, i) => [id, 1 + i * 100])) as Record<TilesetId, number>;
 /** Índices de tile no tileset `furniture` dos placeholders. */
 export const FURNITURE = { desk: 0, chair: 1, plant: 2 } as const;
 
@@ -13,7 +14,8 @@ export interface TestMapOptions {
   /** Desenha parede em toda a borda. */
   border?: boolean;
   walls?: [x: number, y: number][];
-  furniture?: { x: number; y: number; tile: number }[];
+  /** Âncora no tile de baixo à esquerda; `w`/`h` em tiles (padrão 1). */
+  furniture?: { x: number; y: number; tile: number; tileset?: TilesetId; w?: number; h?: number }[];
   zones?: { key: string; type: string; name?: string; x: number; y: number; w: number; h: number }[];
   desks?: { key: string; x: number; y: number; orientation: string }[];
   spawns?: [x: number, y: number][];
@@ -68,11 +70,11 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
         type: 'objectgroup',
         objects: (options.furniture ?? []).map((f) =>
           object({
-            gid: FIRSTGID.furniture + f.tile,
+            gid: FIRSTGID[f.tileset ?? 'furniture'] + f.tile,
             x: f.x * TILE_PX,
             y: (f.y + 1) * TILE_PX,
-            width: TILE_PX,
-            height: TILE_PX,
+            width: (f.w ?? 1) * TILE_PX,
+            height: (f.h ?? 1) * TILE_PX,
           }),
         ),
       },
