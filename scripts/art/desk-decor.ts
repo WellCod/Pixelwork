@@ -253,3 +253,25 @@ export const sleepingCat = item((c) => {
   c.outline('rust');
   c.px(4, 10, 'ink').px(11, 12, 'honey').px(12, 12, 'honey');
 });
+
+// ---- divisória (atrás da mesa sem parede; a decoração "de parede" fica presa nela) ----
+
+const PANEL: Ramp = { outline: 'slate', dark: 'sage', base: 'celery', light: 'mist' };
+
+/** Painel de tecido com moldura clara, de `w` px, com a base na última linha da célula. */
+function divider(w: number): Pixels {
+  const c = new Canvas(w, T);
+  c.box(1, 2, w - 2, 14, PANEL);
+  c.hline(1, 2, w - 2, 'white').vline(1, 3, 13, 'white');
+  c.outline('slate');
+  return c.toPixels();
+}
+
+/** Divisória de 1 tile, metades da larga e a lateral (painel estreito, espelhado pelo cliente). */
+export const dividerSingle = divider(T);
+export const dividerWide = cells(divider(32));
+export const dividerSide = item((c) => {
+  c.box(11, 0, 4, 16, PANEL);
+  c.vline(11, 0, 16, 'white');
+  c.outline('slate');
+});

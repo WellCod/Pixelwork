@@ -496,6 +496,46 @@
           "value": "cat"
         }
       ]
+    },
+    {
+      "id": 41,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider-wide-l"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider-wide-r"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider-side"
+        }
+      ]
     }
   ]
 }

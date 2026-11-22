@@ -9,7 +9,7 @@ import {
   type DeskDecor,
 } from '@pixelwork/shared';
 import { useState, type CSSProperties } from 'react';
-import { SLOT_OFFSET_WIDE } from '../game/presence.ts';
+import { SLOT_OFFSET_WIDE, dividerLayout } from '../game/presence.ts';
 import { profileApi } from '../api.ts';
 import { label } from './labels.ts';
 import { Modal } from './Modal.tsx';
@@ -25,7 +25,7 @@ type SlotKey = keyof DeskDecor['slots'];
 const SLOTS: { key: SlotKey; label: string; options: readonly string[] }[] = [
   { key: 'left', label: 'Na mesa, à esquerda', options: DECOR_ITEMS },
   { key: 'right', label: 'Na mesa, à direita', options: DECOR_ITEMS },
-  { key: 'back', label: 'Na parede', options: WALL_ITEMS },
+  { key: 'back', label: 'Na parede (ou na divisória)', options: WALL_ITEMS },
   { key: 'floor', label: 'No chão', options: FLOOR_ITEMS },
 ];
 
@@ -59,8 +59,12 @@ const PAD = { left: 4, top: 24 };
  * Prévia da mesa larga como ela aparece no mapa (virada para baixo), montada com os mesmos
  * deslocamentos do jogo: assim a escolha de cada item já mostra o resultado.
  */
-function DeskPreview({ decor }: { decor: DeskDecor }) {
+function DeskPreview({ decor, wallBehind }: { decor: DeskDecor; wallBehind: boolean }) {
   const offsets = SLOT_OFFSET_WIDE.down;
+  const divider = decor.slots.back
+    ? dividerLayout({ key: '', x: 0, y: 0, w: 2, h: 1, orientation: 'down', chairX: 0, chairY: 0, wallBehind })
+    : null;
+  const back = divider ? divider.back : offsets.back;
   const bottom = PAD.top + TILE_PX;
   const at = (item: string | null, x: number, y: number, z: number) =>
     item && FRAMES.has(item) ? (
@@ -77,7 +81,8 @@ function DeskPreview({ decor }: { decor: DeskDecor }) {
       aria-label="Prévia da mesa"
       style={{ width: (PAD.left + 48) * PREVIEW_SCALE, height: (bottom + 6) * PREVIEW_SCALE }}
     >
-      {at(decor.slots.back, offsets.back[0], offsets.back[1], 1)}
+      {divider?.pieces.map((p) => at(p.item, p.dx, p.dy, 0))}
+      {at(decor.slots.back, back[0], back[1], 1)}
       {at(`${decor.variant}-wide-l`, 0, 0, 2)}
       {at(`${decor.variant}-wide-r`, TILE_PX, 0, 2)}
       {at(`monitor-${decor.monitor}`, offsets.monitor[0], offsets.monitor[1], 3)}
@@ -129,11 +134,13 @@ function Picker<T extends string | null>({
 interface Props {
   spaceId: string;
   deskKey: string;
+  /** Sem parede atrás, a prévia mostra a divisória onde o item de parede fica preso. */
+  wallBehind: boolean;
   initial: DeskDecor;
   onClose: () => void;
 }
 
-export function DecorEditor({ spaceId, deskKey, initial, onClose }: Props) {
+export function DecorEditor({ spaceId, deskKey, wallBehind, initial, onClose }: Props) {
   const [decor, setDecor] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -151,7 +158,7 @@ export function DecorEditor({ spaceId, deskKey, initial, onClose }: Props) {
 
   return (
     <Modal title="Decorar a mesa" onClose={onClose}>
-      <DeskPreview decor={decor} />
+      <DeskPreview decor={decor} wallBehind={wallBehind} />
       <Picker
         legend="Mesa"
         value={decor.variant}
