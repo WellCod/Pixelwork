@@ -68,6 +68,22 @@ const LABELS: Record<string, string> = {
 
 /** Rótulos que mudam conforme o contexto (mesa escura x pele escura x roupa básica). */
 const CONTEXT: Record<string, Record<string, string>> = {
+  furniture: {
+    desk: 'Mesa', chair: 'Cadeira', 'chair-back': 'Cadeira (de costas)', 'chair-left': 'Cadeira (esquerda)',
+    'chair-right': 'Cadeira (direita)', printer: 'Impressora', bookshelf: 'Estante', 'bookshelf-tall': 'Estante alta',
+    whiteboard: 'Lousa de pé', 'meeting-table': 'Mesa de reunião (peça)', 'meeting-table-long': 'Mesa de reunião',
+    'meeting-table-round': 'Mesa redonda', reception: 'Recepção', 'trash-bin': 'Lixeira', 'coat-rack': 'Cabideiro',
+    'fire-extinguisher': 'Extintor', 'cardboard-box': 'Caixa', door: 'Porta', sofa: 'Sofazinho',
+    'sofa-peach': 'Sofá pêssego', 'sofa-sage': 'Sofá sálvia', 'sofa-blue': 'Sofá azul', 'sofa-l': 'Sofá em L',
+    armchair: 'Poltrona', 'coffee-table': 'Mesa de centro', 'beanbag-blue': 'Pufe azul', 'beanbag-pink': 'Pufe rosa',
+    'beanbag-yellow': 'Pufe amarelo', 'side-table': 'Mesa lateral', 'floor-lamp': 'Luminária de pé', bench: 'Banco',
+    'water-cooler': 'Bebedouro', 'coffee-machine': 'Cafeteira', 'kitchen-chair': 'Cadeira de copa',
+    'bar-stool': 'Banqueta', fridge: 'Geladeira', 'kitchen-counter': 'Bancada', 'vending-machine': 'Máquina de lanches',
+    plant: 'Planta', 'plant-tall': 'Planta alta', cactus: 'Cacto', monstera: 'Costela-de-adão',
+    'snake-plant': 'Espada-de-são-jorge', flowers: 'Flores', ficus: 'Fícus', succulent: 'Suculenta', tree: 'Árvore',
+    planter: 'Vaso grande', 'ping-pong': 'Pingue-pongue', foosball: 'Pebolim', arcade: 'Fliperama',
+    aquarium: 'Aquário', rug: 'Capacho', sideboard: 'Aparador',
+  },
   desk: { basic: 'Madeira clara', dark: 'Madeira escura', white: 'Branca' },
   outfit: { basic: 'Camiseta' },
   skin: { dark: 'Escura' },

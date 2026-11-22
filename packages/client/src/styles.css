@@ -1099,3 +1099,30 @@ a.button {
   border-radius: var(--radius);
   image-rendering: pixelated;
 }
+
+/* ---- paleta de móveis do editor ---- */
+
+.furniture-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.furniture-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.furniture-option {
+  padding: 3px;
+  min-width: 40px;
+  min-height: 40px;
+  background: var(--panel-2);
+}
+
+.furniture-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
