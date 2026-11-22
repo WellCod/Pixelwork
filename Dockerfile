@@ -40,6 +40,6 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
 WORKDIR /app/packages/server
 CMD ["sh", "-c", "node --import tsx src/migrate.ts && node --import tsx src/seed.ts && exec node --import tsx src/index.ts"]
 
-FROM caddy:2.10 AS web
+FROM caddy:2.11 AS web
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/packages/client/dist /srv
