@@ -18,11 +18,11 @@ export async function requireMember(
 ): Promise<{ user: SessionUser; membership: Membership; spaceId: string } | null> {
   const user = await requireUser(deps, request, reply);
   if (!user) return null;
-  const { spaceId } = request.params;
-  const membership = await resolveMembership(deps.db, spaceId, user.id);
+  const membership = await resolveMembership(deps.db, request.params.spaceId, user.id);
   if (!membership) {
     await reply.code(404).send({ error: 'not_found' });
     return null;
   }
-  return { user, membership, spaceId };
+  // O id que segue para as consultas é o validado pela resolução, nunca o parâmetro cru.
+  return { user, membership, spaceId: membership.spaceId };
 }

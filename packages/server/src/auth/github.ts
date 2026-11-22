@@ -21,6 +21,9 @@ export interface GitHubClient {
   user(accessToken: string): Promise<GitHubUser>;
 }
 
+/** GitHub lento não segura o callback (e o socket) indefinidamente. */
+const GITHUB_TIMEOUT_MS = 10_000;
+
 export function githubClient(clientId: string, clientSecret: string): GitHubClient {
   return {
     exchangeCode: async (code, redirectUri) => {
@@ -28,6 +31,7 @@ export function githubClient(clientId: string, clientSecret: string): GitHubClie
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri }),
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
       const body = (await response.json()) as { access_token?: string; error?: string };
       if (!response.ok || !body.access_token) throw new Error(`github: troca de código falhou (${body.error ?? response.status})`);
@@ -36,6 +40,7 @@ export function githubClient(clientId: string, clientSecret: string): GitHubClie
     user: async (accessToken) => {
       const response = await fetch('https://api.github.com/user', {
         headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${accessToken}`, 'user-agent': 'pixelwork' },
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
       if (!response.ok) throw new Error(`github: /user respondeu ${response.status}`);
       const body = (await response.json()) as GitHubUser;
@@ -65,7 +70,7 @@ export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { gi
 
   app.get('/auth/providers', () => ({ github: enabled }));
 
-  app.get('/auth/github', async (_request, reply) => {
+  app.get('/auth/github', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (_request, reply) => {
     if (!enabled) return reply.code(503).send({ error: 'github_not_configured' });
     const state = randomBytes(24).toString('base64url');
     const url = new URL('https://github.com/login/oauth/authorize');
@@ -76,7 +81,7 @@ export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { gi
     return reply.header('set-cookie', stateCookie(state, STATE_TTL_SECONDS)).redirect(url.toString());
   });
 
-  app.get<{ Querystring: { code?: string; state?: string } }>('/auth/github/callback', async (request, reply) => {
+  app.get<{ Querystring: { code?: string; state?: string } }>('/auth/github/callback', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
     const expected = parseCookies(request.headers.cookie)[STATE_COOKIE];
     void reply.header('set-cookie', stateCookie('', 0));
     // Sem o state do cookie, o callback pode ter sido disparado por outro site (login CSRF).

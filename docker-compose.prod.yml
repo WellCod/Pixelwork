@@ -1,27 +1,50 @@
 # Produção numa VPS: docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+# Log do Docker com rotação: o driver padrão cresce até encher o disco da VPS.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   web:
     build: { context: ., target: web }
     restart: unless-stopped
+    logging: *logging
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
     ports: ["80:80", "443:443"]
     volumes: [caddy-data:/data, caddy-config:/config]
-    depends_on: [app, livekit]
+    depends_on:
+      app: { condition: service_healthy }
+      livekit: { condition: service_started }
+    deploy:
+      resources:
+        limits: { memory: 256m }
 
   app:
     build: { context: ., target: app }
     restart: unless-stopped
+    logging: *logging
     env_file: .env.production
     environment:
+      # A senha entra crua na URL: use só letras e números (openssl rand -hex 24).
       DATABASE_URL: postgres://app:${POSTGRES_PASSWORD}@postgres:5432/coworking
+      # O Caddy está na frente: IP do cliente vem no X-Forwarded-For.
+      TRUST_PROXY: "true"
+      # API do LiveKit pela rede interna, sem dar a volta pelo domínio público.
+      LIVEKIT_API_URL: http://livekit:7880
     depends_on:
       postgres: { condition: service_healthy }
+    # O healthcheck vem do Dockerfile (GET /health).
+    deploy:
+      resources:
+        limits: { memory: 768m }
 
   postgres:
     image: postgres:17
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -31,10 +54,38 @@ services:
       test: ["CMD-SHELL", "pg_isready -U app"]
       interval: 5s
       retries: 10
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  # pg_dump diário em ./backups, guardando os 7 mais recentes. Copiar para fora da VPS
+  # (rclone, restic) fica a cargo de quem opera; ver docs/deploy.md.
+  backup:
+    image: postgres:17
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PGHOST: postgres
+      PGUSER: app
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: coworking
+    volumes: ["./backups:/backups"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          file=/backups/coworking-$$(date -u +%Y%m%dT%H%M%SZ).dump
+          pg_dump --format=custom --file="$$file.tmp" && mv "$$file.tmp" "$$file" && echo "backup: $$file"
+          ls -1t /backups/coworking-*.dump 2>/dev/null | tail -n +8 | xargs -r rm --
+          sleep 86400
+        done
 
   livekit:
     image: livekit/livekit-server:v1.13.11
     restart: unless-stopped
+    logging: *logging
     command: --config /etc/livekit.yaml
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
@@ -43,6 +94,9 @@ services:
     ports:
       - "7881:7881"
       - "50000-50100:50000-50100/udp"
+    deploy:
+      resources:
+        limits: { memory: 1g }
 
 volumes:
   pgdata:

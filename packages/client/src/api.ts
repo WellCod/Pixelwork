@@ -1,4 +1,4 @@
-import type { AvatarSpec, DeskDecor, MapError } from '@pixelwork/shared';
+import type { AvatarSpec, DeskDecor, MapError, Recording } from '@pixelwork/shared';
 
 export interface Me {
   id: string;
@@ -44,6 +44,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    // O limite de taxa responde com o texto do HTTP no campo error; vira um código próprio.
+    if (response.status === 429) throw new ApiError(429, 'rate_limited');
     throw new ApiError(response.status, typeof body?.error === 'string' ? body.error : null);
   }
   return (response.status === 204 ? undefined : await response.json()) as T;
@@ -105,4 +107,5 @@ export const mapApi = {
     request<{ errors: MapError[]; orphanDesks: string[] }>('POST', space(spaceId, '/map/validate'), { map }),
   save: (spaceId: string, map: unknown, baseVersion: number) =>
     request<{ version: number; orphanDesks: string[] }>('PUT', space(spaceId, '/map'), { map, baseVersion }),
+  replay: (spaceId: string) => request<{ recording: Recording | null }>('GET', space(spaceId, '/replay')),
 };

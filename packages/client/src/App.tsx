@@ -1,5 +1,5 @@
 import { compileMap, type CompiledMap } from '@pixelwork/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, orgApi, type Me, type SpaceDetail, type SpaceSummary } from './api.ts';
 import { GameView } from './GameView.tsx';
 import { EditorController } from './editor/editor-controller.ts';
@@ -10,6 +10,7 @@ import { CreditsPage } from './ui/CreditsPage.tsx';
 import { InviteModal } from './ui/InviteModal.tsx';
 import { InvitePage } from './ui/InvitePage.tsx';
 import { MapModal } from './ui/MapModal.tsx';
+import { errorMessage } from './ui/useWorld.ts';
 
 type Current = { space: SpaceDetail; map: CompiledMap };
 
@@ -25,6 +26,7 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
   reconnecting: 'Reconectando…',
   replaced: 'Aberto em outra aba',
   removed: 'Você saiu deste coworking',
+  ended: 'Sessão encerrada',
 };
 
 function remembered(): string | null {
@@ -69,10 +71,20 @@ export function App() {
   const [invite, setInvite] = useState(inviteToken);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [modal, setModal] = useState<'create' | 'invite' | 'map' | null>(null);
+  const [switching, setSwitching] = useState(false);
   const [editor, setEditor] = useState<{ controller: EditorController; baseVersion: number } | null>(null);
 
+  // Só a resposta do pedido mais recente vale: trocas rápidas de coworking chegam fora de ordem.
+  const openRequest = useRef(0);
+  /** Erro passageiro com a sessão ainda válida vira aviso; não manda para o login. */
+  const warn = useCallback((error: unknown) => {
+    const text = error instanceof Error ? error.message : 'Não deu para abrir o coworking.';
+    setState((prev) => (prev.kind === 'ready' ? { ...prev, notice: text } : { kind: 'login', error: text }));
+  }, []);
+
   const fail = useCallback((error: unknown) => {
-    setState({ kind: 'login', error: error instanceof Error ? error.message : 'Falha ao entrar.' });
+    const text = error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : 'Falha ao entrar.';
+    setState({ kind: 'login', error: text });
   }, []);
 
   useEffect(() => {
@@ -111,7 +123,15 @@ export function App() {
   };
 
   if (location.pathname === '/creditos') return <CreditsPage />;
-  if (state.kind === 'loading') return <main className="center">Carregando…</main>;
+  if (state.kind === 'loading') {
+    return (
+      <main className="center">
+        <div className="loading" role="status">
+          Carregando…
+        </div>
+      </main>
+    );
+  }
 
   if (state.kind === 'login') {
     return (
@@ -151,12 +171,21 @@ export function App() {
   }
 
   const select = (spaceId: string) => {
+    if (editor?.controller.dirty && !confirm('Trocar de coworking descarta as mudanças do editor. Continuar?')) return;
+    const request = ++openRequest.current;
+    setSwitching(true);
     openSpace(spaceId)
-      .then((next) => {
-        setEditor(null);
-        setState({ ...state, current: next });
+      .finally(() => {
+        if (request === openRequest.current) setSwitching(false);
       })
-      .catch(fail);
+      .then((next) => {
+        if (request !== openRequest.current) return;
+        setEditor(null);
+        setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next, notice: '' } : prev));
+      })
+      .catch((error: unknown) => {
+        if (request === openRequest.current) warn(error);
+      });
   };
 
   return (
@@ -164,7 +193,12 @@ export function App() {
       <header className="bar">
         <strong>Pixelwork</strong>
         {spaces.length > 0 && (
-          <select aria-label="Coworking" value={current?.space.id ?? ''} onChange={(e) => select(e.target.value)}>
+          <select
+            aria-label="Coworking"
+            aria-busy={switching}
+            value={current?.space.id ?? ''}
+            onChange={(e) => select(e.target.value)}
+          >
             {spaces.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.orgName} · {s.name}
@@ -172,7 +206,11 @@ export function App() {
             ))}
           </select>
         )}
-        {current && <span className={`status status-${status}`}>{STATUS_TEXT[status]}</span>}
+        {current && (
+          <span className={`status status-${status}`} role="status">
+            {switching ? 'Abrindo…' : STATUS_TEXT[status]}
+          </span>
+        )}
         <span className="spacer" />
         {current?.space.role === 'admin' && (
           <>
@@ -211,7 +249,7 @@ export function App() {
       {state.notice && (
         <p className="notice-bar">
           {state.notice}{' '}
-          <button type="button" onClick={() => setState({ ...state, notice: '' })}>
+          <button type="button" onClick={() => setState((prev) => (prev.kind === 'ready' ? { ...prev, notice: '' } : prev))}>
             Ok
           </button>
         </p>
@@ -225,14 +263,21 @@ export function App() {
           onStatus={(next) => {
             setStatus(next);
             if (next === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
+            if (next === 'ended') setState({ kind: 'login', error: 'Sua sessão terminou. Entre de novo.' });
           }}
           editor={editor}
           onEditorBaseVersion={(version) => setEditor((e) => (e ? { ...e, baseVersion: version } : e))}
           onEditorClose={() => setEditor(null)}
           onMapUpdated={() => {
+            const request = ++openRequest.current;
             openSpace(current.space.id)
-              .then((next) => setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev)))
-              .catch(fail);
+              .then((next) => {
+                if (request !== openRequest.current) return;
+                setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev));
+              })
+              .catch((error: unknown) => {
+                if (request === openRequest.current) warn(error);
+              });
           }}
         />
       ) : (

@@ -10,9 +10,11 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
   retries: CI ? 1 : 0,
-  reporter: CI ? 'github' : 'list',
+  // No CI o relatório HTML e os traces sobem como artefato quando algo falha.
+  reporter: CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: 'http://localhost:5173',
+    trace: 'retain-on-failure',
     ...(CI ? {} : { channel: 'chrome' }),
     launchOptions: {
       args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],

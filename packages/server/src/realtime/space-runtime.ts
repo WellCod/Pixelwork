@@ -8,9 +8,14 @@ import {
   ClientMsg,
   DIR_DELTA,
   KNOCK_TIMEOUT_MS,
+  MAX_QUEUED_MOVES,
+  MIN_STEP_INTERVAL_MS,
   RECONNECT_GRACE_MS,
+  Recorder,
   TICK_MS,
   chatRecipients,
+  encodeTick,
+  withAck,
   relocate,
   step,
   zoneAt,
@@ -18,14 +23,18 @@ import {
   type CompiledDesk,
   type CompiledMap,
   type DeskState,
+  type Dir,
   type Player,
+  type Recording,
+  type ReplayEvent,
   type ServerMsg,
   type SimPlayer,
   type StepRules,
-  type TickMove,
+  type ShortMove,
   type WorldState,
   type ZoneState,
 } from '@pixelwork/shared';
+import type { Metrics } from '../metrics.ts';
 import type { PlayerProfile } from '../spaces/members.ts';
 import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
 import {
@@ -38,7 +47,8 @@ import {
 } from './media.ts';
 
 export interface Conn {
-  send(data: string): void;
+  /** Texto para as mensagens JSON; bytes para o tick binário. */
+  send(data: string | Uint8Array): void;
   close(code: number, reason: string): void;
 }
 
@@ -48,12 +58,19 @@ const RATE_WINDOW_MS = 1_000;
 const MAX_MESSAGES_PER_SECOND = 50;
 const CHAT_BURST = 3;
 const CHAT_PER_SECOND = 1;
+/** Teto da gravação de replay por coworking (~1 MB em JSON); cheia, recomeça de um retrato. */
+const MAX_REPLAY_EVENTS = 20_000;
 
 interface Member {
   profile: PlayerProfile;
+  /** Id curto do tick binário; liberado quando a pessoa sai do mapa. */
+  short: number;
   conn: Conn | null;
-  /** Maior `seq` processado desde a conexão atual; vai no `ack` do tick. */
+  /** Maior `seq` decidido (aplicado ou recusado) desde a conexão atual; vai no `ack` do tick. */
   lastSeq: number;
+  /** Maior `seq` recebido; os que chegaram cedo demais esperam em `queued`. */
+  lastReceived: number;
+  queued: { seq: number; dir: Dir }[];
   ackDirty: boolean;
   leaveTimer: Timer | null;
   invalid: WindowCounter;
@@ -91,6 +108,7 @@ export interface RuntimeDeps {
   scheduler: Scheduler;
   media: MediaService;
   log: { error: (obj: unknown, msg: string) => void };
+  metrics?: Metrics;
 }
 
 /** Estado em memória de um coworking: jogadores, simulação, salas e chamadas. */
@@ -104,6 +122,7 @@ export class SpaceRuntime {
   private readonly knocks = new Map<string, Knock>();
   private readonly calls = new Map<string, Call>();
   private readonly rules: StepRules;
+  private readonly recorder: Recorder;
 
   constructor(
     readonly spaceId: string,
@@ -123,6 +142,37 @@ export class SpaceRuntime {
       if (zone.type === 'meeting') this.locks.set(zone.key, { locked: false, allowed: new Set() });
     }
     this.rules = { canEnter: (id, x, y) => this.canEnter(id, x, y) };
+    this.recorder = new Recorder(MAX_REPLAY_EVENTS, mapVersion, deps.clock.now());
+  }
+
+  /** Gravação desde a última troca de mapa (ou desde que encheu), para o replay. */
+  recording(): Recording {
+    const current = this.recorder.current;
+    return { ...current, events: [...current.events] };
+  }
+
+  private record(event: ReplayEvent): void {
+    if (!this.recorder.push(event)) this.restartRecording();
+  }
+
+  private restartRecording(): void {
+    this.recorder.restart(this.mapVersion, this.deps.clock.now(), this.world.players, this.locks);
+  }
+
+  private recordLock(zoneKey: string): void {
+    const lock = this.locks.get(zoneKey);
+    if (!lock) return;
+    this.record({ t: this.deps.clock.now(), type: 'lock', zoneKey, locked: lock.locked, allowed: [...lock.allowed] });
+  }
+
+  /** Membros no mapa, incluindo quem está na tolerância de reconexão. */
+  memberCount(): number {
+    return this.members.size;
+  }
+
+  /** Mapa compilado em uso (o replay reproduz sobre ele). */
+  compiledMap(): CompiledMap {
+    return this.map;
   }
 
   /** Mesa do mapa compilado, para conferir a cadeira. */
@@ -174,8 +224,11 @@ export class SpaceRuntime {
     } else {
       member = {
         profile,
+        short: this.allocateShort(),
         conn: null,
         lastSeq: 0,
+        lastReceived: 0,
+        queued: [],
         ackDirty: false,
         leaveTimer: null,
         invalid: new WindowCounter(clock, INVALID_WINDOW_MS, MAX_INVALID),
@@ -190,12 +243,15 @@ export class SpaceRuntime {
       const sim: SimPlayer = { ...this.map.spawn, dir: 'down', lastStepAt: -Infinity };
       players.set(profile.id, sim);
       this.world = { players };
+      this.record({ t: clock.now(), type: 'join', id: profile.id, x: sim.x, y: sim.y, dir: sim.dir });
       member.activity = this.activityOf(profile.id);
       this.broadcast({ t: 'player.join', player: this.player(profile.id) }, profile.id);
     }
 
     // O cliente recomeça a contagem de seq a cada welcome.
     member.lastSeq = 0;
+    member.lastReceived = 0;
+    member.queued = [];
     member.ackDirty = false;
     member.conn = conn;
     // Conexão nova sempre recebe a sala atual, mesmo que seja a mesma de antes.
@@ -221,27 +277,27 @@ export class SpaceRuntime {
     }
 
     const msg = raw === null ? null : parseClientMsg(raw);
-    if (!msg || (msg.t === 'move' && msg.seq <= member.lastSeq)) {
+    if (!msg || (msg.t === 'move' && msg.seq <= member.lastReceived)) {
       if (member.invalid.hit()) conn.close(CLOSE_POLICY, 'invalid messages');
       return;
     }
 
     switch (msg.t) {
       case 'move': {
-        member.lastSeq = msg.seq;
-        member.ackDirty = true;
-        const result = step(
-          this.world,
-          [{ playerId: userId, seq: msg.seq, dir: msg.dir }],
-          this.deps.clock.now(),
-          this.map,
-          this.rules,
-        );
-        this.world = result.state;
-        for (const event of result.events) this.moved.add(event.id);
-        this.afterMove(userId);
+        member.lastReceived = msg.seq;
+        member.queued.push({ seq: msg.seq, dir: msg.dir });
+        // Fila cheia: o mais antigo é descartado e confirmado; o cliente corrige pelo ack.
+        while (member.queued.length > MAX_QUEUED_MOVES) {
+          const dropped = member.queued.shift();
+          if (dropped) member.lastSeq = dropped.seq;
+          member.ackDirty = true;
+        }
+        this.drainMoves(userId, member);
         break;
       }
+      case 'ping':
+        this.send(conn, { t: 'pong', id: msg.id, ts: this.deps.clock.now() });
+        break;
       case 'chat.say':
         this.chat(userId, member, conn, msg.text);
         break;
@@ -269,32 +325,72 @@ export class SpaceRuntime {
     }
   }
 
+  /**
+   * Aplica os passos da fila que já respeitam o intervalo mínimo. O cliente anda a cada
+   * `STEP_MS`, mas o jitter da rede junta dois passos; descartá-los puxava o avatar de volta.
+   */
+  private drainMoves(userId: string, member: Member): void {
+    for (;;) {
+      const next = member.queued[0];
+      const player = this.world.players.get(userId);
+      if (!next || !player) return;
+      if (this.deps.clock.now() - player.lastStepAt < MIN_STEP_INTERVAL_MS) return;
+      member.queued.shift();
+      member.lastSeq = next.seq;
+      member.ackDirty = true;
+      this.record({ t: this.deps.clock.now(), type: 'step', id: userId, dir: next.dir });
+      const result = step(
+        this.world,
+        [{ playerId: userId, seq: next.seq, dir: next.dir }],
+        this.deps.clock.now(),
+        this.map,
+        this.rules,
+      );
+      this.world = result.state;
+      for (const event of result.events) this.moved.add(event.id);
+      this.afterMove(userId);
+      // Passo recusado (parede, sala trancada) também conta: vira o avatar e marca o intervalo.
+    }
+  }
+
   onClose(userId: string, conn: Conn): void {
     const member = this.members.get(userId);
     if (member?.conn !== conn) return;
     member.conn = null;
+    member.queued = [];
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
     if (call) this.endCall(call, 'left');
     member.leaveTimer = this.deps.scheduler.setTimeout(() => this.leave(userId), RECONNECT_GRACE_MS);
   }
 
-  /** Envia a lista de quem se moveu, serializada uma vez; só o `ack` muda por cliente. */
+  /** Menor id curto livre (u16); o tick binário identifica cada jogador por ele. */
+  private allocateShort(): number {
+    const used = new Set([...this.members.values()].map((m) => m.short));
+    for (let n = 1; n <= 0xffff; n++) if (!used.has(n)) return n;
+    throw new Error('ids curtos esgotados');
+  }
+
+  /** Envia a lista de quem se moveu, montada uma vez em binário; só o `ack` muda por cliente. */
   tick(): void {
-    const moves: TickMove[] = [];
+    // Relógio de parede só para a métrica: a simulação continua no relógio injetado.
+    const started = this.deps.metrics ? performance.now() : 0;
+    for (const [id, member] of this.members) if (member.queued.length > 0) this.drainMoves(id, member);
+    const moves: ShortMove[] = [];
     for (const id of this.moved) {
       const p = this.world.players.get(id);
-      if (p) moves.push([id, p.x, p.y, p.dir]);
+      const short = this.members.get(id)?.short;
+      if (p && short !== undefined) moves.push([short, p.x, p.y, p.dir]);
     }
     this.moved.clear();
-    const movesJson = JSON.stringify(moves);
-    const ts = this.deps.clock.now();
+    const frame = encodeTick(0, this.deps.clock.now(), moves);
 
     for (const member of this.members.values()) {
       if (!member.conn || (moves.length === 0 && !member.ackDirty)) continue;
       member.ackDirty = false;
-      member.conn.send(`{"t":"tick","ack":${member.lastSeq},"moves":${movesJson},"ts":${ts}}`);
+      member.conn.send(withAck(frame, member.lastSeq));
     }
+    this.deps.metrics?.tick.observe((performance.now() - started) / 1000);
   }
 
   close(): void {
@@ -344,7 +440,12 @@ export class SpaceRuntime {
     this.mapVersion = version;
     const players = new Map(this.world.players);
     for (const [id, p] of players) {
-      const to = relocate(map, p.x, p.y);
+      let to = relocate(map, p.x, p.y);
+      // Zona redesenhada por cima de alguém não fura a tranca: quem não estava dentro nem foi
+      // liberado vai para o spawn (que o compileMap garante fora de sala de reunião).
+      const zone = zoneAt(map, to.x, to.y);
+      const lock = this.locks.get(zone.key);
+      if (lock?.locked && !lock.allowed.has(id) && this.members.get(id)?.zoneKey !== zone.key) to = map.spawn;
       if (to.x === p.x && to.y === p.y) continue;
       players.set(id, { ...p, x: to.x, y: to.y });
       this.moved.add(id);
@@ -357,7 +458,10 @@ export class SpaceRuntime {
       if (p) member.zoneKey = zoneAt(map, p.x, p.y).key;
       this.refresh(id);
     }
-    for (const key of this.locks.keys()) this.broadcast({ t: 'zone.state', zone: this.zoneState(key) });
+    // Sala que ficou vazia com a troca destranca, como quando o último sai andando.
+    for (const key of this.locks.keys()) this.zoneChanged(key);
+    // Mapa novo, gravação nova: o replay reproduz sobre um mapa só.
+    this.restartRecording();
     // Quem estava numa zona removida já foi mandado para outra sala; a sala antiga fecha.
     for (const key of removed) {
       this.deps.media.deleteRoom(zoneRoom(this.spaceId, key)).catch((error: unknown) => {
@@ -413,6 +517,7 @@ export class SpaceRuntime {
     if (lock.locked && this.occupants(zoneKey).length === 0) {
       lock.locked = false;
       lock.allowed.clear();
+      this.recordLock(zoneKey);
       for (const [requestId, knock] of this.knocks) {
         if (knock.zoneKey === zoneKey) this.resolveKnock(requestId, false);
       }
@@ -428,6 +533,7 @@ export class SpaceRuntime {
     }
     lock.locked = locked;
     lock.allowed = locked ? new Set(this.occupants(zoneKey)) : new Set();
+    this.recordLock(zoneKey);
     this.broadcast({ t: 'zone.state', zone: this.zoneState(zoneKey) });
   }
 
@@ -473,7 +579,10 @@ export class SpaceRuntime {
     knock.timer.cancel();
     const lock = this.locks.get(knock.zoneKey);
     const allowed = allow && lock?.locked === true;
-    if (allowed) lock.allowed.add(knock.from);
+    if (allowed) {
+      lock.allowed.add(knock.from);
+      this.recordLock(knock.zoneKey);
+    }
     const conn = this.members.get(knock.from)?.conn;
     if (conn) this.send(conn, { t: 'zone.knockResult', zoneKey: knock.zoneKey, allowed });
   }
@@ -578,6 +687,8 @@ export class SpaceRuntime {
   /**
    * Quem decide a sala é o servidor (invariante 3). Ao trocar, emite o token da sala nova e
    * tira o participante da anterior pela API do LiveKit, para o caso de o cliente ignorar o aviso.
+   * Vale também para a sala aberta: sem isso, um cliente modificado ficaria nela durante uma
+   * reunião ou chamada.
    */
   private syncMedia(userId: string): void {
     const member = this.members.get(userId);
@@ -586,20 +697,23 @@ export class SpaceRuntime {
     if (room === member.mediaRoom) return;
     const previous = member.mediaRoom;
     member.mediaRoom = room;
-    if (previous && previous !== spaceRoom(this.spaceId)) {
-      this.deps.media.removeParticipant(previous, userId).catch((error: unknown) => {
-        // Participante que já tinha saído da sala dá erro no LiveKit; não muda nada.
-        this.deps.log.error({ error, userId, room: previous }, 'falha ao remover da sala de mídia');
-      });
-    }
+    if (previous) this.removeFromRoom(previous, userId);
     const conn = member.conn;
     if (conn) void this.sendMediaJoin(userId, conn, room);
+  }
+
+  private removeFromRoom(room: string, userId: string): void {
+    this.deps.media.removeParticipant(room, userId).catch((error: unknown) => {
+      // Quem já saiu da sala por conta própria dá "não encontrado" no LiveKit; não muda nada.
+      if (!isNotFound(error)) this.deps.log.error({ error, userId, room }, 'falha ao remover da sala de mídia');
+    });
   }
 
   private async sendMediaJoin(userId: string, conn: Conn, room: string): Promise<void> {
     const sources = room === spaceRoom(this.spaceId) ? SPACE_SOURCES : PRIVATE_SOURCES;
     try {
       const token = await this.deps.media.token(userId, room, sources);
+      if (this.deps.metrics) this.deps.metrics.mediaTokens++;
       // A sala pode ter mudado de novo, ou a conexão caído, enquanto o token era assinado.
       const member = this.members.get(userId);
       if (member?.conn !== conn || member.mediaRoom !== room) return;
@@ -656,13 +770,12 @@ export class SpaceRuntime {
     for (const [requestId, knock] of this.knocks) {
       if (knock.from === userId) this.resolveKnock(requestId, false);
     }
-    if (member.mediaRoom && member.mediaRoom !== spaceRoom(this.spaceId)) {
-      this.deps.media.removeParticipant(member.mediaRoom, userId).catch(() => undefined);
-    }
+    if (member.mediaRoom) this.removeFromRoom(member.mediaRoom, userId);
     this.members.delete(userId);
     const players = new Map(this.world.players);
     players.delete(userId);
     this.world = { players };
+    this.record({ t: this.deps.clock.now(), type: 'leave', id: userId });
     this.moved.delete(userId);
     this.broadcast({ t: 'player.leave', id: userId });
     this.zoneChanged(member.zoneKey);
@@ -676,7 +789,7 @@ export class SpaceRuntime {
     const member = this.members.get(id);
     const sim = this.world.players.get(id);
     if (!member || !sim) throw new Error(`jogador ${id} sem estado`);
-    return { ...member.profile, x: sim.x, y: sim.y, dir: sim.dir, activity: member.activity };
+    return { ...member.profile, n: member.short, x: sim.x, y: sim.y, dir: sim.dir, activity: member.activity };
   }
 
   private send(conn: Conn, msg: ServerMsg): void {
@@ -689,6 +802,13 @@ export class SpaceRuntime {
       if (id !== exceptId) member.conn?.send(data);
     }
   }
+}
+
+/** Erro do LiveKit (ServerError do SDK) para participante ou sala inexistente. */
+function isNotFound(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, status } = error as { code?: unknown; status?: unknown };
+  return code === 'not_found' || status === 404;
 }
 
 function parseClientMsg(raw: string): ClientMsg | null {

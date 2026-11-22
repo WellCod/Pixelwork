@@ -16,6 +16,8 @@ const MESSAGES: Record<string, string> = {
   already_has_desk: 'Você já tem uma mesa neste coworking. Libere a sua antes.',
   not_owner: 'Só o dono da mesa (ou um admin) pode fazer isso.',
   admin_only: 'Só admins podem fazer isso.',
+  last_admin: 'O coworking precisa de pelo menos um admin. Promova outra pessoa antes de sair.',
+  rate_limited: 'Muitas tentativas seguidas. Espere um minuto e tente de novo.',
   invalid_body: 'Confira os campos: algum valor não é aceito.',
 };
 

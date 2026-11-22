@@ -7,7 +7,10 @@ import type { ClientWorld } from '../net/client-world.ts';
 import { useCalls } from './CallUi.tsx';
 import { AvatarEditor } from './AvatarEditor.tsx';
 import { AvatarPreview } from './AvatarPreview.tsx';
+import { PhoneIcon, MicIcon } from './icons.tsx';
+import { useMedia } from './MediaControls.tsx';
 import { errorMessage, useWorld } from './useWorld.ts';
+import type { MediaManager } from '../media/media-manager.ts';
 
 const STATUS_LABEL: Record<Status, string> = {
   available: 'Disponível',
@@ -17,65 +20,100 @@ const STATUS_LABEL: Record<Status, string> = {
 
 interface SidebarProps {
   world: ClientWorld;
+  media: MediaManager;
   spaceId: string;
   calls: CallStore;
   isAdmin: boolean;
 }
 
-export function Sidebar({ world, spaceId, calls, isAdmin }: SidebarProps) {
+export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps) {
   useWorld(world);
   useCalls(calls);
+  useMedia(media);
+  const [error, setError] = useState<string | null>(null);
   // Chamada só sai da própria mesa (o servidor confere de novo).
   const seated =
     world.selfId !== null && seatedFacing(world.map, world.desks, world.selfId, world.self.x, world.self.y) !== null;
-  const canCall = (p: Player) =>
-    seated && p.id !== world.selfId && p.activity !== 'call' && calls.state.kind === 'idle';
+  const callable = (p: Player) => p.id !== world.selfId && p.activity !== 'call' && calls.state.kind === 'idle';
   const me = world.selfId ? world.players.get(world.selfId) : undefined;
   const people = [...world.players.values()].sort(
     (a, b) => Number(b.id === world.selfId) - Number(a.id === world.selfId) || a.name.localeCompare(b.name),
   );
 
+  const remove = (p: Player) => {
+    if (!confirm(`Remover ${p.name} deste coworking? A mesa dele fica livre.`)) return;
+    setError(null);
+    orgApi.removeMember(spaceId, p.id).catch((e: unknown) => setError(errorMessage(e)));
+  };
+
   return (
     <aside className="sidebar">
-      {me && <MePanel key={me.id} me={me} spaceId={spaceId} />}
       <section>
         <h3>Pessoas ({people.length})</h3>
+        {error && <p className="error">{error}</p>}
         <ul className="people">
-          {people.map((p) => (
-            <li key={p.id}>
-              <span className={`dot dot-${p.status}`} title={STATUS_LABEL[p.status]} />
-              <div>
-                <div className="person-name">
-                  {p.name}
-                  {p.statusEmoji && <span className="emoji"> {p.statusEmoji}</span>}
-                  {p.id === world.selfId && <span className="you"> (você)</span>}
+          {people.map((p) => {
+            const speaking = media.speaking.has(p.id);
+            return (
+              <li key={p.id} className={speaking ? 'speaking' : undefined}>
+                <span className={`dot dot-${p.status}`} role="img" aria-label={STATUS_LABEL[p.status]} />
+                <div className="person">
+                  <div className="person-name">
+                    {p.name}
+                    {p.statusEmoji && <span className="emoji"> {p.statusEmoji}</span>}
+                    {p.id === world.selfId && <span className="you"> (você)</span>}
+                    {speaking && (
+                      <span className="speaking-badge" title="Falando">
+                        <MicIcon />
+                        <span className="visually-hidden">falando</span>
+                      </span>
+                    )}
+                  </div>
+                  {p.title && <div className="person-title">{p.title}</div>}
+                  <div className="person-status">
+                    {[
+                      p.status !== 'available' ? STATUS_LABEL[p.status] : null,
+                      p.activity === 'call' ? 'Em chamada' : p.activity === 'meeting' ? 'Em reunião' : null,
+                      p.statusText,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </div>
                 </div>
-                {p.title && <div className="person-title">{p.title}</div>}
-                {p.statusText && <div className="person-status">{p.statusText}</div>}
-                {p.activity !== 'idle' && (
-                  <div className="person-status">{p.activity === 'call' ? 'Em chamada' : 'Em reunião'}</div>
-                )}
-              </div>
-              {isAdmin && p.id !== world.selfId && (
-                <button
-                  type="button"
-                  className="call-button"
-                  onClick={() => {
-                    if (confirm(`Remover ${p.name} deste coworking?`)) void orgApi.removeMember(spaceId, p.id);
-                  }}
-                >
-                  Remover
-                </button>
-              )}
-              {canCall(p) && (
-                <button type="button" className="call-button" onClick={() => calls.call(p.id)}>
-                  Ligar
-                </button>
-              )}
-            </li>
-          ))}
+                <div className="person-actions">
+                  {callable(p) && (
+                    <button
+                      type="button"
+                      className="call-button"
+                      disabled={!seated}
+                      title={seated ? `Ligar para ${p.name}` : 'Sente na sua mesa para ligar'}
+                      onClick={() => calls.call(p.id)}
+                    >
+                      <PhoneIcon />
+                      <span>Ligar</span>
+                    </button>
+                  )}
+                  {isAdmin && p.id !== world.selfId && (
+                    <button type="button" className="call-button subtle" onClick={() => remove(p)}>
+                      Remover
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
+        {!seated && people.length > 1 && <p className="muted">Para ligar, sente na cadeira da sua mesa.</p>}
       </section>
+      {me && (
+        <details className="me-details">
+          <summary>
+            <AvatarPreview spec={me.avatar} scale={1} />
+            <span>Seu perfil e status</span>
+          </summary>
+          <MePanel key={me.id} me={me} spaceId={spaceId} />
+        </details>
+      )}
     </aside>
   );
 }

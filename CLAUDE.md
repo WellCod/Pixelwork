@@ -14,6 +14,8 @@ técnica nele a amplitude de features.
   testes). Leia as seções relevantes antes de qualquer tarefa.
 - `docs/art.md`: paleta, grade, layout dos spritesheets, manifesto de assets e licenças.
 - `docs/prompts/`: um prompt por fase de implementação.
+- `docs/deploy.md`: deploy na VPS, backup e restauração.
+- `docs/melhorias.md`: lista de trabalho da revisão de 2026-11 (o que foi feito e o que ficou).
 
 ## Stack
 
@@ -63,8 +65,10 @@ Para o Phaser, avalie 3.x vs 4 e registre a escolha em `docs/architecture.md`.
 - `pnpm assets:check`: confere se todo PNG usa só a paleta e as cores-chave.
 - `pnpm load --bots 50 [--seconds 30]`: teste de carga; sobe o servidor na porta 3100 com
   `LOAD_TEST=true` e mede latência do tick, tamanho das mensagens e CPU.
+- `curl localhost:3000/metrics`: métricas do servidor no formato do Prometheus (só na rede interna).
 - `pnpm e2e`: E2E de fumaça com Playwright (usa o `pnpm dev` que estiver rodando; localmente, o
-  Chrome instalado).
+  Chrome instalado). No macOS com Docker Desktop o ICE do segundo participante costuma falhar
+  (LiveKit em container); o E2E de mídia é confiável no CI (Linux).
 - `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`: produção
   numa VPS (ver `docs/deploy.md`).
 

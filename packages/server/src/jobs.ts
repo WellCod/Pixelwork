@@ -1,5 +1,5 @@
 import { compileMap } from '@pixelwork/shared';
-import { deskAssignments, spaces, users } from '@pixelwork/shared/schema';
+import { deskAssignments, sessions, spaces, users } from '@pixelwork/shared/schema';
 import { and, eq, lte, sql } from 'drizzle-orm';
 import type { Db } from './db.ts';
 import { findDemoSpaceId, loadTemplate } from './demo.ts';
@@ -34,6 +34,15 @@ export async function cleanupExpiredGuests(deps: JobDeps): Promise<string[]> {
     for (const id of ids) runtime.removeMember(id);
   });
   return ids;
+}
+
+/** Sessões de conta vencidas; as de convidado já saem pela cascata do usuário. */
+export async function cleanupExpiredSessions(deps: Pick<JobDeps, 'db' | 'clock'>): Promise<number> {
+  const removed = await deps.db
+    .delete(sessions)
+    .where(lte(sessions.expiresAt, new Date(deps.clock.now())))
+    .returning({ userId: sessions.userId });
+  return removed.length;
 }
 
 /** Restaura o mapa da demo a partir do template e limpa as atribuições de mesa. */
@@ -75,7 +84,10 @@ export function scheduleJobs(deps: JobDeps): { stop: () => void } {
       (error: unknown) => deps.log.error({ job: name, error }, 'job falhou'),
     );
   };
-  const cleanup = deps.scheduler.setInterval(() => run('limpeza de convidados', () => cleanupExpiredGuests(deps)), HOUR_MS);
+  const cleanup = deps.scheduler.setInterval(() => {
+    run('limpeza de convidados', () => cleanupExpiredGuests(deps));
+    run('limpeza de sessões', () => cleanupExpiredSessions(deps));
+  }, HOUR_MS);
   let daily: { cancel: () => void } | null = null;
   const first = deps.scheduler.setTimeout(() => {
     run('reset da demo', () => resetDemo(deps));

@@ -1,5 +1,6 @@
 import {
   CHAT_BUBBLE_MS,
+  findPath,
   RENDER_SCALE,
   STEP_MS,
   TILESETS,
@@ -18,11 +19,20 @@ import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-
 import { Mover } from './mover.ts';
 import { SLOT_OFFSET, isNear, seatedFacing, type Slot } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
+import { isTyping, releaseFocus } from '../input-focus.ts';
 
 export interface WorldSceneOptions {
   world: ClientWorld;
   mapJson: Record<string, unknown>;
   send: (msg: ClientMsg) => void;
+  /** Fora do ar a predição andaria sozinha e voltaria no welcome: o input fica parado. */
+  canMove?: () => boolean;
+  /** Quem está falando agora (LiveKit), para o anel sob o avatar. */
+  isSpeaking?: (id: string) => boolean;
+  /** Overlay de netcode aberto: desenha o fantasma da posição confirmada pelo servidor. */
+  showGhost?: () => boolean;
+  /** Começou ou parou de seguir alguém (o React mostra o card com "Parar"). */
+  onFollowChange?: (id: string | null) => void;
   /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
   hasVideoBubble?: (id: string) => boolean;
 }
@@ -33,6 +43,7 @@ const CHAT_OFFSET_OVER_VIDEO = CHAT_OFFSET + 40;
 
 interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
+  ring: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
   title: Phaser.GameObjects.Text;
   mover: Mover;
@@ -44,6 +55,9 @@ interface Avatar {
 }
 
 const DESK_TILESET = 'desk-decor';
+/** Zoom da câmera sobre a escala base (RENDER_SCALE): inteiro, para o pixel art não borrar. */
+const ZOOM_LEVELS = [1, 2, 3] as const;
+const SPEAKING_COLOR = 0x63c74d;
 const LABEL_DEPTH = 100_000;
 const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
 
@@ -61,6 +75,13 @@ export class WorldScene extends Phaser.Scene {
   private keys!: Record<Dir, Phaser.Input.Keyboard.Key[]>;
   private lastStepAt = -Infinity;
   private unsubscribe: (() => void) | null = null;
+  private zoomIndex = 0;
+  private ghost: Phaser.GameObjects.Rectangle | null = null;
+  /** Clicar para andar: passos que faltam até o tile clicado. */
+  private route: Dir[] = [];
+  /** Seguindo alguém: o caminho é recalculado a cada passo até a posição atual da pessoa. */
+  private following: string | null = null;
+  private mapSize = { width: 0, height: 0 };
 
   constructor(private readonly options: WorldSceneOptions) {
     super('world');
@@ -93,7 +114,10 @@ export class WorldScene extends Phaser.Scene {
       this.text(object.x + 3, object.y + 2, name, '#c0cbdc').setAlpha(0.8).setDepth(LABEL_DEPTH - 1);
     }
 
-    this.cameras.main.setBounds(0, 0, tilemap.widthInPixels, tilemap.heightInPixels).setRoundPixels(true);
+    this.mapSize = { width: tilemap.widthInPixels, height: tilemap.heightInPixels };
+    this.cameras.main.setRoundPixels(true);
+    this.fitCamera();
+    this.scale.on(Phaser.Scale.Events.RESIZE, () => this.fitCamera());
 
     const keyboard = this.input.keyboard;
     if (!keyboard) throw new Error('teclado indisponível');
@@ -106,16 +130,44 @@ export class WorldScene extends Phaser.Scene {
     };
     // Toque rápido (soltar antes do próximo frame) também anda um tile.
     for (const [dir, keys] of Object.entries(this.keys) as [Dir, Phaser.Input.Keyboard.Key[]][]) {
-      for (const key of keys) key.on('down', () => this.tryStep(dir));
+      for (const key of keys) {
+        key.on('down', () => {
+          if (isTyping()) return;
+          this.cancelAuto();
+          this.tryStep(dir);
+        });
+      }
     }
+    keyboard.on('keydown', (event: KeyboardEvent) => {
+      if (isTyping()) return;
+      if (event.key === '+' || event.key === '=') this.zoom(1);
+      if (event.key === '-') this.zoom(-1);
+    });
     // Campos de texto da UI em React precisam das teclas de seta e WASD.
     keyboard.disableGlobalCapture();
 
+    this.ghost = this.add
+      .rectangle(0, 0, TILE_PX, TILE_PX)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, 0x2ce8f5, 0.9)
+      .setFillStyle(0x2ce8f5, 0.15)
+      .setDepth(LABEL_DEPTH - 3)
+      .setVisible(false);
     this.rebuild();
     this.unsubscribe = this.options.world.subscribe((event) => {
       this.onWorldEvent(event);
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribe?.());
+    // `game.destroy` emite DESTROY sem SHUTDOWN; sem os dois, a cena morta segue recebendo eventos.
+    const stop = () => {
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
+    this.events.once(Phaser.Scenes.Events.DESTROY, stop);
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      releaseFocus();
+      this.onPointerDown(pointer, over);
+    });
   }
 
   override update(_time: number, delta: number): void {
@@ -124,14 +176,23 @@ export class WorldScene extends Phaser.Scene {
     const held = typing
       ? undefined
       : (['up', 'down', 'left', 'right'] as const).find((dir) => this.keys[dir].some((key) => key.isDown));
-    if (held) this.tryStep(held);
+    if (held) {
+      this.cancelAuto();
+      this.tryStep(held);
+    } else {
+      this.autoStep();
+    }
 
     const self = world.selfId ? this.avatars.get(world.selfId) : undefined;
+    const ghostOn = this.options.showGhost?.() ?? false;
+    this.ghost?.setVisible(ghostOn && world.selfId !== null);
+    if (ghostOn) this.ghost?.setPosition(world.confirmed.x * TILE_PX, world.confirmed.y * TILE_PX);
     for (const [id, avatar] of this.avatars) {
       avatar.mover.update(delta);
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
       const y = avatar.mover.y * TILE_PX + TILE_PX;
       avatar.sprite.setPosition(x, y).setDepth(y);
+      avatar.ring.setPosition(x, y - 1).setDepth(y - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
       avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
       if (avatar.chat) {
@@ -151,13 +212,71 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private tryStep(dir: Dir): void {
-    if (isTyping()) return;
+  /** Manda um passo se o intervalo e a conexão deixarem; devolve se mandou. */
+  private tryStep(dir: Dir): boolean {
+    if (isTyping()) return false;
     const time = performance.now();
     const { world } = this.options;
-    if (!world.selfId || time - this.lastStepAt < STEP_MS) return;
+    if (!world.selfId || time - this.lastStepAt < STEP_MS) return false;
+    if (this.options.canMove && !this.options.canMove()) return false;
     this.lastStepAt = time;
     this.options.send(world.move(dir));
+    return true;
+  }
+
+  /** Clique no chão anda até lá; clique num avatar passa a seguir a pessoa. */
+  private onPointerDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
+    const { world } = this.options;
+    if (!world.selfId) return;
+    const clicked = over.map((o) => o.getData('id') as string | undefined).find((id) => id && id !== world.selfId);
+    if (clicked) {
+      this.route = [];
+      this.setFollowing(clicked);
+      return;
+    }
+    const tx = Math.floor(pointer.worldX / TILE_PX);
+    const ty = Math.floor(pointer.worldY / TILE_PX);
+    const path = findPath(world.map, world.self, { x: tx, y: ty }, { canEnter: world.canEnter });
+    this.setFollowing(null);
+    this.route = path ?? [];
+  }
+
+  private autoStep(): void {
+    const { world } = this.options;
+    if (this.following) {
+      const target = world.players.get(this.following);
+      if (!target) {
+        this.setFollowing(null);
+        return;
+      }
+      const path = findPath(world.map, world.self, target, { canEnter: world.canEnter, stopAt: 1 });
+      if (path === null) this.setFollowing(null);
+      else if (path[0]) this.tryStep(path[0]);
+      return;
+    }
+    const dir = this.route[0];
+    if (!dir) return;
+    const before = world.self;
+    if (!this.tryStep(dir)) return;
+    this.route.shift();
+    // A predição não andou (alguém trancou a sala no caminho): desiste do resto.
+    if (world.self.x === before.x && world.self.y === before.y) this.route = [];
+  }
+
+  private cancelAuto(): void {
+    this.route = [];
+    this.setFollowing(null);
+  }
+
+  private setFollowing(id: string | null): void {
+    if (this.following === id) return;
+    this.following = id;
+    this.options.onFollowChange?.(id);
+  }
+
+  /** Botão "Parar" do card de seguir. */
+  stopFollowing(): void {
+    this.setFollowing(null);
   }
 
   private onWorldEvent(event: WorldEvent): void {
@@ -197,7 +316,7 @@ export class WorldScene extends Phaser.Scene {
         const avatar = world.selfId ? this.avatars.get(world.selfId) : undefined;
         if (!avatar) break;
         avatar.dir = event.pos.dir;
-        if (event.type === 'selfCorrected') avatar.mover.snap(event.pos.x, event.pos.y);
+        if (event.type === 'selfCorrected') avatar.mover.correct(event.pos.x, event.pos.y);
         else avatar.mover.push(event.pos.x, event.pos.y);
         break;
       }
@@ -217,10 +336,12 @@ export class WorldScene extends Phaser.Scene {
     const pos = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(pos.dir)).setOrigin(0.5, 1);
+    const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = this.text(0, 0, '', isSelf ? '#fee761' : '#ffffff').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
     const title = this.text(0, 0, '', '#8b9bb4').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
     const avatar: Avatar = {
       sprite,
+      ring,
       label,
       title,
       mover: new Mover(pos.x, pos.y),
@@ -230,7 +351,8 @@ export class WorldScene extends Phaser.Scene {
       chat: null,
       chatTimer: null,
     };
-    sprite.setInteractive();
+    sprite.setInteractive({ useHandCursor: !isSelf });
+    sprite.setData('id', player.id);
     sprite.on('pointerover', () => (avatar.hovered = true));
     sprite.on('pointerout', () => (avatar.hovered = false));
     this.avatars.set(player.id, avatar);
@@ -253,7 +375,9 @@ export class WorldScene extends Phaser.Scene {
   private removeAvatar(id: string): void {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
+    if (this.following === id) this.setFollowing(null);
     avatar.sprite.destroy();
+    avatar.ring.destroy();
     avatar.label.destroy();
     avatar.title.destroy();
     avatar.chat?.destroy();
@@ -265,11 +389,36 @@ export class WorldScene extends Phaser.Scene {
   screenPosition(id: string): { x: number; y: number } | null {
     const avatar = this.avatars.get(id);
     if (!avatar) return null;
-    const view = this.cameras.main.worldView;
+    const camera = this.cameras.main;
+    const view = camera.worldView;
+    const scale = camera.zoom * RENDER_SCALE;
     return {
-      x: (avatar.sprite.x - view.x) * RENDER_SCALE,
-      y: (avatar.sprite.y - avatar.sprite.height - view.y) * RENDER_SCALE,
+      x: (avatar.sprite.x - view.x) * scale,
+      y: (avatar.sprite.y - avatar.sprite.height - view.y) * scale,
     };
+  }
+
+  /** Aproxima ou afasta em degraus inteiros. */
+  zoom(delta: number): void {
+    const next = Math.min(ZOOM_LEVELS.length - 1, Math.max(0, this.zoomIndex + delta));
+    if (next === this.zoomIndex) return;
+    this.zoomIndex = next;
+    this.cameras.main.setZoom(ZOOM_LEVELS[next]);
+    this.fitCamera();
+  }
+
+  /**
+   * Mapa menor que a tela fica centralizado: os limites da câmera crescem para os lados com o
+   * fundo vazio, em vez de o mapa grudar no canto superior esquerdo.
+   */
+  private fitCamera(): void {
+    const camera = this.cameras.main;
+    const viewW = this.scale.width / camera.zoom;
+    const viewH = this.scale.height / camera.zoom;
+    const { width, height } = this.mapSize;
+    const x = width < viewW ? -Math.floor((viewW - width) / 2) : 0;
+    const y = height < viewH ? -Math.floor((viewH - height) / 2) : 0;
+    camera.setBounds(x, y, Math.max(width, viewW), Math.max(height, viewH));
   }
 
   private showChat(id: string, text: string): void {
@@ -355,9 +504,4 @@ export class WorldScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
   }
-}
-
-function isTyping(): boolean {
-  const el = document.activeElement;
-  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 }

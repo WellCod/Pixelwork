@@ -59,6 +59,24 @@ describe('compileMap: mapas válidos', () => {
   });
 });
 
+describe('compileMap: custo limitado', () => {
+  it('zona e móvel gigantes não percorrem tiles fora do mapa', () => {
+    const json = buildTestMap({
+      zones: [{ key: 'enorme', type: 'open', x: 1, y: 1, w: 2, h: 2 }],
+      furniture: [{ x: 7, y: 5, tile: FURNITURE.plant }],
+    });
+    const zone = (layerOf(json, 'zones').objects as Record<string, unknown>[])[0] ?? {};
+    zone.width = 16 * 1e9;
+    zone.height = 16 * 1e9;
+    const plant = (layerOf(json, 'furniture').objects as Record<string, unknown>[])[0] ?? {};
+    plant.width = 16 * 1e9;
+    plant.height = 16 * 1e9;
+    const started = Date.now();
+    compileMap(json);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
 describe('compileMap: um erro por código', () => {
   const cases: [string, TestMapOptions, Mutate | undefined, MapError][] = [
     ['não ortogonal', {}, (m) => (m.orientation = 'isometric'), { code: 'not_orthogonal' }],
@@ -165,6 +183,41 @@ describe('compileMap: um erro por código', () => {
     ],
     ['dois spawns', { spawns: [[1, 1], [2, 2]] }, undefined, { code: 'spawn_count', found: 2 }],
     ['spawn na parede', { spawns: [[0, 0]] }, undefined, { code: 'spawn_blocked' }],
+    [
+      'spawn dentro de sala de reunião',
+      { zones: [{ key: 'sala', type: 'meeting', x: 1, y: 1, w: 3, h: 3 }], spawns: [[2, 2]] },
+      undefined,
+      { code: 'spawn_in_meeting' },
+    ],
+    [
+      'camada com tamanho errado',
+      {},
+      (m) => (layerOf(m, 'floor').data as number[]).pop(),
+      { code: 'layer_size', layer: 'floor' },
+    ],
+    [
+      'zona inteira fora do mapa',
+      { zones: [{ key: 'longe', type: 'open', x: 50, y: 50, w: 2, h: 2 }] },
+      undefined,
+      { code: 'zone_outside', key: 'longe' },
+    ],
+    [
+      'mesa fora do mapa',
+      { desks: [{ key: 'mesa-1', x: 40, y: 2, orientation: 'down' }] },
+      undefined,
+      { code: 'desk_outside', deskKey: 'mesa-1' },
+    ],
+    [
+      'duas mesas com a mesma cadeira',
+      {
+        desks: [
+          { key: 'mesa-1', x: 2, y: 2, orientation: 'down' },
+          { key: 'mesa-2', x: 2, y: 4, orientation: 'up' },
+        ],
+      },
+      undefined,
+      { code: 'chair_shared', a: 'mesa-1', b: 'mesa-2' },
+    ],
   ];
 
   it.each(cases)('%s', (_name, options, mutate, expected) => {

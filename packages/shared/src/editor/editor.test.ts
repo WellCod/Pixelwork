@@ -6,6 +6,7 @@ import { apply, objectLayer, prop, type EditorCommand, type ObjectLayerName, typ
 import { CommandStack } from './history.ts';
 import {
   addDesk,
+  adoptDocument,
   addZone,
   moveObject,
   moveSpawn,
@@ -165,7 +166,7 @@ describe('chaves estáveis', () => {
 
 describe('sequências aleatórias', () => {
   // Erros que uma edição livre pode produzir; qualquer outro indica comando corrompendo o JSON.
-  const EXPECTED: MapError['code'][] = ['zone_overlap', 'chair_blocked', 'spawn_blocked'];
+  const EXPECTED: MapError['code'][] = ['zone_overlap', 'chair_blocked', 'chair_shared', 'spawn_blocked', 'spawn_in_meeting'];
 
   function randomCommand(doc: TiledDoc, rand: () => number): EditorCommand | null {
     const x = Math.floor(rand() * doc.width);
@@ -245,5 +246,22 @@ describe('objectAt', () => {
     expect(objectAt(doc, 'furniture', 10, 7)?.id).toBe(objectId(doc, 'furniture'));
     expect(objectAt(doc, 'desks', 4, 2)?.id).toBe(objectId(doc, 'desks', 1));
     expect(objectAt(doc, 'desks', 9, 9)).toBeUndefined();
+  });
+});
+
+describe('adoptDocument', () => {
+  it('modelo com chave já usada no mapa atual ganha chave nova, e o contador segue o maior', () => {
+    const stack = new CommandStack(baseDoc());
+    stack.execute(addDesk(stack.doc, 6, 2, 'down'));
+    const used = prop(stack.doc, 'pixelwork_next_desk');
+    const template = baseDoc();
+    const adopted = adoptDocument(stack.doc, template);
+    const keys = objectLayer(adopted, 'desks').objects.map((o) => prop(o, 'desk_key'));
+    const old = objectLayer(stack.doc, 'desks').objects.map((o) => prop(o, 'desk_key'));
+    for (const key of keys) expect(old).not.toContain(key);
+    expect(Number(prop(adopted, 'pixelwork_next_desk'))).toBeGreaterThan(Number(used));
+    expect(compileMap(adopted).ok).toBe(true);
+    // O modelo original não é alterado.
+    expect(objectLayer(template, 'desks').objects.map((o) => prop(o, 'desk_key'))).not.toEqual(keys);
   });
 });

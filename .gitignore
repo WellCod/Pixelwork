@@ -5,3 +5,8 @@ coverage/
 *.tsbuildinfo
 test-results/
 playwright-report/
+.env.*
+!.env.example
+!.env.production.example
+# Dumps do serviço de backup (docker-compose.prod.yml)
+backups/

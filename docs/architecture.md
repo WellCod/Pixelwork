@@ -126,6 +126,13 @@ cookie e `Origin` são da mesma origem.
   `PUBLIC_URL`. O `SameSite=Lax` já bloqueia POST cross-site com cookie; a checagem é defesa extra.
 - WebSocket: o cookie autentica o upgrade; `Origin` diferente de `PUBLIC_URL` é recusado
   (cross-site WebSocket hijacking).
+- Logout fecha na hora as conexões abertas com a mesma sessão (código 4004). Sessão que expira
+  com a conexão aberta é fechada na varredura do heartbeat (seção 8).
+- Limite de taxa por IP (`@fastify/rate-limit` 11.2.2, em memória): 300 requisições por minuto
+  em geral; 10 por minuto em `POST /auth/guest`, `POST /orgs`, `POST /orgs/:orgId/spaces` e
+  `POST /invites/:token/accept`; 20 nas rotas do GitHub; 30 em `GET /invites/:token`. Em
+  produção `TRUST_PROXY=true`, porque o IP do cliente chega pelo Caddy no `X-Forwarded-For`.
+  Os testes desligam o limite, menos o teste que o confere.
 
 Descartados: JWT (revogação vira problema, nenhum serviço externo precisa validar o token);
 auth como serviço (dependência paga e esconde parte que conta no portfólio).
@@ -207,9 +214,16 @@ create table invites (
   space_id uuid not null references spaces on delete cascade,
   role text not null check (role in ('admin', 'member')),
   expires_at timestamptz not null,
-  uses_left int
+  uses_left int check (uses_left is null or uses_left >= 0)
 );
 ```
+
+Índices além das PKs (migration `0001`, revisão de 2026-11): `sessions(user_id)`,
+`sessions(expires_at)`, `oauth_accounts(user_id)`, `org_members(user_id)`,
+`space_members(user_id)`, `invites(space_id)` e `users(guest_expires_at) where is_guest`. As PKs
+compostas começam por `space_id`/`org_id`, e as consultas por usuário (lista de coworkings,
+cascatas ao apagar convidado, jobs) faziam varredura sequencial. Também entrou o check
+`char_length(status_emoji) <= 16` como teto no banco para o grafema validado na aplicação.
 
 - Participação é por coworking, não por empresa. `org_members` serve só para administrar a empresa.
   Isso permite participar de coworkings de empresas diferentes sem ser membro delas.
@@ -257,6 +271,14 @@ Restrições (o servidor rejeita com código de erro):
   gerado (`TILESETS`), para o `compileMap` não ler arquivo.
 - O Phaser não lê tileset externo: o cliente embute os tilesets do catálogo no JSON só para
   renderizar. O mapa salvo continua com `source`.
+- Revisão de 2026-11 (aprovada):
+  - `spawn_in_meeting`: o spawn não pode cair em zona de reunião. Quem entrava nascia lá dentro e
+    furava a tranca; a realocação de quem fica preso também usa o spawn.
+  - `layer_size`: `floor` e `walls` precisam ter exatamente `width * height` posições.
+  - `zone_outside` e `desk_outside`: zona sem nenhum tile dentro do mapa e mesa fora dele.
+  - `chair_shared`: duas mesas com o mesmo tile de cadeira.
+  - Zonas e móveis são recortados ao mapa antes de percorrer os tiles: um retângulo de 1e9 px num
+    JSON pequeno travava o servidor.
 
 Compilação (em `shared`, usada por cliente e servidor):
 
@@ -274,16 +296,17 @@ export interface CompiledMap {
 
 export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
-  | { code: 'missing_layer' | 'wrong_layer_type'; layer: string }
+  | { code: 'missing_layer' | 'wrong_layer_type' | 'layer_size'; layer: string }
   | { code: 'unknown_tileset'; source: string }
   | { code: 'tileset_overlap'; a: string; b: string }   // firstgid + tilecount invade o seguinte
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
-  | { code: 'zone_not_aligned' | 'invalid_zone_type'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation'; deskKey: string }
+  | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside'; deskKey: string }
+  | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
-  | { code: 'spawn_blocked' };
+  | { code: 'spawn_blocked' | 'spawn_in_meeting' };
 
 export function compileMap(json: unknown): { ok: true; map: CompiledMap } | { ok: false; errors: MapError[] };
 ```
@@ -313,6 +336,27 @@ export const CHAT_BUBBLE_MS = 6_000;
   posição autoritativa do próprio jogador vier nos `moves` e divergir da predição, o cliente faz
   snap para ela e reaplica os passos pendentes com `seq > ack`.
 - Outros avatares: interpolação de tile a tile com duração `STEP_MS`.
+- Revisão de 2026-11:
+  - Passo que chega antes de `MIN_STEP_INTERVAL_MS` (jitter da rede junta dois passos) não é mais
+    descartado: espera numa fila de até `MAX_QUEUED_MOVES` (2) e é aplicado assim que o intervalo
+    passa, no máximo no tick seguinte. O `ack` só avança quando o passo é decidido (aplicado ou
+    recusado). Passo além da fila cheia é descartado e confirmado, e o cliente corrige pelo
+    `ack`. Antes o passo sumia e a reconciliação puxava o avatar um tile para trás.
+  - Descartado: aplicar todos os passos em lote no tick. A cópia do mapa de jogadores por
+    passo some, mas o passo passa a ser quantizado em 100 ms e a velocidade cai para um passo a
+    cada 200 ms, com fila crescendo.
+  - A predição do cliente respeita sala trancada (a mesma regra do `canEnter`), contando as
+    salas em que a batida foi aceita.
+  - Correção de até um tile desliza em vez de saltar; maior que isso continua teleporte.
+  - Clicar para andar e seguir (revisão de 2026-11): `findPath` em `shared` (A* em 4 direções,
+  heap binário, mesma regra de sala trancada da predição) devolve a lista de direções. O cliente
+  manda um `move` por vez, no ritmo de `STEP_MS`, então o invariante 1 continua: o servidor
+  decide cada passo. Seguir recalcula o caminho a cada passo até ficar ao lado da pessoa
+  (`stopAt: 1`). Qualquer tecla de movimento cancela; passo recusado pela predição também.
+- Interpolação dos outros: até dois passos na fila andam na velocidade normal (o segundo é só o
+    descompasso entre tick de 100 ms e passo de 160 ms); acima disso a velocidade sobe. A
+    animação de andar segura 120 ms depois de a fila esvaziar.
+  - Fora do ar (status diferente de `online`) o cliente não aceita input de movimento.
 - Tick: lista de quem se moveu desde o último tick, serializada uma vez; `ack` por cliente.
   Todo o coworking vai para todos (sem área de interesse).
 - Distância de proximidade: euclidiana em tiles, entre centros de tile.
@@ -336,14 +380,38 @@ export function step(
 - Mensagens em JSON, validadas com Zod. Mensagem inválida é descartada; mais de 10 inválidas em
   10 segundos fecham a conexão (código 1008). Mais de 50 mensagens por segundo também.
 - Desconexão: o jogador permanece por `RECONNECT_GRACE_MS` antes de `player.leave`. O cliente
-  reconecta com backoff exponencial.
+  reconecta com backoff exponencial, e na hora quando o navegador avisa que a rede voltou.
+- Tick binário (aprovado em 2026-11, `shared/src/binary.ts`): cada jogador ganha um id curto
+  (u16, o menor livre no runtime) que vai no `Player.n` do `welcome` e do `player.join`. O tick
+  vai como quadro binário: tipo (u8), `ack` (u32), `ts` (f64), quantidade (u16) e 5 bytes por
+  movimento (id curto, x, y, direção), little-endian. O servidor monta o quadro uma vez e troca só
+  o `ack` numa cópia por destinatário. O cliente decodifica para o mesmo `{ t: 'tick' }` de antes,
+  com os ids completos, então o resto do cliente não mudou. As outras mensagens seguem em JSON.
+  Com 50 bots, o tick médio caiu de 1.559 B para 154 B (README, "Números de carga").
+- `ping { id }` → `pong { id, ts }` (aprovado em 2026-11): o cliente manda a cada
+  `PING_INTERVAL_MS` (5 s), mede RTT, jitter e a diferença de relógio. Sem nenhuma mensagem do
+  servidor por `CONNECTION_TIMEOUT_MS` (15 s), o cliente dá a conexão como morta e reconecta.
+- Robustez do gateway (revisão de 2026-11):
+  - O socket ganha um listener de `error` logo no `upgrade`: sem ele, um ECONNRESET durante as
+    consultas de sessão e participação derrubava o processo.
+  - Falha ao carregar o runtime (erro do banco) responde 500 e não fica em cache.
+  - Mapa ou mesa gravados enquanto o runtime carrega marcam o coworking, e a carga recomeça.
+  - A participação é conferida de novo com o socket já aberto, logo antes do `connect`: uma
+    remoção gravada durante a carga não recoloca a pessoa no mapa.
+  - Heartbeat: a cada 30 s o servidor manda ping de protocolo; quem não respondeu ao anterior é
+    derrubado (conexão meio aberta), o que dispara a tolerância de reconexão normal. O intervalo
+    usa o relógio do sistema, não o agendador injetado, porque é transporte e não simulação.
+  - Cliente que não lê o socket: com mais de 1 MB pendente no buffer de envio, a conexão cai.
+  - Runtime sem ninguém (nem na tolerância) por 10 minutos sai da memória; a próxima conexão
+    carrega de novo do banco.
 - Decisões da fase 1:
   - Upgrade feito à mão (`ws` em `noServer` no evento `upgrade` do Fastify): `Origin`, cookie e
     `space_members` são conferidos antes de aceitar.
   - Fechamento: 4001 para `session.replaced` (o cliente não reconecta), 1008 para mensagens
-    inválidas ou taxa.
-  - O passo é aplicado quando a mensagem chega; o tick só faz o broadcast. Passo ignorado pelo
-    intervalo mínimo também conta no `ack`. A contagem de `seq` recomeça a cada `welcome`.
+    inválidas ou taxa, 4003 para removido do coworking, 4004 para sessão encerrada (logout ou
+    expiração; o cliente volta para o login).
+  - O passo é aplicado quando a mensagem chega; o tick só faz o broadcast (e drena a fila de
+    passos adiantados, seção 7). A contagem de `seq` recomeça a cada `welcome`.
   - O tick só sai quando alguém se moveu ou o `ack` de quem recebe mudou.
   - Interpolação: com vários passos na fila, a velocidade sobe na proporção da fila, então o
     avatar nunca fica mais de um passo atrás.
@@ -468,6 +536,13 @@ Decisões da fase 5:
   transação da entrada. Validade padrão de 7 dias.
 - Callback do GitHub com `state` divergente, ausente ou código recusado volta para
   `/?erro=github` sem sessão. O cliente do GitHub é injetado (`GitHubClient`).
+- O último admin de um coworking não sai nem é removido (409 `last_admin`): a contagem e a
+  remoção rodam na mesma transação, com as linhas dos admins travadas (`for update`).
+- Exceção registrada ao invariante 4: as rotas de convite (`GET /invites/:token` e o aceite) leem
+  `space_members` pelo `space_id` do convite, porque quem aceita ainda não é membro. O token é a
+  autorização.
+- `requireMember` devolve o `spaceId` que veio da resolução de `space_members`, e as rotas usam
+  esse, nunca o parâmetro cru (revisão de 2026-11).
 - Remover membro (ou sair) libera a mesa pela FK, fecha a conexão com o código 4003 e tira o
   jogador do mapa na hora, sem tolerância. Trocar de coworking é uma desconexão comum: o
   avatar some do anterior depois dos 10 segundos de tolerância.
@@ -505,6 +580,8 @@ DELETE /spaces/:spaceId/desks/:deskKey          dono ou admin
 POST   /spaces/:spaceId/map/validate      admin -> { errors, orphanDesks }
 PUT    /spaces/:spaceId/map               admin { map, baseVersion } -> 409 se baseVersion != atual
 GET    /spaces/:spaceId/map/export        admin -> zip
+GET    /spaces/:spaceId/replay            admin -> { recording } (gravação da simulação)
+GET    /metrics                           texto do Prometheus (só rede interna)
 ```
 
 ## 10. Mídia
@@ -544,7 +621,13 @@ Decisões da fase 3 (versões fixadas: `livekit-server-sdk` 2.20.0, `livekit-cli
 
 - O grant `canPublishSources` existe e substitui `canPublish`: o token da sala `space:` só libera
   câmera e microfone, então compartilhar tela ali é recusado pelo próprio LiveKit. Validade do
-  token: 6 horas.
+  token: 2 minutos (era 6 horas). O LiveKit só confere o token na entrada e renova sozinho o de
+  quem segue conectado; com validade curta, um token guardado não serve para voltar a uma sala
+  trancada, a uma chamada encerrada ou ao coworking de que a pessoa foi removida.
+- Ao trocar de sala, o servidor tira o participante da anterior pela API do LiveKit, inclusive
+  da `space:` (antes ela era poupada, e um cliente modificado podia ficar nela durante uma
+  reunião ou chamada). Sair do coworking também remove da `space:`. "Não encontrado" do LiveKit
+  (participante que já saiu) não é registrado como erro.
 - O serviço de mídia é uma interface injetada no tempo real (`MediaService`), para os testes de
   autorização usarem um dublê.
 - Volume pelo `RemoteParticipant.setVolume`, sem Web Audio. Conexão com `autoSubscribe: false`,
@@ -623,6 +706,25 @@ Exibição no mapa:
 Descartados: posicionamento livre de itens na mesa (colisão e sobreposição sem ganho visual);
 tags de equipe gerenciadas pelo admin (tabela, tela e relação N:N para o mesmo problema).
 
+Decisões de interface (revisão de 2026-11):
+
+- Cards de zona, mesa, chamada e boas-vindas ficam num painel único (`.hud`, canto superior
+  direito; embaixo no celular), empilhados em vez de posicionados um por um.
+- Rótulos em português dos IDs do catálogo em `ui/labels.ts`; ID sem rótulo aparece como está.
+  A decoração da mesa usa miniaturas recortadas do tileset por CSS.
+- Zoom da câmera em degraus inteiros (1x, 2x, 3x sobre o `RENDER_SCALE`) para o pixel art não
+  borrar; mapa menor que a tela fica centralizado alargando os limites da câmera.
+- Quem fala (`ActiveSpeakersChanged` do LiveKit) ganha um anel sob o avatar e destaque na lista.
+- Status na lista também por forma (círculo, quadrado, anel) e texto, não só cor.
+- Overlay de netcode (F3 ou botão "Rede"), disponível também em produção: RTT, jitter e
+  diferença de relógio pelo `ping`, latência do tick (hora do servidor no tick contra a hora
+  local corrigida), passos pendentes e correções da reconciliação. Um quadrado tracejado mostra
+  a posição que o servidor confirmou. O simulador aplica atraso e jitter no próprio cliente, nas
+  duas direções, preservando a ordem das mensagens; não simula perda, porque sobre TCP perda
+  vira atraso.
+- O canvas fica fora do fluxo do layout: o tamanho vem do container, observado por
+  `ResizeObserver`.
+
 ## 12. Mapas: upload, export, editor e troca ao vivo
 
 - Upload: `compileMap` no servidor; erros devolvidos com os códigos de `MapError`.
@@ -649,6 +751,8 @@ Decisões da fase 6:
   aceitando só tile caminhável da mesma zona (a zona do tile no mapa novo); sem nenhum, o spawn.
 - Zona de reunião removida: batidas pendentes são recusadas, a tranca some, quem estava dentro
   recebe o `media.join` da sala nova e a sala `zone:` é encerrada (`deleteRoom`).
+- Zona trancada redesenhada por cima de quem estava fora: a pessoa vai para o spawn em vez de
+  ganhar acesso. Sala que fica vazia com a troca destranca (revisão de 2026-11).
 - No cliente, `map.updated` busca o mapa de novo e recria só a cena do Phaser; a conexão, a mídia
   e as chamadas continuam. A posição de quem foi realocado chega pelo tick.
 - O `CREDITS.txt` do export lista só os tilesets que o mapa usa; a página `/creditos` lista o
@@ -675,6 +779,9 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Editando, mapas que chegam por `map.updated` são ignorados; salvar usa a `baseVersion` do
   início da edição e, no 409, o painel oferece descartar e recarregar o mapa atual.
 - O template para começar do zero é o JSON de `maps/templates/` importado no cliente, sem rota.
+  Ao trocar, `adoptDocument` renumera as chaves do modelo que já foram usadas no mapa atual e
+  leva o contador adiante: a "mesa-1" do modelo é outra mesa, e a atribuição antiga aparece como
+  órfã ao salvar em vez de ser herdada (revisão de 2026-11).
 - Renomear zona grava ao sair do campo: um comando por renomeação, não por tecla.
 
 ## 13. Convidados e coworking de demonstração
@@ -710,6 +817,28 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
   de carga; `GET /internal/stats` (CPU e memória) só existe com `LOAD_TEST=true`. O LiveKit do E2E
   sobe com `docker run`, porque o service container do GitHub não aceita `--dev --bind 0.0.0.0`.
   O estado de debug do E2E é o mesmo `window.__pixelwork` do modo de desenvolvimento.
+
+## Replay determinístico (revisão de 2026-11)
+
+- Cada runtime grava o que a simulação recebeu: `join` (com a posição), `leave`, cada passo
+  entregue ao `step` (aplicado ou recusado, com o tempo do relógio injetado) e cada mudança de
+  tranca (estado e lista de permitidos). Troca de mapa ou gravação cheia (20 mil eventos)
+  recomeça a gravação a partir de um retrato de quem está no mapa e das trancas ativas.
+- `replay` (em `shared`) reproduz a gravação com o mesmo `step` puro e a mesma regra de tranca, e
+  chega às mesmas posições: um teste de integração confere isso num cenário com tranca e batida.
+- `GET /spaces/:spaceId/replay` (só admin) devolve a gravação; o botão "Replay" do cliente a
+  reproduz num canvas com linha do tempo e velocidade.
+- Fica de fora o que não entra na simulação (chat, mídia, chamadas, mesas): o replay é do
+  movimento.
+
+## Observabilidade
+
+- `GET /metrics` no formato de texto do Prometheus, escrito à mão (sem dependência): conexões,
+  jogadores, runtimes carregados, mensagens e bytes por direção, tokens de mídia emitidos,
+  histograma da duração do tick, memória, CPU e atraso do event loop (p99).
+- Não é público: o Caddy só repassa as rotas da API listadas, então `/metrics` fica acessível só
+  na rede interna do compose (`app:3000/metrics`) ou em `localhost:3000` no desenvolvimento.
+- A duração do tick usa `performance.now()`; a simulação continua no relógio injetado.
 
 ## 15. Deploy (futuro)
 

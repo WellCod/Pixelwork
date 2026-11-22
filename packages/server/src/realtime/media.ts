@@ -21,7 +21,10 @@ export interface MediaService {
 }
 
 export interface LiveKitConfig {
+  /** Endereço que o navegador usa (vai no `media.join`). */
   url: string;
+  /** Endereço da API para o servidor; pode ser o interno da rede do compose. */
+  apiUrl?: string;
   apiKey: string;
   apiSecret: string;
 }
@@ -35,11 +38,16 @@ export const SPACE_SOURCES: readonly MediaSource[] = ['camera', 'microphone'];
 /** Sala de reunião e chamada: tela liberada. */
 export const PRIVATE_SOURCES: readonly MediaSource[] = ['camera', 'microphone', 'screen_share', 'screen_share_audio'];
 
-const TOKEN_TTL = '6h';
+/**
+ * O LiveKit só confere o token na entrada e renova sozinho o de quem continua conectado. Com
+ * validade curta, um token guardado não serve para voltar a uma sala depois de sair dela
+ * (reunião trancada, chamada encerrada, membro removido).
+ */
+const TOKEN_TTL = '2m';
 
 export function liveKitMedia(config: LiveKitConfig): MediaService {
   // O cliente aceita a URL ws:// e troca para http por conta própria.
-  const rooms = new RoomServiceClient(config.url, config.apiKey, config.apiSecret);
+  const rooms = new RoomServiceClient(config.apiUrl ?? config.url, config.apiKey, config.apiSecret);
   return {
     url: config.url,
     token: async (identity, room, sources) => {
