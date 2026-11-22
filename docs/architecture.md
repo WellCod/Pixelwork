@@ -729,6 +729,19 @@ Decisões de interface (revisão de 2026-11):
   a posição que o servidor confirmou. O simulador aplica atraso e jitter no próprio cliente, nas
   duas direções, preservando a ordem das mensagens; não simula perda, porque sobre TCP perda
   vira atraso.
+- Tema claro (redesenho visual de 2026-11): fundo creme, superfícies brancas com sombra suave,
+  texto grafite, azul da paleta como cor de ação, fonte Inter (`@fontsource-variable/inter`,
+  SIL OFL 1.1, servida pelo app por causa da CSP). No mapa, nome em pílula escura com bolinha de
+  status embaixo dos pés (acima da cabeça brigaria com o balão de vídeo), zona em pílula clara,
+  balão de chat branco com rabicho; os rótulos são refeitos quando a Inter termina de carregar.
+- Sombra de contato translúcida desenhada pelo Phaser sob cada móvel colidível e sob cada avatar.
+- Editor: ferramenta Tapete (`paintRug`, arrastar retângulo), escolha do tile de parede, nomes dos
+  pisos e paleta de móveis em miniaturas por categoria (`editor/categories.ts`, só organização da
+  tela). `placeFurniture` recebe tileset e frame, grava a pegada pela célula do tileset e, em mapa
+  salvo antes de um tileset existir, acrescenta a referência a ele no mesmo comando (desfazer
+  continua exato).
+- Catálogo: `TILESETS[id]` traz `tileWidth`/`tileHeight`; cliente e editor carregam cada
+  spritesheet com a célula do seu tileset.
 - O canvas fica fora do fluxo do layout: o tamanho vem do container, observado por
   `ResizeObserver`.
 
