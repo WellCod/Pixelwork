@@ -1,6 +1,6 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2'] as const;
 export const BODY_IDS = ['base'] as const;
 export const HAIR_IDS = ['short', 'long', 'spiky'] as const;
 export const OUTFIT_IDS = ['basic', 'hoodie'] as const;
@@ -271,11 +271,69 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "tilecount": 8,
     "collides": [
       0,
-      1
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
     ],
     "items": {
       "0": "sofa-peach",
-      "1": "sofa-sage"
+      "1": "sofa-sage",
+      "2": "coffee-table",
+      "3": "aquarium",
+      "4": "bench",
+      "5": "sideboard",
+      "6": "sofa-blue"
+    }
+  },
+  "furniture-2x2": {
+    "tileWidth": 32,
+    "tileHeight": 32,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "items": {
+      "0": "meeting-table-round",
+      "1": "bookshelf-tall",
+      "2": "fridge",
+      "3": "tree",
+      "4": "vending-machine",
+      "5": "arcade",
+      "6": "planter",
+      "7": "whiteboard"
+    }
+  },
+  "furniture-3x2": {
+    "tileWidth": 48,
+    "tileHeight": 32,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "items": {
+      "0": "meeting-table-long",
+      "1": "kitchen-counter",
+      "2": "ping-pong",
+      "3": "sofa-l",
+      "4": "reception",
+      "5": "foosball"
     }
   }
 };
@@ -320,6 +378,20 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "furniture-2x1",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-2x2",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-3x2",
     "license": "own",
     "author": "Pixelwork",
     "source": null
