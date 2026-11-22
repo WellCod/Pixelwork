@@ -1,6 +1,6 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1'] as const;
 export const BODY_IDS = ['base'] as const;
 export const HAIR_IDS = ['short', 'long', 'spiky'] as const;
 export const OUTFIT_IDS = ['basic', 'hoodie'] as const;
@@ -160,7 +160,7 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "tileWidth": 16,
     "tileHeight": 16,
     "columns": 8,
-    "tilecount": 8,
+    "tilecount": 16,
     "collides": [],
     "items": {}
   },
@@ -226,6 +226,20 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "10": "clock",
       "11": "bin"
     }
+  },
+  "furniture-2x1": {
+    "tileWidth": 32,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1
+    ],
+    "items": {
+      "0": "sofa-peach",
+      "1": "sofa-sage"
+    }
   }
 };
 
@@ -262,6 +276,13 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "desk-decor",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-2x1",
     "license": "own",
     "author": "Pixelwork",
     "source": null

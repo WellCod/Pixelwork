@@ -1,0 +1,46 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "name": "furniture-2x1",
+  "image": "furniture-2x1.png",
+  "imagewidth": 256,
+  "imageheight": 16,
+  "tilewidth": 32,
+  "tileheight": 16,
+  "columns": 8,
+  "tilecount": 8,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "sofa-peach"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "sofa-sage"
+        }
+      ]
+    }
+  ]
+}

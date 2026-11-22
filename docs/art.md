@@ -15,11 +15,37 @@ regras deste documento.
 
 - Uma única paleta fixa, com cerca de 32 cores, em `assets/palette.hex` (uma cor por linha). Ponto
   de partida sugerido: uma paleta do Lospec, como a Endesga 32. A escolha é sua; registre-a aqui.
-- Escolhida, provisoriamente: Endesga 32 (lospec.com/palette-list/endesga-32).
+- Escolhida: Resurrect 64 (lospec.com/palette-list/resurrect-64), no lugar da Endesga 32 desde o
+  redesenho visual de 2026-11. Tons pastel (cremes, lavandas, sálvias, madeiras claras) para o
+  escritório claro e aconchegante. As cores têm nome em `scripts/lib/colors.ts`; a arte usa os
+  nomes, nunca o hex.
 - Todo PNG do repositório usa só cores da paleta, cores-chave (seção 3) e transparência total.
   `scripts/check-palette.ts` verifica isso e roda no CI.
 - Assets CC0 importados são recoloridos para a paleta antes de entrar no repositório. É isso que
   dá coesão a peças de autores diferentes.
+
+## 2a. Guia de estilo
+
+Vale para toda peça nova ou redesenhada; o que destoa disto volta para a prancheta.
+
+- **Luz** de cima e da esquerda. Cada material usa 3 a 4 tons da mesma rampa (contorno, sombra,
+  base, luz, e às vezes um brilho pontual). As rampas ficam em `RAMPS` (`scripts/lib/draw.ts`):
+  folha, vaso branco, vaso de barro, tecido pêssego, tecido sálvia, grafite, madeira clara,
+  madeira escura, metal, branco.
+- **Contorno** no tom mais escuro da rampa do próprio material (ferrugem no tecido pêssego, pinho
+  na folha, tinta no grafite), nunca preto puro. É contorno interno: não aumenta a peça.
+- **Sombra de contato** não é desenhada no sprite: o Phaser desenha uma elipse translúcida sob a
+  pegada de cada móvel e avatar (a paleta não tem alfa parcial, e uma sombra opaca ficaria errada
+  sobre pisos diferentes).
+- **Perspectiva** top-down com a frente do móvel aparecendo (3/4 leve).
+- **Fundo calmo, objetos com contraste**: pisos e paredes em cores lisas e claras, sem pontilhado
+  nem ruído (testado e descartado: fica granulado); o contraste vai para móveis, plantas e
+  pessoas.
+- **Tapetes** são 9 tiles de piso (cantos, bordas e miolo); a borda só aparece nos lados de fora,
+  então qualquer retângulo fecha.
+- Ferramentas: `sprite(rows, legend)` para desenho pixel a pixel com legenda de cores nomeadas;
+  `Canvas` (`box`, `blob`, `outline`) para móveis compostos e massas orgânicas com o sombreado
+  padrão. `pnpm tsx scripts/art-pilot.ts` monta uma cena de revisão ampliada.
 
 ## 3. Troca de paleta (avatares)
 
