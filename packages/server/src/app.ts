@@ -1,10 +1,12 @@
+import rateLimit from '@fastify/rate-limit';
 import { sql } from 'drizzle-orm';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { githubClient, registerGitHubRoutes, type GitHubClient } from './auth/github.ts';
 import { registerAuthRoutes } from './auth/routes.ts';
 import type { AppConfig } from './config.ts';
 import type { Db } from './db.ts';
 import { registerStateGuards } from './guards.ts';
+import { Metrics } from './metrics.ts';
 import { systemClock, type Clock, type Scheduler } from './realtime/clock.ts';
 import { attachGateway, type Gateway } from './realtime/gateway.ts';
 import { liveKitMedia, type MediaService } from './realtime/media.ts';
@@ -31,6 +33,20 @@ export interface AppDeps {
   media?: MediaService;
   github?: GitHubClient;
   logger?: boolean;
+  /** Os testes desligam para criar muitos convidados do mesmo IP. */
+  rateLimit?: boolean;
+}
+
+/** Limite geral por IP; rotas que criam contas ou gravam muito têm o próprio, mais baixo. */
+export const RATE_LIMIT_PER_MINUTE = 300;
+
+/** Convite é bearer no caminho: quem lê o log não pode entrar no coworking com ele. */
+export function maskUrl(url: string): string {
+  return url.replace(/^\/invites\/[^/?#]+/, '/invites/***');
+}
+
+function serializeRequest(request: FastifyRequest): Record<string, unknown> {
+  return { method: request.method, url: maskUrl(request.url), host: request.host, remoteAddress: request.ip };
 }
 
 export function buildApp({
@@ -41,8 +57,13 @@ export function buildApp({
   media = liveKitMedia(config.livekit),
   github = githubClient(config.github.clientId, config.github.clientSecret),
   logger = false,
+  rateLimit: limit = true,
 }: AppDeps): FastifyInstance {
-  const app = Fastify({ logger });
+  // Atrás do Caddy o IP do cliente vem no X-Forwarded-For; sem isso o limite veria só o proxy.
+  const app = Fastify({
+    logger: logger ? { serializers: { req: serializeRequest } } : false,
+    trustProxy: config.trustProxy,
+  });
   const routeTable: { method: string; url: string }[] = [];
   app.decorate('routeTable', routeTable);
   app.addHook('onRoute', (route) => {
@@ -50,7 +71,8 @@ export function buildApp({
     for (const method of methods) if (method !== 'HEAD') routeTable.push({ method, url: route.url });
   });
 
-  app.get('/health', async (_request, reply) => {
+  // O healthcheck do Docker chama a cada 15 s: fora do log de requisições.
+  app.get('/health', { logLevel: 'warn' }, async (_request, reply) => {
     try {
       await db.execute(sql`select 1`);
       return { status: 'ok' };
@@ -60,15 +82,30 @@ export function buildApp({
     }
   });
 
+  const metrics = new Metrics();
+  // Só na rede interna: o Caddy não repassa /metrics (fora da lista de rotas da API).
+  app.get('/metrics', { logLevel: 'warn' }, (_request, reply) => {
+    void reply.type('text/plain; version=0.0.4');
+    return metrics.render({
+      connections: gateway.connections(),
+      runtimes: gateway.runtimesLoaded(),
+      players: gateway.players(),
+    });
+  });
+
   registerStateGuards(app, config.publicUrl);
-  registerAuthRoutes(app, { db, config, clock });
-  registerSpaceRoutes(app, { db, config, clock });
-  registerProfileRoutes(app, { db, config, clock });
-  registerDeskRoutes(app, { db, config, clock });
-  registerGitHubRoutes(app, { db, config, clock, github });
-  registerOrgRoutes(app, { db, config, clock });
-  registerInviteRoutes(app, { db, config, clock });
-  registerMapRoutes(app, { db, config, clock });
+  // Escopo filho: o plugin de limite precisa estar carregado antes de as rotas serem declaradas.
+  void app.register(async (api) => {
+    if (limit) await api.register(rateLimit, { max: RATE_LIMIT_PER_MINUTE, timeWindow: '1 minute' });
+    registerAuthRoutes(api, { db, config, clock });
+    registerSpaceRoutes(api, { db, config, clock });
+    registerProfileRoutes(api, { db, config, clock });
+    registerDeskRoutes(api, { db, config, clock });
+    registerGitHubRoutes(api, { db, config, clock, github });
+    registerOrgRoutes(api, { db, config, clock });
+    registerInviteRoutes(api, { db, config, clock });
+    registerMapRoutes(api, { db, config, clock });
+  });
 
   const gateway = attachGateway(app.server, {
     db,
@@ -77,10 +114,12 @@ export function buildApp({
     scheduler,
     media,
     log: app.log,
+    metrics,
   });
   app.decorate('realtime', gateway);
   app.addHook('onClose', () => {
     gateway.close();
+    metrics.stop();
   });
 
   return app;

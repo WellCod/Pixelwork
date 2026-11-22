@@ -1,8 +1,8 @@
 import { CLOSE_REMOVED, RECONNECT_GRACE_MS } from '@pixelwork/shared';
-import { deskAssignments, spaces, users } from '@pixelwork/shared/schema';
+import { deskAssignments, sessions, spaces, users } from '@pixelwork/shared/schema';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { DAY_MS, HOUR_MS, cleanupExpiredGuests, nextDemoReset, resetDemo, scheduleJobs, type JobDeps } from './jobs.ts';
+import { DAY_MS, HOUR_MS, cleanupExpiredGuests, cleanupExpiredSessions, nextDemoReset, resetDemo, scheduleJobs, type JobDeps } from './jobs.ts';
 import { loadTemplate } from './demo.ts';
 import { Bot, api, loginGuest, startTestServer, until, type TestServer } from './test/harness.ts';
 
@@ -61,6 +61,19 @@ describe('jobs da demo', () => {
     expect((await watcherBot.next('desk.updated', (m) => m.desk.deskKey === 'mesa-1' && m.desk.userId === null)).desk.userId).toBeNull();
     expect(await server.db.select().from(users).where(eq(users.id, expiring.id))).toEqual([]);
     expect(await server.db.select().from(deskAssignments).where(eq(deskAssignments.userId, expiring.id))).toEqual([]);
+  });
+
+  it('sessão vencida é apagada; a válida fica', async () => {
+    const stale = await loginGuest(server);
+    const fresh = await loginGuest(server);
+    await server.db
+      .update(sessions)
+      .set({ expiresAt: new Date(server.clock.now() - 1) })
+      .where(eq(sessions.userId, stale.id));
+    expect(await cleanupExpiredSessions(deps)).toBeGreaterThanOrEqual(1);
+    const left = await server.db.select({ userId: sessions.userId }).from(sessions);
+    expect(left.map((r) => r.userId)).toContain(fresh.id);
+    expect(left.map((r) => r.userId)).not.toContain(stale.id);
   });
 
   it('reset restaura o mapa da demo a partir do template, limpa as mesas e avisa quem está online', async () => {

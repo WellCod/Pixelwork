@@ -7,7 +7,8 @@ import { systemClock } from './realtime/clock.ts';
 
 const env = loadEnv();
 const { pool, db } = createDb(env.DATABASE_URL);
-const app = buildApp({ db, config: configFromEnv(env), logger: !env.LOAD_TEST });
+// O teste de carga cria dezenas de convidados do mesmo IP; LOAD_TEST nunca sobe em produção (env.ts).
+const app = buildApp({ db, config: configFromEnv(env), logger: !env.LOAD_TEST, rateLimit: !env.LOAD_TEST });
 
 if (env.LOAD_TEST) {
   // CPU e memória do processo para o relatório de `pnpm load`; só existe neste modo.

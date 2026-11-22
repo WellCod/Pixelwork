@@ -14,6 +14,7 @@ import {
   createSession,
   deleteSession,
   findSessionUser,
+  hashToken,
   type SessionUser,
 } from './sessions.ts';
 
@@ -52,7 +53,7 @@ export async function requireUser(
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db, config, clock } = deps;
 
-  app.post('/auth/guest', async (_request, reply) => {
+  app.post('/auth/guest', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (_request, reply) => {
     const spaceId = await findDemoSpaceId(db, config.demoSpaceSlug);
     if (!spaceId) return reply.code(503).send({ error: 'demo_unavailable' });
 
@@ -87,7 +88,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
 
   app.post('/auth/logout', async (request, reply) => {
     const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
-    if (token) await deleteSession(db, token);
+    if (token) {
+      await deleteSession(db, token);
+      app.realtime.closeSession(hashToken(token));
+    }
     void reply.header(
       'set-cookie',
       serializeCookie(SESSION_COOKIE, '', { maxAgeSeconds: 0, secure: config.cookieSecure }),

@@ -53,6 +53,8 @@ export type DeskDecor = z.infer<typeof DeskDecor>;
 
 export interface Player {
   id: string;
+  /** Id curto (u16) deste jogador no runtime, usado no tick binário. */
+  n: number;
   name: string;
   title: string | null;
   avatar: AvatarSpec;
@@ -90,6 +92,7 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('call.reply'), callId: z.string().min(1), accept: z.boolean() }),
   z.object({ t: z.literal('call.leave') }),
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
+  z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
@@ -104,7 +107,10 @@ export type ServerMsg =
       zones: ZoneState[];
       desks: DeskState[];
     }
-  /** `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. */
+  /**
+   * `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. Na rede o tick vai
+   * em binário (`binary.ts`); o cliente decodifica para este formato, com os ids completos.
+   */
   | { t: 'tick'; ack: number; moves: TickMove[]; ts?: number }
   | { t: 'player.join'; player: Player }
   | { t: 'player.leave'; id: string }
@@ -125,6 +131,8 @@ export type ServerMsg =
   | { t: 'desk.updated'; desk: DeskState }
   | { t: 'map.updated'; version: number }
   | { t: 'session.replaced' }
+  /** Resposta ao `ping`; `ts` é a hora do servidor, para estimar a diferença de relógio. */
+  | { t: 'pong'; id: number; ts: number }
   | { t: 'error'; code: string };
 
 /** Fechamento da conexão anterior quando o mesmo usuário abre outra no mesmo coworking. */
@@ -133,3 +141,5 @@ export const CLOSE_SESSION_REPLACED = 4001;
 export const CLOSE_POLICY = 1008;
 /** Removido do coworking por um admin ou por ter saído: o cliente não reconecta. */
 export const CLOSE_REMOVED = 4003;
+/** Sessão encerrada (logout ou expiração): o cliente volta para o login sem reconectar. */
+export const CLOSE_SESSION_ENDED = 4004;

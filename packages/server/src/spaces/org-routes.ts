@@ -27,7 +27,7 @@ export function registerOrgRoutes(app: FastifyInstance, deps: AuthDeps): void {
 
   app.get('/templates', () => MAP_TEMPLATES);
 
-  app.post('/orgs', async (request, reply) => {
+  app.post('/orgs', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await requireUser(deps, request, reply);
     if (!user) return reply;
     // A conta de convidado expira em 24 horas; empresa precisa de dono que fique.
@@ -47,7 +47,7 @@ export function registerOrgRoutes(app: FastifyInstance, deps: AuthDeps): void {
     return reply.code(201).send({ id, name: body.name, slug: body.slug });
   });
 
-  app.post<{ Params: { orgId: string } }>('/orgs/:orgId/spaces', async (request, reply) => {
+  app.post<{ Params: { orgId: string } }>('/orgs/:orgId/spaces', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await requireUser(deps, request, reply);
     if (!user) return reply;
     const { orgId } = request.params;

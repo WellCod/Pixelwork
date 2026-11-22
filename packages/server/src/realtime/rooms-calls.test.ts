@@ -1,5 +1,8 @@
 import {
   CALL_RING_TIMEOUT_MS,
+  TICK_MS,
+  compileMap,
+  replay,
   KNOCK_TIMEOUT_MS,
   RECONNECT_GRACE_MS,
   type Dir,
@@ -90,6 +93,8 @@ describe('salas de reunião e chamadas', () => {
       expect(media.tokens.find((t) => t.identity === a.guest.id && t.room === zoneRoom())?.sources).toContain(
         'screen_share',
       );
+      // Ninguém fica na sala aberta durante a reunião, nem com cliente modificado.
+      await until(() => media.removed.some((r) => r.room === spaceRoom() && r.identity === a.guest.id));
       const update = await b.bot.next('player.update', (m) => m.id === a.guest.id && m.patch.activity !== undefined);
       expect(update.patch).toEqual({ activity: 'meeting' });
 
@@ -193,6 +198,68 @@ describe('salas de reunião e chamadas', () => {
       await first.bot.next('zone.state', (m) => m.zone.locked);
       await first.bot.walk(server.clock, ['up', 'up']);
       expect(await position(first.guest)).toEqual([7, 5]);
+    });
+    it('sala redesenhada por cima de quem está fora não fura a tranca', async () => {
+      const inside = await online();
+      const outside = await online();
+      await enterRoom(inside);
+      inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
+      await outside.bot.next('zone.state', (m) => m.zone.locked);
+      await outside.bot.walk(server.clock, ['down', 'right']);
+
+      // A sala passa a cobrir de x=2 em diante, incluindo a cadeira onde "outside" está.
+      const bigger = buildTestMap({
+        width: 12,
+        height: 10,
+        walls,
+        zones: [{ key: 'sala', type: 'meeting', name: 'Sala', x: 2, y: 1, w: 8, h: 4 }],
+        desks: [
+          { key: 'mesa-1', x: 2, y: 1, orientation: 'down' },
+          { key: 'mesa-2', x: 3, y: 1, orientation: 'down' },
+        ],
+        spawns: [[1, 1]],
+      });
+      const compiled = compileMap(bigger);
+      if (!compiled.ok) throw new Error(JSON.stringify(compiled.errors));
+      server.app.realtime.runtime(server.spaceId)?.replaceMap(compiled.map, 99);
+      server.clock.advance(TICK_MS);
+      expect(await position(outside.guest)).toEqual([1, 1]);
+      expect(await position(inside.guest)).not.toEqual([1, 1]);
+      expect(media.roomsFor(outside.guest.id)).not.toContain(zoneRoom());
+    });
+  });
+
+  describe('replay', () => {
+    it('reproduzir a gravação chega às mesmas posições do servidor, com tranca e batida', async () => {
+      const inside = await online();
+      const knocker = await online();
+      const walker = await online();
+      await enterRoom(inside);
+      inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
+      await knocker.bot.next('zone.state', (m) => m.zone.locked);
+      // Quem não foi liberado bate na trancada e não entra; quem foi liberado entra.
+      await knocker.bot.walk(server.clock, [...TO_DOOR, 'up']);
+      await walker.bot.walk(server.clock, ['down', 'down', 'right', 'right', 'left', 'up']);
+      knocker.bot.send({ t: 'zone.knock', zoneKey: 'sala' });
+      const request = await inside.bot.next('zone.knockRequest');
+      inside.bot.send({ t: 'zone.knockReply', requestId: request.requestId, allow: true });
+      await knocker.bot.next('zone.knockResult');
+      await knocker.bot.walk(server.clock, ['up', 'up']);
+      server.clock.advance(TICK_MS);
+
+      const runtime = server.app.realtime.runtime(server.spaceId);
+      if (!runtime) throw new Error('sem runtime');
+      const recording = runtime.recording();
+      // O mapa do runtime, não o da fixture: um teste anterior troca o mapa deste servidor.
+      const replayed = replay(runtime.compiledMap(), recording);
+      for (const u of [inside, knocker, walker]) {
+        const p = replayed.players.get(u.guest.id);
+        expect([p?.x, p?.y]).toEqual(await position(u.guest));
+      }
+      expect(recording.events.some((e) => e.type === 'lock' && e.locked)).toBe(true);
+
+      const admin = await api(server, inside.guest, 'GET', `/spaces/${server.spaceId}/replay`);
+      expect(admin.status).toBe(403);
     });
   });
 

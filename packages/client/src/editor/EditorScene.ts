@@ -1,6 +1,7 @@
 import { TILESETS, TILESET_IDS, TILE_PX, tilesetImageUrl } from '@pixelwork/shared';
 import { prop, textProp, type TiledObject } from '@pixelwork/shared/editor';
 import * as Phaser from 'phaser';
+import { isTyping, releaseFocus } from '../input-focus.ts';
 import { embedTilesets, resolveGid } from '../game/tiled.ts';
 import type { EditorController } from './editor-controller.ts';
 
@@ -52,7 +53,10 @@ export class EditorScene extends Phaser.Scene {
       right: keyboard.addKey(k.RIGHT),
     };
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.onDown(pointer));
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      releaseFocus();
+      this.onDown(pointer);
+    });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.onMove(pointer));
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.onUp(pointer));
 
@@ -60,13 +64,17 @@ export class EditorScene extends Phaser.Scene {
     const doc = this.controller.doc;
     this.cameras.main.centerOn((doc.width * TILE_PX) / 2, (doc.height * TILE_PX) / 2);
     this.unsubscribe = this.controller.subscribe(() => this.render());
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribe?.());
+    const stop = () => {
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
+    this.events.once(Phaser.Scenes.Events.DESTROY, stop);
   }
 
   override update(_time: number, delta: number): void {
     const camera = this.cameras.main;
-    const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement;
-    if (!typing) {
+    if (!isTyping()) {
       for (const [name, [dx, dy]] of Object.entries(ARROW)) {
         if (this.keys[name]?.isDown) {
           camera.scrollX += dx * delta * PAN_SPEED;

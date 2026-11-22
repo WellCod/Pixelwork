@@ -234,6 +234,25 @@ describe('multi-coworking', () => {
       await expect(Bot.connect(server, target)).rejects.toThrow('HTTP 404');
     });
 
+    it('o último admin não sai nem é removido; com outro admin, pode sair', async () => {
+      const owner = await githubAccount(2101, 'unica-admin');
+      const org = await api(server, owner, 'POST', '/orgs', { name: 'Solo', slug: 'solo' });
+      const orgId = (org.json as { id: string }).id;
+      const created = await api(server, owner, 'POST', `/orgs/${orgId}/spaces`, {
+        name: 'Solo HQ',
+        slug: 'solo-hq',
+        template: 'small-office',
+      });
+      const spaceId = (created.json as { id: string }).id;
+      const leave = await api(server, owner, 'DELETE', `/spaces/${spaceId}/members/${owner.id}`);
+      expect(leave).toEqual({ status: 409, json: { error: 'last_admin' } });
+
+      const second = await githubAccount(2102, 'segunda-admin');
+      await server.db.insert(spaceMembers).values({ spaceId, userId: second.id, role: 'admin' });
+      expect((await api(server, owner, 'DELETE', `/spaces/${spaceId}/members/${owner.id}`)).status).toBe(204);
+      expect((await api(server, second, 'DELETE', `/spaces/${spaceId}/members/${second.id}`)).status).toBe(409);
+    });
+
     it('qualquer membro pode sair', async () => {
       const guest = await loginGuest(server);
       expect((await api(server, guest, 'DELETE', `/spaces/${server.spaceId}/members/${guest.id}`)).status).toBe(204);
@@ -256,6 +275,7 @@ describe('multi-coworking', () => {
       'POST /spaces/:spaceId/map/validate': { map: TEST_MAP },
       'PUT /spaces/:spaceId/map': { map: TEST_MAP, baseVersion: 1 },
       'GET /spaces/:spaceId/map/export': undefined,
+      'GET /spaces/:spaceId/replay': undefined,
     };
 
     it('toda rota /spaces/:spaceId/... responde 404 para quem não é membro', async () => {

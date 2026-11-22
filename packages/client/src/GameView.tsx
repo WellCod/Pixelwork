@@ -18,7 +18,11 @@ import { MediaControls } from './ui/MediaControls.tsx';
 import { RoomPanel } from './ui/RoomPanel.tsx';
 import { Sidebar } from './ui/Sidebar.tsx';
 import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
+import { Welcome } from './ui/Welcome.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
+import { NetOverlay } from './ui/NetOverlay.tsx';
+import { ReplayModal } from './ui/ReplayModal.tsx';
+import { NetSim } from './net/net-sim.ts';
 
 interface Props {
   space: SpaceDetail;
@@ -47,6 +51,11 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const scene = useRef<WorldScene | null>(null);
   const positionOf = useCallback((id: string) => scene.current?.screenPosition(id) ?? null, []);
   const [calls] = useState(() => new CallStore(world));
+  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [netSim] = useState(() => new NetSim());
+  const [following, setFollowing] = useState<string | null>(null);
+  const [replayOpen, setReplayOpen] = useState(false);
+  const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
   const send = (msg: ClientMsg) => connection.current?.send(msg);
 
@@ -59,10 +68,13 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
         else world.handle(msg);
       },
       (next) => {
+        setStatus(next);
         statusListener.current(next);
         // Outra aba assumiu ou saiu do coworking: a mídia sai junto.
-        if (next === 'replaced' || next === 'removed') void media.close();
+        if (next === 'replaced' || next === 'removed' || next === 'ended') void media.close();
       },
+      () => netSim.delay(),
+      (short) => world.idOf(short),
     );
     connection.current = conn;
     const stopMap = world.subscribe((event) => {
@@ -71,7 +83,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
     controller.start();
     const stopCalls = calls.start((msg) => conn.send(msg));
     // Só em desenvolvimento: estado de assinatura e posição para scripts de verificação.
-    if (import.meta.env.DEV) Object.assign(window, { __pixelwork: { media, world, controller } });
+    if (import.meta.env.DEV) Object.assign(window, { __pixelwork: { media, world, controller, connection: conn, netSim } });
     conn.open();
     return () => {
       controller.stop();
@@ -80,7 +92,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       conn.close();
       void media.close();
     };
-  }, [space.id, world, media, controller, calls]);
+  }, [space.id, world, media, controller, calls, netSim]);
 
   // Editando, a cena é a do editor e ignora mapas que chegam de fora (o salvar dá 409).
   const editorController = editor?.controller ?? null;
@@ -104,6 +116,10 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       world,
       mapJson: worldMapJson as Record<string, unknown>,
       send: (msg) => connection.current?.send(msg),
+      canMove: () => connection.current?.online ?? false,
+      isSpeaking: (id) => media.speaking.has(id),
+      showGhost: () => netSim.overlay,
+      onFollowChange: setFollowing,
       hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
     });
     scene.current = created.scene;
@@ -111,7 +127,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       scene.current = null;
       created.game.destroy(true);
     };
-  }, [editorController, worldMap, worldMapJson, world, media, controller]);
+  }, [editorController, worldMap, worldMapJson, world, media, controller, netSim]);
 
   return (
       <div className="main">
@@ -119,14 +135,59 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           <div ref={container} className="game" />
           {!editor && <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
-          <MediaControls media={media} />
-          <CallUi calls={calls} world={world} />
+          <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
+          {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
+          <div className="hud">
+            <CallUi calls={calls} world={world} />
+            {following && (
+              <div className="hud-card">
+                <span>Seguindo {world.players.get(following)?.name ?? 'alguém'}</span>
+                <button type="button" onClick={() => scene.current?.stopFollowing()}>
+                  Parar
+                </button>
+              </div>
+            )}
+            {!editor && (
+              <>
+                <Welcome />
+                <ZoneUi world={world} send={send} />
+                <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
+              </>
+            )}
+          </div>
+          {!editor && <ChatBox world={world} send={send} />}
+          {!editor && <NetOverlay sim={netSim} world={world} stats={netStats} />}
+          {!editor && space.role === 'admin' && (
+            <button type="button" className="replay-toggle" title="Replay da simulação" onClick={() => setReplayOpen(true)}>
+              Replay
+            </button>
+          )}
+          {replayOpen && (
+            <ReplayModal
+              spaceId={space.id}
+              map={map}
+              mapVersion={space.mapVersion}
+              nameOf={(id) => world.players.get(id)?.name ?? 'Quem já saiu'}
+              onClose={() => setReplayOpen(false)}
+            />
+          )}
           {!editor && (
-            <>
-              <ZoneUi world={world} send={send} />
-              <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
-              <ChatBox world={world} send={send} />
-            </>
+            <div className="zoom-controls" aria-label="Zoom do mapa">
+              <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => scene.current?.zoom(-1)}>
+                −
+              </button>
+              <button type="button" title="Aproximar (+)" aria-label="Aproximar" onClick={() => scene.current?.zoom(1)}>
+                +
+              </button>
+            </div>
+          )}
+          {status === 'replaced' && (
+            <div className="stage-overlay" role="alert">
+              <p>Este coworking foi aberto em outra aba.</p>
+              <button type="button" className="primary" onClick={() => connection.current?.reconnect()}>
+                Usar nesta aba
+              </button>
+            </div>
           )}
         </div>
         {editor ? (
@@ -138,7 +199,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             onClose={onEditorClose}
           />
         ) : (
-          <Sidebar world={world} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
+          <Sidebar world={world} media={media} spaceId={space.id} calls={calls} isAdmin={space.role === 'admin'} />
         )}
       </div>
   );

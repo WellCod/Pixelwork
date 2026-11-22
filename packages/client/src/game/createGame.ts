@@ -2,7 +2,7 @@ import { RENDER_SCALE } from '@pixelwork/shared';
 import * as Phaser from 'phaser';
 import { WorldScene, type WorldSceneOptions } from './WorldScene.ts';
 
-/** Jogo do Phaser com escala inteira, preenchendo o elemento e acompanhando o redimensionamento. */
+/** Jogo do Phaser com escala inteira, preenchendo o elemento e acompanhando o tamanho dele. */
 export function mountGame<S extends Phaser.Scene>(parent: HTMLElement, scene: S): { game: Phaser.Game; scene: S } {
   const size = () => ({
     width: Math.max(1, Math.floor(parent.clientWidth / RENDER_SCALE)),
@@ -17,12 +17,13 @@ export function mountGame<S extends Phaser.Scene>(parent: HTMLElement, scene: S)
     backgroundColor: '#181425',
     scene: [scene],
   });
-  const onResize = () => {
+  // O container muda de tamanho sem a janela mudar (aviso no topo, sidebar): observa ele.
+  const observer = new ResizeObserver(() => {
     const { width, height } = size();
-    game.scale.resize(width, height);
-  };
-  window.addEventListener('resize', onResize);
-  game.events.once(Phaser.Core.Events.DESTROY, () => window.removeEventListener('resize', onResize));
+    if (width !== game.scale.width || height !== game.scale.height) game.scale.resize(width, height);
+  });
+  observer.observe(parent);
+  game.events.once(Phaser.Core.Events.DESTROY, () => observer.disconnect());
   return { game, scene };
 }
 

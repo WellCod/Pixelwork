@@ -1,5 +1,5 @@
 import { DIRS, type Dir } from '@pixelwork/shared';
-import { textProp, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
+import { adoptDocument, textProp, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
@@ -96,15 +96,34 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
 
   /** Depois de um 409: descarta a edição e parte do mapa que está salvo agora. */
   const reloadCurrent = async () => {
-    const space = await api.space(spaceId);
-    controller.reset(space.map as TiledDoc);
-    onBaseVersion(space.mapVersion);
-    setStatus({ kind: 'ok', text: 'Mapa atual carregado. Suas mudanças foram descartadas.' });
+    try {
+      const space = await api.space(spaceId);
+      controller.reset(space.map as TiledDoc);
+      controller.markClean();
+      onBaseVersion(space.mapVersion);
+      setStatus({ kind: 'ok', text: 'Mapa atual carregado. Suas mudanças foram descartadas.' });
+    } catch {
+      setStatus({ kind: 'error', text: 'Não deu para carregar o mapa atual. Tente de novo.' });
+    }
   };
+
+  const leave = () => {
+    if (controller.dirty && !confirm('Sair do editor e descartar as mudanças não salvas?')) return;
+    onClose();
+  };
+
+  // Fechar a aba com edição pendente pede confirmação ao navegador.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (controller.dirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [controller]);
 
   const fromTemplate = () => {
     if (!confirm('Começar do modelo descarta o mapa em edição. Continuar?')) return;
-    controller.reset(structuredClone(smallOffice) as TiledDoc);
+    controller.reset(adoptDocument(controller.doc, smallOffice as TiledDoc));
   };
 
   return (
@@ -264,12 +283,12 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
           </button>
         )}
         <button type="button" className="primary" disabled={saving || errors.length > 0} onClick={() => void save()}>
-          Salvar mapa
+          {saving ? 'Salvando…' : 'Salvar mapa'}
         </button>
         <button type="button" onClick={fromTemplate}>
           Começar do modelo
         </button>
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={leave}>
           Sair sem salvar
         </button>
       </section>

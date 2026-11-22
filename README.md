@@ -23,6 +23,13 @@ proximidade e autorização de mídia feitas no servidor.
 - Várias empresas e coworkings por conta, convites com limite de usos e validade.
 - Mapas: upload do JSON do Tiled, export em zip que volta a abrir no Tiled, editor dentro do app
   com desfazer e refazer. Quem está online vê o mapa novo sem recarregar.
+- Indicador de quem está falando (no mapa e na lista), zoom do mapa em degraus inteiros, card de
+  primeiros passos e decoração de mesa escolhida por miniaturas.
+- Clicar no chão para andar até lá (A*) e clicar em alguém para seguir a pessoa.
+- Overlay de rede (F3): RTT, jitter, passos pendentes, correções, posição confirmada pelo
+  servidor e simulador de latência para ver a predição e a reconciliação funcionando.
+- Replay da simulação para admins: a gravação das entradas do servidor reproduzida no navegador
+  com o mesmo `step` puro.
 
 ## Telas
 
@@ -124,14 +131,29 @@ O tick cresce linearmente com quem se moveu (todo o coworking vai para todos, se
 interesse), e a CPU fica abaixo de 10% de um núcleo com 50 pessoas andando sem parar. Os bots
 rodam num único processo Node, então parte da latência é fila do próprio cliente de teste.
 
+Tick binário (revisão de 2026-11): com ids curtos e 5 bytes por movimento, o tick médio com 50
+bots caiu de 1.559 B (JSON, código anterior) para 154 B, medidos na mesma máquina (macOS, 20 s
+de medição). A CPU do servidor ficou na mesma faixa (4,1% contra 5,0%, dentro do ruído da
+medição):
+
+| Bots | Latência p50 | p95 | p99 | Tick médio | Mensagens por bot/s | CPU do servidor |
+|-----:|-----:|-----:|-----:|-----:|-----:|-----:|
+| 10 | 0 ms | 1 ms | 1 ms | 44 B | 9,9 | 1,7% |
+| 25 | 1 ms | 1 ms | 1 ms | 86 B | 10,3 | 3,4% |
+| 50 | 1 ms | 2 ms | 2 ms | 154 B | 10,2 | 5,0% |
+
 ## Testes
 
-- Unitários: `compileMap` com uma fixture por código de erro, simulação, proximidade com histerese,
-  reconciliação, interpolação, validação, comandos do editor (ida e volta exata e sequências
+- Unitários: `compileMap` com uma fixture por código de erro (e um teste de custo com retângulos
+  gigantes), simulação, proximidade com histerese, reconciliação, interpolação, A*, codec do tick
+  binário, replay, validação do ambiente, comandos do editor (ida e volta exata e sequências
   aleatórias com semente fixa).
 - Integração: servidor no processo de teste, porta aleatória, relógio manual e banco criado e
   apagado por execução. Bots WebSocket cobrem entrada, saída, tolerância de reconexão, limites de
-  taxa, trancas, batidas, chamadas e a autorização de mídia contra um dublê do LiveKit.
+  taxa, trancas, batidas, chamadas e a autorização de mídia contra um dublê do LiveKit. Também:
+  ECONNRESET no meio do upgrade, falha do banco ao carregar o runtime, logout e expiração fechando
+  o WebSocket, fila de passos adiantados, replay chegando às mesmas posições do servidor,
+  `/metrics` e o limite de taxa HTTP.
 - E2E de fumaça (Playwright, dois contextos do Chromium com mídia falsa): um anda até o outro e o
   teste confere que a trilha remota foi assinada. Roda no CI com o LiveKit num container.
 - Renderização do Phaser e layout do React não têm teste automatizado; a lógica fica fora das
@@ -147,7 +169,8 @@ e um coworking inteiro recebe os movimentos de todos. Para crescer:
 2. **Avisos entre nós:** a rota REST grava no banco e publica num Redis; o nó dono do coworking
    faz o broadcast.
 3. **Área de interesse:** mandar no tick só quem está perto da câmera de cada cliente, quando um
-   coworking passar de algumas centenas de pessoas.
+   coworking passar de algumas centenas de pessoas. O tick binário já cortou o tamanho por
+   movimento em ~10x, o que adia essa necessidade.
 4. **LiveKit em cluster:** o LiveKit já escala horizontalmente com Redis; o servidor só emite
    tokens.
 

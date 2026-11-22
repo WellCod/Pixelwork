@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { DIRS, STEP_MS, type Dir, type ServerMsg } from '@pixelwork/shared';
+import { DIRS, STEP_MS, decodeTick, type Dir, type ServerMsg } from '@pixelwork/shared';
 import WebSocket from 'ws';
 
 const { values } = parseArgs({
@@ -80,9 +80,13 @@ async function startBot(index: number): Promise<WebSocket> {
   let seq = 0;
   let dir: Dir = 'down';
   let timer: NodeJS.Timeout | null = null;
-  ws.on('message', (data: Buffer) => {
+  ws.on('message', (data: Buffer, isBinary: boolean) => {
     const received = Date.now();
-    const msg = JSON.parse(data.toString('utf8')) as ServerMsg;
+    // O tick vem em binário; o resto em JSON.
+    const tick = isBinary ? decodeTick(data) : null;
+    const msg = tick
+      ? ({ t: 'tick', ack: tick.ack, ts: tick.ts, moves: [] } satisfies ServerMsg)
+      : (JSON.parse(data.toString('utf8')) as ServerMsg);
     if (msg.t === 'welcome' && !timer) {
       // Passo a cada STEP_MS com um pouco de variação; troca de direção de vez em quando.
       timer = setInterval(() => {

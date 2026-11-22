@@ -1,0 +1,10 @@
+# Atualizações semanais das actions (fixadas por SHA) e das imagens do Dockerfile.
+# Dependências npm ficam de fora: o projeto fixa versões à mão (ver CLAUDE.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: weekly }

@@ -11,6 +11,7 @@ import {
 import { useState } from 'react';
 import { profileApi } from '../api.ts';
 import { AvatarPreview } from './AvatarPreview.tsx';
+import { label } from './labels.ts';
 import { Modal } from './Modal.tsx';
 import { errorMessage } from './useWorld.ts';
 
@@ -21,15 +22,16 @@ interface Field {
   label: string;
   options: readonly string[];
   optional?: boolean;
+  context?: 'outfit' | 'skin' | 'color';
 }
 
 const FIELDS: Field[] = [
   { key: 'body', label: 'Corpo', options: BODY_IDS },
-  { key: 'skin', label: 'Pele', options: SKIN_PALETTES },
+  { key: 'skin', label: 'Pele', options: SKIN_PALETTES, context: 'skin' },
   { key: 'hair', label: 'Cabelo', options: HAIR_IDS, optional: true },
-  { key: 'hairColor', label: 'Cor do cabelo', options: HAIR_PALETTES },
-  { key: 'outfit', label: 'Roupa', options: OUTFIT_IDS },
-  { key: 'outfitColor', label: 'Cor da roupa', options: OUTFIT_PALETTES },
+  { key: 'hairColor', label: 'Cor do cabelo', options: HAIR_PALETTES, context: 'color' },
+  { key: 'outfit', label: 'Roupa', options: OUTFIT_IDS, context: 'outfit' },
+  { key: 'outfitColor', label: 'Cor da roupa', options: OUTFIT_PALETTES, context: 'color' },
   { key: 'accessory', label: 'Acessório', options: ACCESSORY_IDS, optional: true },
 ];
 
@@ -64,10 +66,10 @@ export function AvatarEditor({ initial, onClose }: { initial: AvatarSpec; onClos
                   setSpec({ ...spec, [field.key]: value });
                 }}
               >
-                {field.optional && <option value={NONE}>nenhum</option>}
+                {field.optional && <option value={NONE}>Nenhum</option>}
                 {field.options.map((option) => (
                   <option key={option} value={option}>
-                    {option}
+                    {label(option, field.context)}
                   </option>
                 ))}
               </select>
@@ -81,7 +83,7 @@ export function AvatarEditor({ initial, onClose }: { initial: AvatarSpec; onClos
           Cancelar
         </button>
         <button type="button" className="primary" onClick={save} disabled={saving}>
-          Salvar
+          {saving ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
     </Modal>

@@ -9,6 +9,8 @@ export interface AppConfig {
   livekit: LiveKitConfig;
   /** Vazio desliga o login pelo GitHub. */
   github: { clientId: string; clientSecret: string };
+  /** Confia no X-Forwarded-For (atrás do Caddy em produção). */
+  trustProxy: boolean;
 }
 
 export function configFromEnv(env: Env): AppConfig {
@@ -16,7 +18,13 @@ export function configFromEnv(env: Env): AppConfig {
     publicUrl: env.PUBLIC_URL,
     cookieSecure: env.SESSION_COOKIE_SECURE,
     demoSpaceSlug: env.DEMO_SPACE_SLUG,
-    livekit: { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET },
+    livekit: {
+      url: env.LIVEKIT_URL,
+      apiUrl: env.LIVEKIT_API_URL ?? env.LIVEKIT_URL,
+      apiKey: env.LIVEKIT_API_KEY,
+      apiSecret: env.LIVEKIT_API_SECRET,
+    },
     github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
+    trustProxy: env.TRUST_PROXY,
   };
 }

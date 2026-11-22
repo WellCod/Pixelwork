@@ -94,16 +94,36 @@ describe('tempo real', () => {
     expect(tick).toEqual({ t: 'tick', ack: 1, moves: [[a.guest.id, 1, 1, 'up']], ts: server.clock.now() });
   });
 
-  it('passo antes do intervalo mínimo é ignorado, mas confirmado no ack', async () => {
+  it('passo antes do intervalo mínimo espera na fila e é aplicado no tick seguinte', async () => {
     const a = await connect();
-    a.bot.send({ t: 'move', seq: 1, dir: 'right' });
-    server.clock.advance(MIN_STEP_INTERVAL_MS - 1);
-    a.bot.send({ t: 'move', seq: 2, dir: 'right' });
+    a.bot.send({ t: 'move', seq: 1, dir: 'down' });
+    await a.bot.flush();
+    server.clock.advance(MIN_STEP_INTERVAL_MS - 40);
+    // Jitter: o segundo passo chega 100 ms depois do primeiro, antes do intervalo mínimo.
+    a.bot.send({ t: 'move', seq: 2, dir: 'down' });
+    await a.bot.flush();
+    const early = await a.bot.next('tick');
+    expect(early.ack).toBe(1);
+    server.clock.advance(TICK_MS);
+    const tick = await a.bot.next('tick', (t) => t.ack === 2);
+    expect(tick.moves).toEqual([[a.guest.id, 1, 3, 'down']]);
+  });
+
+  it('fila de passos tem limite: o excedente é confirmado sem andar', async () => {
+    const a = await connect();
+    for (let seq = 1; seq <= 5; seq++) a.bot.send({ t: 'move', seq, dir: 'down' });
     await a.bot.flush();
     server.clock.advance(TICK_MS);
     const tick = await a.bot.next('tick');
-    expect(tick.ack).toBe(2);
-    expect(tick.moves).toEqual([[a.guest.id, 2, 1, 'right']]);
+    // Passo 1 aplicado na hora; 2 e 3 descartados; 4 e 5 esperando o intervalo.
+    expect(tick.ack).toBe(3);
+  });
+
+  it('ping responde pong com o mesmo id', async () => {
+    const a = await connect();
+    a.bot.send({ t: 'ping', id: 7 });
+    const pong = await a.bot.next('pong');
+    expect(pong).toEqual({ t: 'pong', id: 7, ts: server.clock.now() });
   });
 
   it('recusa Origin inválido no upgrade', async () => {
