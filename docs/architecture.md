@@ -348,7 +348,12 @@ export const CHAT_BUBBLE_MS = 6_000;
   - A predição do cliente respeita sala trancada (a mesma regra do `canEnter`), contando as
     salas em que a batida foi aceita.
   - Correção de até um tile desliza em vez de saltar; maior que isso continua teleporte.
-  - Interpolação dos outros: até dois passos na fila andam na velocidade normal (o segundo é só o
+  - Clicar para andar e seguir (revisão de 2026-11): `findPath` em `shared` (A* em 4 direções,
+  heap binário, mesma regra de sala trancada da predição) devolve a lista de direções. O cliente
+  manda um `move` por vez, no ritmo de `STEP_MS`, então o invariante 1 continua: o servidor
+  decide cada passo. Seguir recalcula o caminho a cada passo até ficar ao lado da pessoa
+  (`stopAt: 1`). Qualquer tecla de movimento cancela; passo recusado pela predição também.
+- Interpolação dos outros: até dois passos na fila andam na velocidade normal (o segundo é só o
     descompasso entre tick de 100 ms e passo de 160 ms); acima disso a velocidade sobe. A
     animação de andar segura 120 ms depois de a fila esvaziar.
   - Fora do ar (status diferente de `online`) o cliente não aceita input de movimento.

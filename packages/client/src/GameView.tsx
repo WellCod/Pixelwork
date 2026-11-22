@@ -52,6 +52,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const [calls] = useState(() => new CallStore(world));
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [netSim] = useState(() => new NetSim());
+  const [following, setFollowing] = useState<string | null>(null);
   const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
   const send = (msg: ClientMsg) => connection.current?.send(msg);
@@ -115,6 +116,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       canMove: () => connection.current?.online ?? false,
       isSpeaking: (id) => media.speaking.has(id),
       showGhost: () => netSim.overlay,
+      onFollowChange: setFollowing,
       hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
     });
     scene.current = created.scene;
@@ -134,6 +136,14 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
           <div className="hud">
             <CallUi calls={calls} world={world} />
+            {following && (
+              <div className="hud-card">
+                <span>Seguindo {world.players.get(following)?.name ?? 'alguém'}</span>
+                <button type="button" onClick={() => scene.current?.stopFollowing()}>
+                  Parar
+                </button>
+              </div>
+            )}
             {!editor && (
               <>
                 <Welcome />

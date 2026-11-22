@@ -1,5 +1,6 @@
 import {
   CHAT_BUBBLE_MS,
+  findPath,
   RENDER_SCALE,
   STEP_MS,
   TILESETS,
@@ -30,6 +31,8 @@ export interface WorldSceneOptions {
   isSpeaking?: (id: string) => boolean;
   /** Overlay de netcode aberto: desenha o fantasma da posição confirmada pelo servidor. */
   showGhost?: () => boolean;
+  /** Começou ou parou de seguir alguém (o React mostra o card com "Parar"). */
+  onFollowChange?: (id: string | null) => void;
   /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
   hasVideoBubble?: (id: string) => boolean;
 }
@@ -74,6 +77,10 @@ export class WorldScene extends Phaser.Scene {
   private unsubscribe: (() => void) | null = null;
   private zoomIndex = 0;
   private ghost: Phaser.GameObjects.Rectangle | null = null;
+  /** Clicar para andar: passos que faltam até o tile clicado. */
+  private route: Dir[] = [];
+  /** Seguindo alguém: o caminho é recalculado a cada passo até a posição atual da pessoa. */
+  private following: string | null = null;
   private mapSize = { width: 0, height: 0 };
 
   constructor(private readonly options: WorldSceneOptions) {
@@ -123,7 +130,13 @@ export class WorldScene extends Phaser.Scene {
     };
     // Toque rápido (soltar antes do próximo frame) também anda um tile.
     for (const [dir, keys] of Object.entries(this.keys) as [Dir, Phaser.Input.Keyboard.Key[]][]) {
-      for (const key of keys) key.on('down', () => this.tryStep(dir));
+      for (const key of keys) {
+        key.on('down', () => {
+          if (isTyping()) return;
+          this.cancelAuto();
+          this.tryStep(dir);
+        });
+      }
     }
     keyboard.on('keydown', (event: KeyboardEvent) => {
       if (isTyping()) return;
@@ -151,7 +164,10 @@ export class WorldScene extends Phaser.Scene {
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
     this.events.once(Phaser.Scenes.Events.DESTROY, stop);
-    this.input.on('pointerdown', releaseFocus);
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      releaseFocus();
+      this.onPointerDown(pointer, over);
+    });
   }
 
   override update(_time: number, delta: number): void {
@@ -160,7 +176,12 @@ export class WorldScene extends Phaser.Scene {
     const held = typing
       ? undefined
       : (['up', 'down', 'left', 'right'] as const).find((dir) => this.keys[dir].some((key) => key.isDown));
-    if (held) this.tryStep(held);
+    if (held) {
+      this.cancelAuto();
+      this.tryStep(held);
+    } else {
+      this.autoStep();
+    }
 
     const self = world.selfId ? this.avatars.get(world.selfId) : undefined;
     const ghostOn = this.options.showGhost?.() ?? false;
@@ -191,14 +212,71 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private tryStep(dir: Dir): void {
-    if (isTyping()) return;
+  /** Manda um passo se o intervalo e a conexão deixarem; devolve se mandou. */
+  private tryStep(dir: Dir): boolean {
+    if (isTyping()) return false;
     const time = performance.now();
     const { world } = this.options;
-    if (!world.selfId || time - this.lastStepAt < STEP_MS) return;
-    if (this.options.canMove && !this.options.canMove()) return;
+    if (!world.selfId || time - this.lastStepAt < STEP_MS) return false;
+    if (this.options.canMove && !this.options.canMove()) return false;
     this.lastStepAt = time;
     this.options.send(world.move(dir));
+    return true;
+  }
+
+  /** Clique no chão anda até lá; clique num avatar passa a seguir a pessoa. */
+  private onPointerDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
+    const { world } = this.options;
+    if (!world.selfId) return;
+    const clicked = over.map((o) => o.getData('id') as string | undefined).find((id) => id && id !== world.selfId);
+    if (clicked) {
+      this.route = [];
+      this.setFollowing(clicked);
+      return;
+    }
+    const tx = Math.floor(pointer.worldX / TILE_PX);
+    const ty = Math.floor(pointer.worldY / TILE_PX);
+    const path = findPath(world.map, world.self, { x: tx, y: ty }, { canEnter: world.canEnter });
+    this.setFollowing(null);
+    this.route = path ?? [];
+  }
+
+  private autoStep(): void {
+    const { world } = this.options;
+    if (this.following) {
+      const target = world.players.get(this.following);
+      if (!target) {
+        this.setFollowing(null);
+        return;
+      }
+      const path = findPath(world.map, world.self, target, { canEnter: world.canEnter, stopAt: 1 });
+      if (path === null) this.setFollowing(null);
+      else if (path[0]) this.tryStep(path[0]);
+      return;
+    }
+    const dir = this.route[0];
+    if (!dir) return;
+    const before = world.self;
+    if (!this.tryStep(dir)) return;
+    this.route.shift();
+    // A predição não andou (alguém trancou a sala no caminho): desiste do resto.
+    if (world.self.x === before.x && world.self.y === before.y) this.route = [];
+  }
+
+  private cancelAuto(): void {
+    this.route = [];
+    this.setFollowing(null);
+  }
+
+  private setFollowing(id: string | null): void {
+    if (this.following === id) return;
+    this.following = id;
+    this.options.onFollowChange?.(id);
+  }
+
+  /** Botão "Parar" do card de seguir. */
+  stopFollowing(): void {
+    this.setFollowing(null);
   }
 
   private onWorldEvent(event: WorldEvent): void {
@@ -273,7 +351,8 @@ export class WorldScene extends Phaser.Scene {
       chat: null,
       chatTimer: null,
     };
-    sprite.setInteractive();
+    sprite.setInteractive({ useHandCursor: !isSelf });
+    sprite.setData('id', player.id);
     sprite.on('pointerover', () => (avatar.hovered = true));
     sprite.on('pointerout', () => (avatar.hovered = false));
     this.avatars.set(player.id, avatar);
@@ -296,6 +375,7 @@ export class WorldScene extends Phaser.Scene {
   private removeAvatar(id: string): void {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
+    if (this.following === id) this.setFollowing(null);
     avatar.sprite.destroy();
     avatar.ring.destroy();
     avatar.label.destroy();

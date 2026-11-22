@@ -25,6 +25,9 @@ proximidade e autorização de mídia feitas no servidor.
   com desfazer e refazer. Quem está online vê o mapa novo sem recarregar.
 - Indicador de quem está falando (no mapa e na lista), zoom do mapa em degraus inteiros, card de
   primeiros passos e decoração de mesa escolhida por miniaturas.
+- Clicar no chão para andar até lá (A*) e clicar em alguém para seguir a pessoa.
+- Overlay de rede (F3): RTT, jitter, passos pendentes, correções, posição confirmada pelo
+  servidor e simulador de latência para ver a predição e a reconciliação funcionando.
 
 ## Telas
 

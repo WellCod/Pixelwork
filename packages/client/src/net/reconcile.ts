@@ -12,7 +12,7 @@ export interface PendingMove {
 }
 
 /** Regra extra da predição (sala trancada); a mesma ideia do `canEnter` do servidor. */
-export type CanEnter = (from: Pos, x: number, y: number) => boolean;
+export type CanEnter = (from: { x: number; y: number }, x: number, y: number) => boolean;
 
 /** Predição de um passo: anda se o tile for caminhável (e liberado), senão só vira. */
 export function predictStep(pos: Pos, dir: Dir, map: CompiledMap, canEnter?: CanEnter): Pos {
