@@ -20,6 +20,8 @@ import { Sidebar } from './ui/Sidebar.tsx';
 import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
 import { Welcome } from './ui/Welcome.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
+import { NetOverlay } from './ui/NetOverlay.tsx';
+import { NetSim } from './net/net-sim.ts';
 
 interface Props {
   space: SpaceDetail;
@@ -49,6 +51,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const positionOf = useCallback((id: string) => scene.current?.screenPosition(id) ?? null, []);
   const [calls] = useState(() => new CallStore(world));
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [netSim] = useState(() => new NetSim());
+  const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
   const send = (msg: ClientMsg) => connection.current?.send(msg);
 
@@ -66,6 +70,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
         // Outra aba assumiu ou saiu do coworking: a mídia sai junto.
         if (next === 'replaced' || next === 'removed' || next === 'ended') void media.close();
       },
+      () => netSim.delay(),
     );
     connection.current = conn;
     const stopMap = world.subscribe((event) => {
@@ -74,7 +79,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
     controller.start();
     const stopCalls = calls.start((msg) => conn.send(msg));
     // Só em desenvolvimento: estado de assinatura e posição para scripts de verificação.
-    if (import.meta.env.DEV) Object.assign(window, { __pixelwork: { media, world, controller } });
+    if (import.meta.env.DEV) Object.assign(window, { __pixelwork: { media, world, controller, connection: conn, netSim } });
     conn.open();
     return () => {
       controller.stop();
@@ -83,7 +88,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       conn.close();
       void media.close();
     };
-  }, [space.id, world, media, controller, calls]);
+  }, [space.id, world, media, controller, calls, netSim]);
 
   // Editando, a cena é a do editor e ignora mapas que chegam de fora (o salvar dá 409).
   const editorController = editor?.controller ?? null;
@@ -109,6 +114,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       send: (msg) => connection.current?.send(msg),
       canMove: () => connection.current?.online ?? false,
       isSpeaking: (id) => media.speaking.has(id),
+      showGhost: () => netSim.overlay,
       hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
     });
     scene.current = created.scene;
@@ -116,7 +122,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       scene.current = null;
       created.game.destroy(true);
     };
-  }, [editorController, worldMap, worldMapJson, world, media, controller]);
+  }, [editorController, worldMap, worldMapJson, world, media, controller, netSim]);
 
   return (
       <div className="main">
@@ -137,6 +143,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             )}
           </div>
           {!editor && <ChatBox world={world} send={send} />}
+          {!editor && <NetOverlay sim={netSim} world={world} stats={netStats} />}
           {!editor && (
             <div className="zoom-controls" aria-label="Zoom do mapa">
               <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => scene.current?.zoom(-1)}>

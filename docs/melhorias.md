@@ -70,8 +70,8 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 ## 5. Features
 
-- [ ] `ping`/`pong` com RTT no HUD (protocolo e medição feitos; falta o HUD)
-- [ ] Overlay de netcode e simulador de latência no dev
+- [x] `ping`/`pong` com RTT no HUD
+- [x] Overlay de netcode e simulador de latência (F3 ou botão "Rede")
 - [ ] Métricas `/metrics` (Prometheus)
 - [ ] Clicar para andar e seguir alguém (A* em `shared`)
 - [ ] Replay determinístico de entradas

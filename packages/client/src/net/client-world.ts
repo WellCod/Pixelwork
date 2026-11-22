@@ -36,6 +36,8 @@ export class ClientWorld {
   private readonly allowedZones = new Set<string>();
   /** Correções de posição desde o welcome (overlay de netcode). */
   corrections = 0;
+  /** Hora do servidor no último tick e quando chegou aqui, para a latência do tick. */
+  lastTick: { serverTs: number; receivedAt: number } | null = null;
   private readonly listeners = new Set<(event: WorldEvent) => void>();
 
   constructor(public map: CompiledMap) {}
@@ -70,6 +72,7 @@ export class ClientWorld {
         break;
       }
       case 'tick': {
+        if (msg.ts !== undefined) this.lastTick = { serverTs: msg.ts, receivedAt: Date.now() };
         for (const [id, x, y, dir] of msg.moves) {
           const player = this.players.get(id);
           if (player) Object.assign(player, { x, y, dir });
