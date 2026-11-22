@@ -1,7 +1,9 @@
 node_modules
 **/node_modules
 **/dist
-.env
+# Segredos nunca entram na imagem (.env.production inclusive).
+.env*
+!.env.example
 .git
 test-results
 playwright-report

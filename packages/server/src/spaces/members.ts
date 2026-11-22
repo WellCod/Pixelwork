@@ -7,6 +7,8 @@ import { isUuid } from '../ids.ts';
 export type PlayerProfile = Omit<Player, 'x' | 'y' | 'dir' | 'activity'>;
 
 export interface Membership {
+  /** Id do coworking já validado; rotas e conexões usam este, não o parâmetro cru. */
+  spaceId: string;
   role: 'admin' | 'member';
   profile: PlayerProfile;
 }
@@ -34,6 +36,7 @@ export async function resolveMembership(db: Db, spaceId: unknown, userId: string
   const row = rows[0];
   if (!row) return null;
   return {
+    spaceId,
     role: row.role,
     profile: {
       id: userId,

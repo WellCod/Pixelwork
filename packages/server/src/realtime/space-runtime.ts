@@ -125,6 +125,11 @@ export class SpaceRuntime {
     this.rules = { canEnter: (id, x, y) => this.canEnter(id, x, y) };
   }
 
+  /** Membros no mapa, incluindo quem está na tolerância de reconexão. */
+  memberCount(): number {
+    return this.members.size;
+  }
+
   /** Mesa do mapa compilado, para conferir a cadeira. */
   mapDesk(deskKey: string): CompiledDesk | undefined {
     return this.map.desks.find((d) => d.key === deskKey);
@@ -578,6 +583,8 @@ export class SpaceRuntime {
   /**
    * Quem decide a sala é o servidor (invariante 3). Ao trocar, emite o token da sala nova e
    * tira o participante da anterior pela API do LiveKit, para o caso de o cliente ignorar o aviso.
+   * Vale também para a sala aberta: sem isso, um cliente modificado ficaria nela durante uma
+   * reunião ou chamada.
    */
   private syncMedia(userId: string): void {
     const member = this.members.get(userId);
@@ -586,14 +593,16 @@ export class SpaceRuntime {
     if (room === member.mediaRoom) return;
     const previous = member.mediaRoom;
     member.mediaRoom = room;
-    if (previous && previous !== spaceRoom(this.spaceId)) {
-      this.deps.media.removeParticipant(previous, userId).catch((error: unknown) => {
-        // Participante que já tinha saído da sala dá erro no LiveKit; não muda nada.
-        this.deps.log.error({ error, userId, room: previous }, 'falha ao remover da sala de mídia');
-      });
-    }
+    if (previous) this.removeFromRoom(previous, userId);
     const conn = member.conn;
     if (conn) void this.sendMediaJoin(userId, conn, room);
+  }
+
+  private removeFromRoom(room: string, userId: string): void {
+    this.deps.media.removeParticipant(room, userId).catch((error: unknown) => {
+      // Quem já saiu da sala por conta própria dá "não encontrado" no LiveKit; não muda nada.
+      if (!isNotFound(error)) this.deps.log.error({ error, userId, room }, 'falha ao remover da sala de mídia');
+    });
   }
 
   private async sendMediaJoin(userId: string, conn: Conn, room: string): Promise<void> {
@@ -656,9 +665,7 @@ export class SpaceRuntime {
     for (const [requestId, knock] of this.knocks) {
       if (knock.from === userId) this.resolveKnock(requestId, false);
     }
-    if (member.mediaRoom && member.mediaRoom !== spaceRoom(this.spaceId)) {
-      this.deps.media.removeParticipant(member.mediaRoom, userId).catch(() => undefined);
-    }
+    if (member.mediaRoom) this.removeFromRoom(member.mediaRoom, userId);
     this.members.delete(userId);
     const players = new Map(this.world.players);
     players.delete(userId);
@@ -689,6 +696,13 @@ export class SpaceRuntime {
       if (id !== exceptId) member.conn?.send(data);
     }
   }
+}
+
+/** Erro do LiveKit (ServerError do SDK) para participante ou sala inexistente. */
+function isNotFound(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, status } = error as { code?: unknown; status?: unknown };
+  return code === 'not_found' || status === 404;
 }
 
 function parseClientMsg(raw: string): ClientMsg | null {

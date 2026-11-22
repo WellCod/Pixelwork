@@ -126,6 +126,13 @@ cookie e `Origin` são da mesma origem.
   `PUBLIC_URL`. O `SameSite=Lax` já bloqueia POST cross-site com cookie; a checagem é defesa extra.
 - WebSocket: o cookie autentica o upgrade; `Origin` diferente de `PUBLIC_URL` é recusado
   (cross-site WebSocket hijacking).
+- Logout fecha na hora as conexões abertas com a mesma sessão (código 4004). Sessão que expira
+  com a conexão aberta é fechada na varredura do heartbeat (seção 8).
+- Limite de taxa por IP (`@fastify/rate-limit` 11.2.2, em memória): 300 requisições por minuto
+  em geral; 10 por minuto em `POST /auth/guest`, `POST /orgs`, `POST /orgs/:orgId/spaces` e
+  `POST /invites/:token/accept`; 20 nas rotas do GitHub; 30 em `GET /invites/:token`. Em
+  produção `TRUST_PROXY=true`, porque o IP do cliente chega pelo Caddy no `X-Forwarded-For`.
+  Os testes desligam o limite, menos o teste que o confere.
 
 Descartados: JWT (revogação vira problema, nenhum serviço externo precisa validar o token);
 auth como serviço (dependência paga e esconde parte que conta no portfólio).
@@ -337,11 +344,25 @@ export function step(
   10 segundos fecham a conexão (código 1008). Mais de 50 mensagens por segundo também.
 - Desconexão: o jogador permanece por `RECONNECT_GRACE_MS` antes de `player.leave`. O cliente
   reconecta com backoff exponencial.
+- Robustez do gateway (revisão de 2026-11):
+  - O socket ganha um listener de `error` logo no `upgrade`: sem ele, um ECONNRESET durante as
+    consultas de sessão e participação derrubava o processo.
+  - Falha ao carregar o runtime (erro do banco) responde 500 e não fica em cache.
+  - Mapa ou mesa gravados enquanto o runtime carrega marcam o coworking, e a carga recomeça.
+  - A participação é conferida de novo com o socket já aberto, logo antes do `connect`: uma
+    remoção gravada durante a carga não recoloca a pessoa no mapa.
+  - Heartbeat: a cada 30 s o servidor manda ping de protocolo; quem não respondeu ao anterior é
+    derrubado (conexão meio aberta), o que dispara a tolerância de reconexão normal. O intervalo
+    usa o relógio do sistema, não o agendador injetado, porque é transporte e não simulação.
+  - Cliente que não lê o socket: com mais de 1 MB pendente no buffer de envio, a conexão cai.
+  - Runtime sem ninguém (nem na tolerância) por 10 minutos sai da memória; a próxima conexão
+    carrega de novo do banco.
 - Decisões da fase 1:
   - Upgrade feito à mão (`ws` em `noServer` no evento `upgrade` do Fastify): `Origin`, cookie e
     `space_members` são conferidos antes de aceitar.
   - Fechamento: 4001 para `session.replaced` (o cliente não reconecta), 1008 para mensagens
-    inválidas ou taxa.
+    inválidas ou taxa, 4003 para removido do coworking, 4004 para sessão encerrada (logout ou
+    expiração; o cliente volta para o login).
   - O passo é aplicado quando a mensagem chega; o tick só faz o broadcast. Passo ignorado pelo
     intervalo mínimo também conta no `ack`. A contagem de `seq` recomeça a cada `welcome`.
   - O tick só sai quando alguém se moveu ou o `ack` de quem recebe mudou.
@@ -544,7 +565,13 @@ Decisões da fase 3 (versões fixadas: `livekit-server-sdk` 2.20.0, `livekit-cli
 
 - O grant `canPublishSources` existe e substitui `canPublish`: o token da sala `space:` só libera
   câmera e microfone, então compartilhar tela ali é recusado pelo próprio LiveKit. Validade do
-  token: 6 horas.
+  token: 2 minutos (era 6 horas). O LiveKit só confere o token na entrada e renova sozinho o de
+  quem segue conectado; com validade curta, um token guardado não serve para voltar a uma sala
+  trancada, a uma chamada encerrada ou ao coworking de que a pessoa foi removida.
+- Ao trocar de sala, o servidor tira o participante da anterior pela API do LiveKit, inclusive
+  da `space:` (antes ela era poupada, e um cliente modificado podia ficar nela durante uma
+  reunião ou chamada). Sair do coworking também remove da `space:`. "Não encontrado" do LiveKit
+  (participante que já saiu) não é registrado como erro.
 - O serviço de mídia é uma interface injetada no tempo real (`MediaService`), para os testes de
   autorização usarem um dublê.
 - Volume pelo `RemoteParticipant.setVolume`, sem Web Audio. Conexão com `autoSubscribe: false`,

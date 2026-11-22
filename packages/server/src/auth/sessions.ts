@@ -24,11 +24,15 @@ export interface SessionUser {
   isGuest: boolean;
 }
 
+export interface SessionInfo extends SessionUser {
+  expiresAt: Date;
+}
+
 export async function findSessionUser(
   db: Db,
   token: string | undefined,
   now: Date,
-): Promise<SessionUser | null> {
+): Promise<SessionInfo | null> {
   if (!token) return null;
   const rows = await db
     .select({
@@ -36,6 +40,7 @@ export async function findSessionUser(
       displayName: users.displayName,
       avatar: users.avatar,
       isGuest: users.isGuest,
+      expiresAt: sessions.expiresAt,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))

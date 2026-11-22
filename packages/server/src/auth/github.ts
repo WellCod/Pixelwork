@@ -65,7 +65,7 @@ export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { gi
 
   app.get('/auth/providers', () => ({ github: enabled }));
 
-  app.get('/auth/github', async (_request, reply) => {
+  app.get('/auth/github', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (_request, reply) => {
     if (!enabled) return reply.code(503).send({ error: 'github_not_configured' });
     const state = randomBytes(24).toString('base64url');
     const url = new URL('https://github.com/login/oauth/authorize');
@@ -76,7 +76,7 @@ export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { gi
     return reply.header('set-cookie', stateCookie(state, STATE_TTL_SECONDS)).redirect(url.toString());
   });
 
-  app.get<{ Querystring: { code?: string; state?: string } }>('/auth/github/callback', async (request, reply) => {
+  app.get<{ Querystring: { code?: string; state?: string } }>('/auth/github/callback', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
     const expected = parseCookies(request.headers.cookie)[STATE_COOKIE];
     void reply.header('set-cookie', stateCookie('', 0));
     // Sem o state do cookie, o callback pode ter sido disparado por outro site (login CSRF).

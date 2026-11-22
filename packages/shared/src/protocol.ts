@@ -133,3 +133,5 @@ export const CLOSE_SESSION_REPLACED = 4001;
 export const CLOSE_POLICY = 1008;
 /** Removido do coworking por um admin ou por ter saído: o cliente não reconecta. */
 export const CLOSE_REMOVED = 4003;
+/** Sessão encerrada (logout ou expiração): o cliente volta para o login sem reconectar. */
+export const CLOSE_SESSION_ENDED = 4004;

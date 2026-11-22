@@ -1,3 +1,4 @@
+import rateLimit from '@fastify/rate-limit';
 import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { githubClient, registerGitHubRoutes, type GitHubClient } from './auth/github.ts';
@@ -31,7 +32,12 @@ export interface AppDeps {
   media?: MediaService;
   github?: GitHubClient;
   logger?: boolean;
+  /** Os testes desligam para criar muitos convidados do mesmo IP. */
+  rateLimit?: boolean;
 }
+
+/** Limite geral por IP; rotas que criam contas ou gravam muito têm o próprio, mais baixo. */
+export const RATE_LIMIT_PER_MINUTE = 300;
 
 export function buildApp({
   db,
@@ -41,8 +47,10 @@ export function buildApp({
   media = liveKitMedia(config.livekit),
   github = githubClient(config.github.clientId, config.github.clientSecret),
   logger = false,
+  rateLimit: limit = true,
 }: AppDeps): FastifyInstance {
-  const app = Fastify({ logger });
+  // Atrás do Caddy o IP do cliente vem no X-Forwarded-For; sem isso o limite veria só o proxy.
+  const app = Fastify({ logger, trustProxy: config.trustProxy });
   const routeTable: { method: string; url: string }[] = [];
   app.decorate('routeTable', routeTable);
   app.addHook('onRoute', (route) => {
@@ -61,14 +69,18 @@ export function buildApp({
   });
 
   registerStateGuards(app, config.publicUrl);
-  registerAuthRoutes(app, { db, config, clock });
-  registerSpaceRoutes(app, { db, config, clock });
-  registerProfileRoutes(app, { db, config, clock });
-  registerDeskRoutes(app, { db, config, clock });
-  registerGitHubRoutes(app, { db, config, clock, github });
-  registerOrgRoutes(app, { db, config, clock });
-  registerInviteRoutes(app, { db, config, clock });
-  registerMapRoutes(app, { db, config, clock });
+  // Escopo filho: o plugin de limite precisa estar carregado antes de as rotas serem declaradas.
+  void app.register(async (api) => {
+    if (limit) await api.register(rateLimit, { max: RATE_LIMIT_PER_MINUTE, timeWindow: '1 minute' });
+    registerAuthRoutes(api, { db, config, clock });
+    registerSpaceRoutes(api, { db, config, clock });
+    registerProfileRoutes(api, { db, config, clock });
+    registerDeskRoutes(api, { db, config, clock });
+    registerGitHubRoutes(api, { db, config, clock, github });
+    registerOrgRoutes(api, { db, config, clock });
+    registerInviteRoutes(api, { db, config, clock });
+    registerMapRoutes(api, { db, config, clock });
+  });
 
   const gateway = attachGateway(app.server, {
     db,
