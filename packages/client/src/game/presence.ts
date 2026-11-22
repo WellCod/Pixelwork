@@ -39,6 +39,18 @@ export type Slot = 'left' | 'right' | 'back' | 'floor';
  * Deslocamento em pixels de cada slot a partir do tile da mesa. Esquerda e direita são as de
  * quem está sentado; o fundo fica atrás da mesa e o chão ao lado dela.
  */
+/**
+ * Mesa de 2 tiles: deslocamentos a partir do canto esquerdo e da base da pegada inteira. Na mesa
+ * larga (para cima/baixo) o monitor fica no meio e os itens nas pontas; na lateral, o monitor fica
+ * na metade de cima e os itens embaixo e no alto.
+ */
+export const SLOT_OFFSET_WIDE: Record<Dir, Record<Slot | 'monitor', [x: number, y: number]>> = {
+  down: { monitor: [8, -2], left: [-3, -3], right: [19, -3], back: [8, -14], floor: [30, 2] },
+  up: { monitor: [8, -2], left: [19, -3], right: [-3, -3], back: [8, 14], floor: [-14, -2] },
+  left: { monitor: [0, -17], left: [0, -3], right: [0, -27], back: [-14, -8], floor: [2, 14] },
+  right: { monitor: [0, -17], left: [0, -27], right: [0, -3], back: [14, -8], floor: [-2, -30] },
+};
+
 export const SLOT_OFFSET: Record<Dir, Record<Slot, [x: number, y: number]>> = {
   down: { left: [5, -3], right: [-5, -3], back: [0, -14], floor: [14, 2] },
   up: { left: [-5, 3], right: [5, 3], back: [0, 14], floor: [-14, -2] },

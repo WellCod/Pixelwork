@@ -8,7 +8,8 @@ import {
   tilesetImageUrl,
   type DeskDecor,
 } from '@pixelwork/shared';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
+import { SLOT_OFFSET_WIDE } from '../game/presence.ts';
 import { profileApi } from '../api.ts';
 import { label } from './labels.ts';
 import { Modal } from './Modal.tsx';
@@ -29,10 +30,10 @@ const SLOTS: { key: SlotKey; label: string; options: readonly string[] }[] = [
 ];
 
 /** Um tile do tileset de decoração, recortado por CSS e ampliado sem suavizar. */
-function Thumb({ item }: { item: string | null }) {
+function Thumb({ item, scale = THUMB_SCALE, style }: { item: string | null; scale?: number; style?: CSSProperties }) {
   const frame = item === null ? undefined : FRAMES.get(item);
-  const size = TILE_PX * THUMB_SCALE;
-  if (frame === undefined) return <span className="thumb thumb-empty" style={{ width: size, height: size }} />;
+  const size = TILE_PX * scale;
+  if (frame === undefined) return <span className="thumb thumb-empty" style={{ width: size, height: size, ...style }} />;
   const col = frame % DECOR.columns;
   const row = Math.floor(frame / DECOR.columns);
   return (
@@ -44,8 +45,46 @@ function Thumb({ item }: { item: string | null }) {
         backgroundImage: `url(${tilesetImageUrl('desk-decor')})`,
         backgroundPosition: `-${col * size}px -${row * size}px`,
         backgroundSize: `${DECOR.columns * size}px auto`,
+        ...style,
       }}
     />
+  );
+}
+
+const PREVIEW_SCALE = 4;
+/** Margem em pixels do sprite ao redor da mesa na prévia (itens passam da borda da mesa). */
+const PAD = { left: 4, top: 24 };
+
+/**
+ * Prévia da mesa larga como ela aparece no mapa (virada para baixo), montada com os mesmos
+ * deslocamentos do jogo: assim a escolha de cada item já mostra o resultado.
+ */
+function DeskPreview({ decor }: { decor: DeskDecor }) {
+  const offsets = SLOT_OFFSET_WIDE.down;
+  const bottom = PAD.top + TILE_PX;
+  const at = (item: string | null, x: number, y: number, z: number) =>
+    item && FRAMES.has(item) ? (
+      <Thumb
+        key={`${item}-${x}-${y}`}
+        item={item}
+        scale={PREVIEW_SCALE}
+        style={{ position: 'absolute', left: (PAD.left + x) * PREVIEW_SCALE, top: (bottom + y - TILE_PX) * PREVIEW_SCALE, zIndex: z }}
+      />
+    ) : null;
+  return (
+    <div
+      className="desk-preview"
+      aria-label="Prévia da mesa"
+      style={{ width: (PAD.left + 48) * PREVIEW_SCALE, height: (bottom + 6) * PREVIEW_SCALE }}
+    >
+      {at(decor.slots.back, offsets.back[0], offsets.back[1], 1)}
+      {at(`${decor.variant}-wide-l`, 0, 0, 2)}
+      {at(`${decor.variant}-wide-r`, TILE_PX, 0, 2)}
+      {at(`monitor-${decor.monitor}`, offsets.monitor[0], offsets.monitor[1], 3)}
+      {at(decor.slots.left, offsets.left[0], offsets.left[1], 4)}
+      {at(decor.slots.right, offsets.right[0], offsets.right[1], 4)}
+      {at(decor.slots.floor, offsets.floor[0], offsets.floor[1], 4)}
+    </div>
   );
 }
 
@@ -112,6 +151,7 @@ export function DecorEditor({ spaceId, deskKey, initial, onClose }: Props) {
 
   return (
     <Modal title="Decorar a mesa" onClose={onClose}>
+      <DeskPreview decor={decor} />
       <Picker
         legend="Mesa"
         value={decor.variant}

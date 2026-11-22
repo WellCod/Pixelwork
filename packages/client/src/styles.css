@@ -1060,3 +1060,11 @@ a.button {
   font-size: 0.8em;
   font-family: var(--pixel-font);
 }
+
+.desk-preview {
+  position: relative;
+  margin: 0 auto 12px;
+  background: var(--panel-2);
+  border-radius: var(--radius);
+  image-rendering: pixelated;
+}
