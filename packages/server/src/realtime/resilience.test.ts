@@ -146,3 +146,28 @@ describe('limite de taxa', () => {
     }
   });
 });
+
+describe('métricas', () => {
+  it('/metrics expõe conexões, jogadores, mensagens e o histograma do tick', async () => {
+    const server = await startTestServer();
+    try {
+      const guest = await loginGuest(server);
+      const bot = await Bot.connect(server, guest);
+      await bot.next('welcome');
+      bot.send({ t: 'move', seq: 1, dir: 'down' });
+      await bot.flush();
+      server.clock.advance(100);
+      await bot.next('tick');
+      const text = await (await fetch(`${server.baseUrl}/metrics`)).text();
+      expect(text).toContain('pixelwork_ws_connections 1');
+      expect(text).toContain('pixelwork_players 1');
+      expect(text).toMatch(/pixelwork_ws_messages_received_total [1-9]/);
+      expect(text).toMatch(/pixelwork_media_tokens_total [1-9]/);
+      expect(text).toMatch(/pixelwork_tick_duration_seconds_count [1-9]/);
+      expect(text).toContain('# TYPE pixelwork_tick_duration_seconds histogram');
+      await bot.close();
+    } finally {
+      await server.stop();
+    }
+  });
+});

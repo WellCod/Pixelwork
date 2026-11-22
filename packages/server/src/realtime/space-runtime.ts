@@ -29,6 +29,7 @@ import {
   type WorldState,
   type ZoneState,
 } from '@pixelwork/shared';
+import type { Metrics } from '../metrics.ts';
 import type { PlayerProfile } from '../spaces/members.ts';
 import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
 import {
@@ -97,6 +98,7 @@ export interface RuntimeDeps {
   scheduler: Scheduler;
   media: MediaService;
   log: { error: (obj: unknown, msg: string) => void };
+  metrics?: Metrics;
 }
 
 /** Estado em memória de um coworking: jogadores, simulação, salas e chamadas. */
@@ -324,6 +326,8 @@ export class SpaceRuntime {
 
   /** Envia a lista de quem se moveu, serializada uma vez; só o `ack` muda por cliente. */
   tick(): void {
+    // Relógio de parede só para a métrica: a simulação continua no relógio injetado.
+    const started = this.deps.metrics ? performance.now() : 0;
     for (const [id, member] of this.members) if (member.queued.length > 0) this.drainMoves(id, member);
     const moves: TickMove[] = [];
     for (const id of this.moved) {
@@ -339,6 +343,7 @@ export class SpaceRuntime {
       member.ackDirty = false;
       member.conn.send(`{"t":"tick","ack":${member.lastSeq},"moves":${movesJson},"ts":${ts}}`);
     }
+    this.deps.metrics?.tick.observe((performance.now() - started) / 1000);
   }
 
   close(): void {
@@ -654,6 +659,7 @@ export class SpaceRuntime {
     const sources = room === spaceRoom(this.spaceId) ? SPACE_SOURCES : PRIVATE_SOURCES;
     try {
       const token = await this.deps.media.token(userId, room, sources);
+      if (this.deps.metrics) this.deps.metrics.mediaTokens++;
       // A sala pode ter mudado de novo, ou a conexão caído, enquanto o token era assinado.
       const member = this.members.get(userId);
       if (member?.conn !== conn || member.mediaRoom !== room) return;
