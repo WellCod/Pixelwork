@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TILESET_IDS } from './catalog.generated.ts';
 import { compileMap, isWalkable, relocate, zoneAt, type MapError } from './map.ts';
 import smallOfficeV1 from './fixtures/small-office-v1.json';
 import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testing.ts';
@@ -43,7 +44,8 @@ describe('compileMap: mapas válidos', () => {
     expect(zoneAt(map, 6, 2)).toMatchObject({ key: 'sala-1', type: 'meeting' });
     expect(zoneAt(map, 6, 5).key).toBe('__open');
     expect(map.zones.find((z) => z.key === 'sala-1')?.tiles).toBe(12);
-    expect(map.tilesets).toEqual(['floors', 'walls', 'furniture', 'desk-decor']);
+    // O mapa de teste referencia todos os tilesets do catálogo, na ordem dos gids.
+    expect(map.tilesets).toEqual([...TILESET_IDS]);
   });
 
   it('móvel sem colisão não bloqueia', () => {
