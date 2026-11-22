@@ -122,6 +122,11 @@ describe('compileMap: mesa de 2 tiles', () => {
     expect(result2.ok ? [] : result2.errors).toContainEqual({ code: 'desk_size', deskKey: 'mesa-2' });
   });
 
+  it('mesa larga com a âncora dentro e o outro tile fora do mapa é desk_outside', () => {
+    const result = compiled([{ key: 'mesa-1', x: 11, y: 2, orientation: 'down', size: 2 }]);
+    expect(result.ok ? [] : result.errors).toContainEqual({ code: 'desk_outside', deskKey: 'mesa-1' });
+  });
+
   it('mesa de 1 tile continua igual (w e h valem 1)', () => {
     const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'down' }]);
     if (!result.ok) throw new Error(JSON.stringify(result.errors));

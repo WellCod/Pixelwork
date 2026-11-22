@@ -28,6 +28,9 @@ const LAYER = { zone: 'zones', desk: 'desks' } as const;
 const CLOCKWISE: Record<Dir, Dir> = { up: 'right', right: 'down', down: 'left', left: 'up' };
 
 const inside = (doc: TiledDoc, x: number, y: number) => x >= 0 && y >= 0 && x < doc.width && y < doc.height;
+/** Pegada em pixels (canto superior esquerdo em x, y) cabe inteira no mapa. */
+const fits = (doc: TiledDoc, x: number, y: number, width: number, height: number) =>
+  x >= 0 && y >= 0 && x + width <= doc.width * TILE_PX && y + height <= doc.height * TILE_PX;
 
 function allObjects(doc: TiledDoc): TiledObject[] {
   return doc.layers.flatMap((l) => (l.type === 'objectgroup' ? l.objects : []));
@@ -202,7 +205,8 @@ export function setZoneProps(doc: TiledDoc, id: number, values: { name?: string;
 // ---- mesas ----
 
 export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir): EditorCommand | null {
-  if (!inside(doc, tx, ty)) return null;
+  const size = deskSize(orientation, 2);
+  if (!fits(doc, tx * TILE_PX, ty * TILE_PX, size.width, size.height)) return null;
   return addWithKey(
     doc,
     'desks',
@@ -211,7 +215,7 @@ export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir)
         x: tx * TILE_PX,
         y: ty * TILE_PX,
         // Mesa nova é a larga: 2 tiles de frente para a cadeira (docs/architecture.md, seção 6).
-        ...deskSize(orientation, 2),
+        ...size,
         properties: [
           { name: 'desk_key', type: 'string', value: key ?? '' },
           { name: 'orientation', type: 'string', value: orientation },
@@ -228,12 +232,14 @@ function deskSize(orientation: Dir, tiles: 1 | 2): { width: number; height: numb
 }
 
 /** Gira no sentido horário; a mesa larga troca largura e altura para continuar de frente. */
-export function rotateDesk(doc: TiledDoc, id: number): EditorCommand {
+export function rotateDesk(doc: TiledDoc, id: number): EditorCommand | null {
   const desk = find(doc, 'desks', id);
   const current = prop(desk, 'orientation');
   const next = CLOCKWISE[(current as Dir | undefined) ?? 'down'];
   const tiles = Math.max(desk.width, desk.height) > TILE_PX ? 2 : 1;
   const rotated = { ...setProps(desk, { orientation: next }), ...deskSize(next, tiles) };
+  // Na borda do mapa, girar a mesa larga poria um tile para fora: não gira.
+  if (!fits(doc, rotated.x, rotated.y, rotated.width, rotated.height)) return null;
   return { kind: 'replaceObject', layer: 'desks', object: rotated };
 }
 
@@ -250,8 +256,8 @@ export function moveObject(doc: TiledDoc, layer: ObjectLayerName, id: number, tx
     y += TILE_PX / 2;
   }
   if (!inside(doc, tx, ty)) return null;
-  // Zona inteira tem que caber no mapa depois de mover.
-  if (layer === 'zones' && (x + object.width > doc.width * TILE_PX || y + object.height > doc.height * TILE_PX)) return null;
+  // Zona e mesa inteiras têm que caber no mapa depois de mover.
+  if ((layer === 'zones' || layer === 'desks') && !fits(doc, x, y, object.width || TILE_PX, object.height || TILE_PX)) return null;
   if (x === object.x && y === object.y) return null;
   return { kind: 'replaceObject', layer, object: { ...object, x, y } };
 }
@@ -284,7 +290,10 @@ export function objectAt(doc: TiledDoc, layer: ObjectLayerName, tx: number, ty: 
       const h = o.height || TILE_PX;
       return px >= o.x && px < o.x + w && py >= o.y - h && py < o.y;
     }
-    return Math.floor(o.x / TILE_PX) === tx && Math.floor(o.y / TILE_PX) === ty;
+    // Mesa ancorada no canto superior esquerdo: a pegada desce `height` a partir de `y`.
+    const w = o.width || TILE_PX;
+    const h = o.height || TILE_PX;
+    return px >= o.x && px < o.x + w && py >= o.y && py < o.y + h;
   });
 }
 
