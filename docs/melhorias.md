@@ -84,6 +84,21 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 - [x] `pnpm e2e` passando no CI (localmente, no macOS com Docker Desktop, o ICE do segundo
   participante falha, inclusive no código anterior)
 
+## 7. Visual (redesenho de 2026-11, PRs #16, #17 e #18)
+
+- [x] Arte nova (Resurrect 64 + 3 tons de carvalho), mesa de 2 tiles, tema claro com Inter
+- [x] Divisória atrás da mesa sem parede; cargo em pílula legível
+- [x] Pisos harmonizados (pouco contraste, peças grandes, salas vizinhas sem piso repetido)
+- [x] Texto legível no zoom mínimo (canvas na resolução da tela)
+- [x] Frames de piso, parede e tapete por `item_id` (`frameOf`); prévia da mesa pelo mesmo
+  `deskSprites` do jogo
+
+## 8. Próximo: interações com objetos
+
+- [ ] Minigame de pingpong na mesa (solo contra bot ou 1x1), servidor com autoridade a 30 Hz.
+  Desenho aprovado em `docs/superpowers/specs/2026-11-22-pingpong-design.md`.
+- [ ] Pebolim pelo mesmo mecanismo (depois do pingpong).
+
 ## Pendências conhecidas
 
 - TURN para redes que só liberam a 443: as opções estão em `docs/deploy.md`, mas nenhuma foi
