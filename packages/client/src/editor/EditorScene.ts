@@ -2,6 +2,7 @@ import { TILESETS, TILESET_IDS, TILE_PX, tilesetImageUrl } from '@pixelwork/shar
 import { prop, textProp, type TiledObject } from '@pixelwork/shared/editor';
 import * as Phaser from 'phaser';
 import { isTyping, releaseFocus } from '../input-focus.ts';
+import { baseZoom } from '../game/scale.ts';
 import { embedTilesets, resolveGid } from '../game/tiled.ts';
 import type { EditorController } from './editor-controller.ts';
 
@@ -65,7 +66,7 @@ export class EditorScene extends Phaser.Scene {
 
     this.render();
     const doc = this.controller.doc;
-    this.cameras.main.centerOn((doc.width * TILE_PX) / 2, (doc.height * TILE_PX) / 2);
+    this.cameras.main.setZoom(baseZoom()).centerOn((doc.width * TILE_PX) / 2, (doc.height * TILE_PX) / 2);
     this.unsubscribe = this.controller.subscribe(() => this.render());
     const stop = () => {
       this.unsubscribe?.();
@@ -257,7 +258,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private text(x: number, y: number, value: string): Phaser.GameObjects.Text {
-    return this.add.text(x, y, value, {
+    const label = this.add.text(x, y, value, {
       fontFamily: 'monospace',
       fontSize: '7px',
       color: '#ffffff',
@@ -265,5 +266,8 @@ export class EditorScene extends Phaser.Scene {
       strokeThickness: 2,
       resolution: 4,
     });
+    // O jogo é pixelArt (filtro nearest); texto reduzido com nearest serrilha.
+    label.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    return label;
   }
 }

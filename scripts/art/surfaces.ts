@@ -14,32 +14,27 @@ export function texture(fn: (x: number, y: number) => ColorName, w = T, h = T): 
 // ---- pisos ----
 
 /**
- * Madeira clara: tábuas creme de 4 px, emendas desencontradas em mel e veio discreto. O topo de
- * cada tábua é um tom acima (luz de cima), a última linha é a emenda em pêssego; a ponta das tábuas,
- * em mel.
+ * Madeira clara: tábuas creme de 8 px, emenda de 1 px em pêssego e ponta das tábuas desencontrada.
+ * Pouco contraste de propósito (guia de estilo): o piso é fundo, os móveis e as pessoas é que
+ * aparecem. Tábua de 4 px com friso branco virava listra e lia como tijolo.
+ */
+/**
+ * Madeira clara: tábuas de carvalho de 8 px, topo um tom acima (luz de cima), emenda e ponta das
+ * tábuas em carvalho escuro, desencontradas, e dois pixels de veio por tábua. Pouco contraste de
+ * propósito: o piso é fundo. (Tábua de 4 px com friso branco sobre pêssego lia como tijolo.)
  */
 export const woodLight = texture((x, y) => {
-  const plank = Math.floor(y / 4);
-  const row = y % 4;
-  const joint = (plank * 5 + 3) % T;
-  if (row === 3) return 'peach';
-  if (x === joint) return 'tan';
-  if (row === 0) return 'white';
-  // Veio discreto: um pixel de pêssego espaçado em cada tábua.
-  if (row === 1 && (x * 3 + plank * 7) % 11 === 0) return 'peach';
-  return 'cream';
+  const plank = Math.floor(y / 8);
+  const row = y % 8;
+  if (row === 7) return 'oakSeam';
+  if (x === (plank * 9 + 4) % T) return 'oakSeam';
+  if (row === 0) return 'oakLight';
+  if ((row === 3 && x === (plank * 5 + 11) % T) || (row === 5 && x === (plank * 7 + 1) % T)) return 'oakSeam';
+  return 'oak';
 });
 
-/** Ladrilho creme em junta amarrada (8x4) com rejunte branco. */
-export const creamTile = texture((x, y) => {
-  const course = Math.floor(y / 4);
-  const offset = course % 2 === 0 ? 0 : 4;
-  const bx = (x + offset) % 8;
-  const by = y % 4;
-  // Rejunte branco sobre peças creme lisas, como piso de tijolinho claro.
-  if (by === 3 || bx === 7) return 'white';
-  return 'cream';
-});
+/** Ladrilho claro grande (8x8) com rejunte carvalho fino: liso, sem cara de tijolo. */
+export const creamTile = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'oak' : 'oakLight'));
 
 /** Carpete lavanda claro: liso, com pontos rosados espaçados. */
 export const lilacCarpet = texture((x, y) => ((x * 3 + y * 5) % 17 === 0 ? 'pink' : 'lilac'));
@@ -47,33 +42,34 @@ export const lilacCarpet = texture((x, y) => ((x * 3 + y * 5) % 17 === 0 ? 'pink
 /** Carpete azul-claro: liso, com pontos brancos espaçados. */
 export const iceCarpet = texture((x, y) => ((x * 5 + y * 3) % 17 === 0 ? 'white' : 'ice'));
 
-/** Ladrilho de copa em xadrez de 8 px, branco e névoa, sem rejunte. */
-export const kitchenChecker = texture((x, y) => ((Math.floor(x / 8) + Math.floor(y / 8)) % 2 === 0 ? 'white' : 'mist'));
+/** Ladrilho de copa: peças brancas de 8 px com rejunte névoa (o xadrez chamava atenção demais). */
+export const kitchenChecker = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'mist' : 'white'));
 
-/** Taco em espinha de peixe: peças 6x2 em diagonal, creme com emendas pêssego. */
+/** Taco em espinha de peixe: peças 2x6 em diagonal, creme, só a emenda em pêssego. */
+/** Taco em espinha de peixe: peças em diagonal de carvalho, emenda escura e filete claro ao lado. */
 export const herringbone = texture((x, y) => {
   // Colunas de 4 px alternando a direção da diagonal: o zigue-zague da espinha de peixe.
   const forward = Math.floor(x / 4) % 2 === 0;
-  const k = ((forward ? x : -x + 16) + 2 * y) % 6;
-  if (k === 0) return 'peach';
-  if (x % 4 === 0) return 'peach';
-  return 'cream';
+  const k = ((forward ? x : -x + 16) + 2 * y) % 8;
+  if (k === 0) return 'oakSeam';
+  if (k === 1) return 'oakLight';
+  return 'oak';
 });
 
-/** Madeira escura: tábuas de 4 px em ferrugem, emendas em casca, topo em barro. */
+/** Madeira escura: tábuas de 8 px em ferrugem, emenda em casca, veio em barro. */
 export const woodDark = texture((x, y) => {
-  const plank = Math.floor(y / 4);
-  const row = y % 4;
-  if (row === 3 || x === (plank * 7 + 2) % T) return 'bark';
-  if (row === 0) return 'clay';
+  const plank = Math.floor(y / 8);
+  const row = y % 8;
+  if (row === 7 || x === (plank * 9 + 4) % T) return 'bark';
+  if ((row === 2 && x === (plank * 5 + 11) % T) || (row === 5 && x === (plank * 7 + 1) % T)) return 'clay';
   return 'rust';
 });
 
-/** Grama para a área externa: verde-folha com tufos claros e escuros. */
+/** Grama para a área externa: verde-folha com tufos claros espaçados. */
 export const grass = texture((x, y) => {
-  const h = (x * 7 + y * 13) % 17;
+  const h = (x * 7 + y * 13) % 23;
   if (h === 0) return 'sprout';
-  if (h === 5 || h === 11) return 'emerald';
+  if (h === 11) return 'sage';
   return 'leaf';
 });
 
@@ -89,17 +85,14 @@ export const stonePath = texture((x, y) => {
 /** Cimento queimado: névoa lisa com raros pontos cinza. */
 export const concrete = texture((x, y) => ((x * 11 + y * 7) % 23 === 0 ? 'gray' : 'mist'));
 
-/** Ladrilho sálvia 8x8 com rejunte branco. */
-export const sageTile = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'white' : 'celery'));
+/** Ladrilho sálvia claro 8x8 com rejunte sálvia (tom vizinho, nada de grade branca). */
+export const sageTile = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'sage' : 'celery'));
 
-/** Carpete cinza de escritório: espinha de peixe miúda em dois cinzas. */
-export const grayCarpet = texture((x, y) => {
-  // Espinha de peixe discreta: só um pixel claro a cada dois na diagonal, sobre cinza liso.
-  const band = Math.floor(y / 4) % 2;
-  const diagonal = band === 0 ? (x + y) % 4 : (x - y + 16) % 4;
-  if (diagonal === 0 && x % 2 === 0) return 'mist';
-  return 'gray';
-});
+/**
+ * Carpete de escritório claro: névoa com uma trama miúda em branco, espaçada. Fica na família das
+ * paredes e não esfria a sala como o cinza-azulado.
+ */
+export const grayCarpet = texture((x, y) => ((x + 2 * y) % 8 === 0 && y % 2 === 0 ? 'white' : 'mist'));
 
 // ---- tapetes (16 tiles, um por combinação de bordas: máscara N=1, S=2, O=4, L=8) ----
 
@@ -135,9 +128,9 @@ export function rug(colors: RugColors): Pixels[] {
   );
 }
 
-export const RUG_LAVENDER: RugColors = { edge: 'violet', stripe: 'lilac', field: 'lavender', motif: 'lilac' };
-export const RUG_SAGE: RugColors = { edge: 'fern', stripe: 'celery', field: 'sage', motif: 'celery' };
-export const RUG_CREAM: RugColors = { edge: 'clay', stripe: 'peach', field: 'cream', motif: 'peach' };
+export const RUG_LAVENDER: RugColors = { edge: 'mauve', stripe: 'white', field: 'lilac', motif: 'pink' };
+export const RUG_SAGE: RugColors = { edge: 'fern', stripe: 'celery', field: 'sage', motif: 'mist' };
+export const RUG_CREAM: RugColors = { edge: 'clay', stripe: 'cream', field: 'peach', motif: 'cream' };
 
 // ---- paredes ----
 

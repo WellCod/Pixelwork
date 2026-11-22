@@ -19,6 +19,13 @@ regras deste documento.
   redesenho visual de 2026-11. Tons pastel (cremes, lavandas, sálvias, madeiras claras) para o
   escritório claro e aconchegante. As cores têm nome em `scripts/lib/colors.ts`; a arte usa os
   nomes, nunca o hex.
+- Tons extras (aprovados em 2026-11-22): `oakLight` `#f3e2c7`, `oak` `#e6cba5`, `oakSeam`
+  `#d2b086`, ficam no fim do `palette.hex`. A Resurrect 64 não tem bege; o creme dela é pêssego e
+  deixava os pisos de madeira rosados. Usados só nos pisos de madeira e no ladrilho claro.
+  `nearest` (arte legada) continua mapeando só para a Resurrect 64.
+- Pisos: pouco contraste dentro do tile (detalhe no tom vizinho, nunca branco sobre pêssego),
+  peças grandes (tábua e ladrilho de 8 px) e duas famílias: madeira quente e neutros claros da
+  cor das paredes. Salas vizinhas não repetem o piso.
 - Todo PNG do repositório usa só cores da paleta, cores-chave (seção 3) e transparência total.
   `scripts/check-palette.ts` verifica isso e roda no CI.
 - Assets CC0 importados são recoloridos para a paleta antes de entrar no repositório. É isso que
