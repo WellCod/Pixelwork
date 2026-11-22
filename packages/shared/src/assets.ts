@@ -1,4 +1,4 @@
-import type { TilesetId } from './catalog.generated.ts';
+import { TILESETS, type TilesetId } from './catalog.generated.ts';
 
 // Único lugar que traduz ID de catálogo em caminho (servido a partir de assets/).
 export function tilesetImageUrl(id: TilesetId): string {
@@ -17,3 +17,10 @@ export const KEY_RAMPS = {
   hair: ['#00ff01', '#00ff02', '#00ff03', '#00ff04'],
   outfit: ['#0001ff', '#0002ff', '#0003ff', '#0004ff'],
 } as const;
+
+/** Frame do item `item` (o `item_id` do tile) no tileset; item fora do catálogo é erro. */
+export function frameOf(tileset: TilesetId, item: string): number {
+  const entry = Object.entries(TILESETS[tileset].items).find(([, id]) => id === item);
+  if (!entry) throw new Error(`item ${item} não existe no tileset ${tileset}`);
+  return Number(entry[0]);
+}

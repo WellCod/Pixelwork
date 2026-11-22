@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { DeskDecor } from '@pixelwork/shared';
+import type { CompiledDesk, DeskDecor } from '@pixelwork/shared';
 import { profileApi } from '../api.ts';
 import { deskAtChair } from '../game/presence.ts';
 import type { ClientWorld } from '../net/client-world.ts';
@@ -16,14 +16,13 @@ interface Props {
 export function DeskBar({ world, spaceId, isAdmin }: Props) {
   useWorld(world);
   // Fica fora da condição da cadeira: levantar com o editor aberto não perde a edição.
-  const [decorating, setDecorating] = useState<{ deskKey: string; decor: DeskDecor; wallBehind: boolean } | null>(null);
+  const [decorating, setDecorating] = useState<{ desk: CompiledDesk; decor: DeskDecor } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const editor = decorating && (
     <DecorEditor
       spaceId={spaceId}
-      deskKey={decorating.deskKey}
-      wallBehind={decorating.wallBehind}
+      desk={decorating.desk}
       initial={decorating.decor}
       onClose={() => setDecorating(null)}
     />
@@ -55,7 +54,7 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
         <button
           type="button"
           disabled={!state.decor}
-          onClick={() => state.decor && setDecorating({ deskKey: desk.key, decor: state.decor, wallBehind: desk.wallBehind })}
+          onClick={() => state.decor && setDecorating({ desk, decor: state.decor })}
         >
           Decorar
         </button>

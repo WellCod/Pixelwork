@@ -18,7 +18,7 @@ import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
 import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
-import { SLOT_OFFSET, SLOT_OFFSET_WIDE, dividerLayout, isNear, seatedFacing, type Slot } from './presence.ts';
+import { deskSprites, isNear, seatedFacing } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
@@ -64,7 +64,6 @@ const SHADOW_ALPHA = 0.18;
 const ZOOM_LEVELS = [1, 2, 3] as const;
 const SPEAKING_COLOR = 0x63c74d;
 const LABEL_DEPTH = 100_000;
-const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
 
 const sheetKey = (id: string) => `sheet:${id}`;
 const tilesKey = (id: string) => `tiles:${id}`;
@@ -164,13 +163,19 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(LABEL_DEPTH - 3)
       .setVisible(false);
     this.rebuild();
-    // A Inter chega por CSS; quando carrega, os rótulos são refeitos com ela (antes saem na fonte reserva).
+    // A Inter chega por CSS; quando carrega, os rótulos são redesenhados com ela (antes saem na
+    // fonte reserva). Só os rótulos: refazer os avatares cancelaria o seguir e os balões de chat.
+    // Se a fonte não carregar, os rótulos ficam na reserva.
     if (!document.fonts.check(`7px ${LABEL_FONT}`)) {
-      void document.fonts.load(`600 7px ${LABEL_FONT}`).then(() => {
-        if (!this.sys.isActive()) return;
-        this.renderZoneLabels();
-        this.rebuild();
-      });
+      document.fonts
+        .load(`600 7px ${LABEL_FONT}`)
+        .then(() => {
+          if (!this.sys.isActive()) return;
+          this.renderZoneLabels();
+          for (const player of this.options.world.players.values()) this.refreshAvatar(player);
+          this.renderDesks();
+        })
+        .catch(() => undefined);
     }
     this.unsubscribe = this.options.world.subscribe((event) => {
       this.onWorldEvent(event);
@@ -496,34 +501,7 @@ export class WorldScene extends Phaser.Scene {
       );
     };
 
-    const variant = decor?.variant ?? 'basic';
-    const monitor = `monitor-${decor?.monitor ?? 'single'}`;
-    const wide = desk.w === 2;
-    const tall = desk.h === 2;
-    // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
-    if (wide) {
-      item(`${variant}-wide-l`, 0, 0, bottom);
-      item(`${variant}-wide-r`, TILE_PX, 0, bottom);
-    } else if (tall) {
-      item(`${variant}-tall-t`, 0, -TILE_PX, bottom);
-      item(`${variant}-tall-b`, 0, 0, bottom);
-    } else {
-      item(variant, 0, 0, bottom);
-    }
-    const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, -2] as const };
-    item(monitor, offsets.monitor[0], offsets.monitor[1], bottom + 0.1);
-    // Sem parede atrás, a decoração "de parede" vai presa numa divisória em vez de flutuar.
-    const divider = decor?.slots.back ? dividerLayout(desk) : null;
-    if (divider) {
-      for (const piece of divider.pieces) item(piece.item, piece.dx, piece.dy, divider.behind ? bottom - 0.2 : bottom + 0.3, piece.flip);
-    }
-    if (decor) {
-      for (const slot of SLOTS) {
-        const [dx, dy] = slot === 'back' && divider ? divider.back : offsets[slot];
-        const backDepth = divider ? (divider.behind ? bottom - 0.15 : bottom + 0.35) : bottom - 0.1;
-        item(decor.slots[slot], dx, dy, slot === 'back' ? backDepth : bottom + 0.2);
-      }
-    }
+    for (const sprite of deskSprites(desk, decor)) item(sprite.item, sprite.dx, sprite.dy, bottom + sprite.z, sprite.flip);
 
     if (state?.userId && state.ownerName && !world.players.has(state.userId)) {
       objects.push(this.plaque(desk, state.ownerName));
