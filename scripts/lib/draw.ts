@@ -116,7 +116,8 @@ export const RAMPS = {
   fabricPeach: { outline: 'rust', dark: 'clay', base: 'peach', light: 'cream' },
   fabricSage: { outline: 'slate', dark: 'fern', base: 'sage', light: 'celery' },
   charcoal: { outline: 'ink', dark: 'shadow', base: 'dusk', light: 'mauve', shine: 'gray' },
-  woodLight: { outline: 'rust', dark: 'tan', base: 'honey', light: 'cream' },
+  // Bétula: creme com luz branca; o mel saturado brigava com o fundo claro.
+  woodLight: { outline: 'clay', dark: 'peach', base: 'cream', light: 'white' },
   woodDark: { outline: 'ink', dark: 'bark', base: 'rust', light: 'clay' },
   metal: { outline: 'shadow', dark: 'dusk', base: 'gray', light: 'mist', shine: 'white' },
   white: { outline: 'dusk', dark: 'gray', base: 'mist', light: 'white' },
