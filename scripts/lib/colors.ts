@@ -1,6 +1,7 @@
 // Resurrect 64 (lospec.com/palette-list/resurrect-64) por nome, agrupada em rampas do escuro ao
-// claro. A arte usa estes nomes nas legendas dos sprites, nunca o hex direto.
-export const PALETTE = {
+// claro, mais os tons extras (docs/art.md, seção 2). A arte usa estes nomes nas legendas dos
+// sprites, nunca o hex direto.
+export const RESURRECT = {
   ink: '#2e222f', shadow: '#3e3546', dusk: '#625565', rosewood: '#966c6c', taupe: '#ab947a',
   plum: '#694f62', mauve: '#7f708a', gray: '#9babb2', mist: '#c7dcd0', white: '#ffffff',
   maroon: '#6e2727', brick: '#b33831', vermilion: '#ea4f36', coral: '#f57d4a',
@@ -17,16 +18,21 @@ export const PALETTE = {
   cream: '#fdcbb0',
 } as const;
 
+/** Madeira clara neutra: a Resurrect 64 não tem bege, e o creme dela (pêssego) deixava o piso rosado. */
+export const EXTRAS = { oakLight: '#f3e2c7', oak: '#e6cba5', oakSeam: '#d2b086' } as const;
+
+export const PALETTE = { ...RESURRECT, ...EXTRAS } as const;
+
 export type ColorName = keyof typeof PALETTE;
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 
-/** Cor da paleta mais próxima em RGB; usada para levar a arte antiga para a paleta nova. */
+/** Cor da Resurrect 64 mais próxima em RGB; usada para levar a arte antiga para a paleta nova. */
 export function nearest(hex: string): string {
   const [r, g, b] = rgb(hex.toLowerCase());
   let best: string = PALETTE.ink;
   let bestDistance = Infinity;
-  for (const candidate of Object.values(PALETTE)) {
+  for (const candidate of Object.values(RESURRECT)) {
     const [cr, cg, cb] = rgb(candidate);
     const distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
     if (distance < bestDistance) {

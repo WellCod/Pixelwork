@@ -36,7 +36,7 @@ const rug = (id: RugId, x0: number, y0: number, w: number, h: number) => {
 // ---- pisos por área ----
 floorRect(FLOOR.woodLight, 1, 2, 12, 10); // produto
 floorRect(FLOOR.gray, 13, 2, 13, 10); // engenharia
-floorRect(FLOOR.gray, 27, 2, 12, 9); // sala de reunião
+floorRect(FLOOR.woodLight, 27, 2, 12, 9); // sala de reunião
 floorRect(FLOOR.herringbone, 1, 12, 38, 2); // corredor
 floorRect(FLOOR.cream, 1, 14, 12, 13); // lounge
 floorRect(FLOOR.kitchen, 13, 14, 12, 13); // copa
