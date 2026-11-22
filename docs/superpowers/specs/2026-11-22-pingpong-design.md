@@ -1,6 +1,7 @@
 # Interação com objetos: pingpong
 
-Data: 2026-11-22. Status: proposta, aguardando aprovação do dono. Revisada após a leitura de um revisor.
+Data: 2026-11-22. Status: aprovado pelo dono em 2026-11-22 (revisado após a leitura de um revisor). Decisões de
+contrato registradas em `docs/architecture.md`, seção "Interações com objetos".
 
 ## Intenção
 

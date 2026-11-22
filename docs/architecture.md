@@ -622,6 +622,8 @@ Proximidade (na sala `space:`):
 - Fazer isso no cliente é aceitável porque a área aberta é visível para todo o coworking por
   definição. O que precisa de privacidade está em salas separadas.
 - Volume atenuado pela distância (1,0 até 1 tile, caindo linearmente até 0,2 no raio de saída).
+- Exceção aprovada (pingpong, seção "Interações com objetos"): o adversário de uma partida em
+  andamento conta como perto, mesmo acima do raio. A sala continua a `space:`.
 - Balões de vídeo: câmera desligada por padrão, com indicador de "visível para quem está perto".
   Até `MAX_VIDEO_BUBBLES` dos mais próximos, assinando a camada de menor qualidade (simulcast e
   adaptive stream); qualidade alta só quando o usuário expande o balão.
@@ -725,6 +727,11 @@ Decisões de interface (revisão de 2026-11):
   A decoração da mesa usa miniaturas recortadas do tileset por CSS.
 - Zoom da câmera em degraus inteiros (1x, 2x, 3x sobre o `RENDER_SCALE`) para o pixel art não
   borrar; mapa menor que a tela fica centralizado alargando os limites da câmera.
+- Resolução (revisão de 2026-11-22): o canvas tem a resolução física da tela (`devicePixelRatio`)
+  e a escala do pixel art vem do zoom da câmera, `round(RENDER_SCALE * devicePixelRatio)` vezes o
+  degrau (`client/src/game/scale.ts`). Antes o canvas era desenhado em meia resolução e esticado
+  pelo CSS, e o texto de 7 px no zoom 1x ficava ilegível. Texto usa filtro linear (o resto segue
+  nearest).
 - Quem fala (`ActiveSpeakersChanged` do LiveKit) ganha um anel sob o avatar e destaque na lista.
 - Status na lista também por forma (círculo, quadrado, anel) e texto, não só cor.
 - Overlay de netcode (F3 ou botão "Rede"), disponível também em produção: RTT, jitter e
@@ -852,8 +859,29 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
   chega às mesmas posições: um teste de integração confere isso num cenário com tranca e batida.
 - `GET /spaces/:spaceId/replay` (só admin) devolve a gravação; o botão "Replay" do cliente a
   reproduz num canvas com linha do tempo e velocidade.
-- Fica de fora o que não entra na simulação (chat, mídia, chamadas, mesas): o replay é do
-  movimento.
+- Fica de fora o que não entra na simulação (chat, mídia, chamadas, mesas, partidas de
+  pingpong): o replay é do movimento.
+
+## Interações com objetos: pingpong (aprovado em 2026-11-22, implementação pendente)
+
+Desenho completo em `docs/superpowers/specs/2026-11-22-pingpong-design.md`. Decisões de contrato:
+
+- Mapa compilado: `compileMap` devolve `tables: CompiledTable[]` para os móveis cujo `item_id` está
+  em `INTERACTIVE_ITEMS` (hoje só `ping-pong` → `pong`), com chave `<item>@<x>,<y>` e os tiles de
+  cada lado. O mapa salvo não muda. Troca de mapa ao vivo encerra as partidas.
+- Simulação: módulo puro `shared/src/pong.ts` (estado + intenções das raquetes + tempo → novo
+  estado + eventos), relógio injetado, e um bot puro para o modo solo. O servidor avança cada
+  partida a 30 Hz com o `Scheduler` injetado, só enquanto ela existe.
+- Protocolo: cliente manda `game.join`, `game.bot`, `game.rematch`, `game.leave` e `game.input
+  { seq, dir }` (só na mudança). Servidor manda `game.state` (30 Hz, só aos jogadores),
+  `game.events` e `table.state` (a todos, para a plaquinha com o placar). O `welcome` ganha
+  `tables` e `game` (a mesa do próprio jogador, para reabrir a janela na reconexão);
+  `Player.activity` ganha `'game'` (chamada continua com prioridade).
+- Regras de convivência: com a janela aberta o servidor ignora `move`; queda de conexão pausa a
+  partida durante `RECONNECT_GRACE_MS`; quem está em chamada não entra na mesa e quem joga
+  responde `busy` a convite de chamada.
+- Mídia: nenhuma sala nova; os adversários se ouvem pela exceção de proximidade (seção 10).
+- Fica fora do replay determinístico.
 
 ## Observabilidade
 
