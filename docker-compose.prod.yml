@@ -16,6 +16,8 @@ services:
     env_file: .env.production
     environment:
       DATABASE_URL: postgres://app:${POSTGRES_PASSWORD}@postgres:5432/coworking
+      # O Caddy está na frente: IP do cliente vem no X-Forwarded-For.
+      TRUST_PROXY: "true"
     depends_on:
       postgres: { condition: service_healthy }
 

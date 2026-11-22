@@ -185,7 +185,10 @@ export function compileMap(json: unknown): CompileResult {
     const y1 = Math.ceil(num(object.y) / TILE_PX);
     const w = Math.max(1, Math.round(num(object.width) / TILE_PX) || 1);
     const h = Math.max(1, Math.round(num(object.height) / TILE_PX) || 1);
-    for (let y = y1 - h; y < y1; y++) for (let x = x0; x < x0 + w; x++) block(x, y);
+    // Recortado ao mapa: um objeto com tamanho absurdo num JSON pequeno travaria o servidor.
+    for (let y = Math.max(0, y1 - h); y < Math.min(height, y1); y++) {
+      for (let x = Math.max(0, x0); x < Math.min(width, x0 + w); x++) block(x, y);
+    }
   }
 
   const zones: CompiledZone[] = [{ key: OPEN_ZONE_KEY, type: 'open', name: '', tiles: 0 }];
@@ -229,9 +232,12 @@ export function compileMap(json: unknown): CompileResult {
     };
     zones.push(zone);
     const index = zones.length - 1;
-    for (let ty = y / TILE_PX; ty < (y + h) / TILE_PX; ty++) {
-      for (let tx = x / TILE_PX; tx < (x + w) / TILE_PX; tx++) {
-        if (!inside(tx, ty)) continue;
+    const ty0 = Math.max(0, y / TILE_PX);
+    const ty1 = Math.min(height, (y + h) / TILE_PX);
+    const tx0 = Math.max(0, x / TILE_PX);
+    const tx1 = Math.min(width, (x + w) / TILE_PX);
+    for (let ty = ty0; ty < ty1; ty++) {
+      for (let tx = tx0; tx < tx1; tx++) {
         const i = ty * width + tx;
         const current = zoneIndex[i] ?? 0;
         if (current !== 0) {

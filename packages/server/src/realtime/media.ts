@@ -35,7 +35,12 @@ export const SPACE_SOURCES: readonly MediaSource[] = ['camera', 'microphone'];
 /** Sala de reunião e chamada: tela liberada. */
 export const PRIVATE_SOURCES: readonly MediaSource[] = ['camera', 'microphone', 'screen_share', 'screen_share_audio'];
 
-const TOKEN_TTL = '6h';
+/**
+ * O LiveKit só confere o token na entrada e renova sozinho o de quem continua conectado. Com
+ * validade curta, um token guardado não serve para voltar a uma sala depois de sair dela
+ * (reunião trancada, chamada encerrada, membro removido).
+ */
+const TOKEN_TTL = '2m';
 
 export function liveKitMedia(config: LiveKitConfig): MediaService {
   // O cliente aceita a URL ws:// e troca para http por conta própria.

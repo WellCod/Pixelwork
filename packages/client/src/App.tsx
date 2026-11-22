@@ -25,6 +25,7 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
   reconnecting: 'Reconectando…',
   replaced: 'Aberto em outra aba',
   removed: 'Você saiu deste coworking',
+  ended: 'Sessão encerrada',
 };
 
 function remembered(): string | null {
@@ -225,6 +226,7 @@ export function App() {
           onStatus={(next) => {
             setStatus(next);
             if (next === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
+            if (next === 'ended') setState({ kind: 'login', error: 'Sua sessão terminou. Entre de novo.' });
           }}
           editor={editor}
           onEditorBaseVersion={(version) => setEditor((e) => (e ? { ...e, baseVersion: version } : e))}

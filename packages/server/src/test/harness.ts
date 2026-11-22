@@ -19,6 +19,7 @@ export const TEST_CONFIG: AppConfig = {
   demoSpaceSlug: 'demo',
   livekit: { url: 'ws://localhost:7880', apiKey: 'devkey', apiSecret: 'secret' },
   github: { clientId: 'client-test', clientSecret: 'secret-test' },
+  trustProxy: false,
 };
 
 /** Mapa 10x8 com parede na borda, spawn em (1, 1) e três mesas na linha 1 com a cadeira embaixo. */
@@ -45,6 +46,7 @@ export interface TestServerOptions {
   map?: unknown;
   media?: MediaService;
   github?: GitHubClient;
+  rateLimit?: boolean;
 }
 
 export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
@@ -57,6 +59,7 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
     config: TEST_CONFIG,
     clock,
     scheduler: clock,
+    rateLimit: options.rateLimit ?? false,
     ...(options.media ? { media: options.media } : {}),
     ...(options.github ? { github: options.github } : {}),
   });

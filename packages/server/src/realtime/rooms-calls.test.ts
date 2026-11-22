@@ -90,6 +90,8 @@ describe('salas de reunião e chamadas', () => {
       expect(media.tokens.find((t) => t.identity === a.guest.id && t.room === zoneRoom())?.sources).toContain(
         'screen_share',
       );
+      // Ninguém fica na sala aberta durante a reunião, nem com cliente modificado.
+      await until(() => media.removed.some((r) => r.room === spaceRoom() && r.identity === a.guest.id));
       const update = await b.bot.next('player.update', (m) => m.id === a.guest.id && m.patch.activity !== undefined);
       expect(update.patch).toEqual({ activity: 'meeting' });
 

@@ -61,7 +61,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       (next) => {
         statusListener.current(next);
         // Outra aba assumiu ou saiu do coworking: a mídia sai junto.
-        if (next === 'replaced' || next === 'removed') void media.close();
+        if (next === 'replaced' || next === 'removed' || next === 'ended') void media.close();
       },
     );
     connection.current = conn;

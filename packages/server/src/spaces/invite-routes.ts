@@ -71,7 +71,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
     return reply.code(201).send({ url, expiresAt, role: body.role, maxUses: body.maxUses });
   });
 
-  app.get<{ Params: { token: string } }>('/invites/:token', async (request, reply) => {
+  app.get<{ Params: { token: string } }>('/invites/:token', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await requireUser(deps, request, reply);
     if (!user) return reply;
     const invite = await findInvite(request.params.token);
@@ -90,7 +90,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
     };
   });
 
-  app.post<{ Params: { token: string } }>('/invites/:token/accept', async (request, reply) => {
+  app.post<{ Params: { token: string } }>('/invites/:token/accept', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await requireUser(deps, request, reply);
     if (!user) return reply;
     const now = new Date(clock.now());

@@ -59,6 +59,24 @@ describe('compileMap: mapas válidos', () => {
   });
 });
 
+describe('compileMap: custo limitado', () => {
+  it('zona e móvel gigantes não percorrem tiles fora do mapa', () => {
+    const json = buildTestMap({
+      zones: [{ key: 'enorme', type: 'open', x: 1, y: 1, w: 2, h: 2 }],
+      furniture: [{ x: 7, y: 5, tile: FURNITURE.plant }],
+    });
+    const zone = (layerOf(json, 'zones').objects as Record<string, unknown>[])[0] ?? {};
+    zone.width = 16 * 1e9;
+    zone.height = 16 * 1e9;
+    const plant = (layerOf(json, 'furniture').objects as Record<string, unknown>[])[0] ?? {};
+    plant.width = 16 * 1e9;
+    plant.height = 16 * 1e9;
+    const started = Date.now();
+    compileMap(json);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+});
+
 describe('compileMap: um erro por código', () => {
   const cases: [string, TestMapOptions, Mutate | undefined, MapError][] = [
     ['não ortogonal', {}, (m) => (m.orientation = 'isometric'), { code: 'not_orthogonal' }],
