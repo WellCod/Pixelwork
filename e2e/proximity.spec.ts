@@ -1,9 +1,10 @@
+import { STEP_MS } from '@pixelwork/shared';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
 declare global {
   interface Window {
     __pixelwork?: {
-      world: { selfId: string | null; self: { x: number; y: number } };
+      world: { selfId: string | null; self: { x: number; y: number }; pendingCount: number };
       media: { connected: boolean; debugState(): Record<string, { audio: boolean; video: boolean }> };
     };
   }
@@ -19,21 +20,21 @@ async function guest(browser: Browser): Promise<{ page: Page; id: string }> {
   return { page, id };
 }
 
-const selfPos = (page: Page) => page.evaluate(() => window.__pixelwork?.world.self ?? { x: -1, y: -1 });
-
-/** Um passo por vez, esperando a predição andar: sem sleep fixo, que mascara lentidão. */
+/**
+ * Anda `steps` tiles. O foco é liberado sem clicar no mapa: clique no canvas agora inicia
+ * "clicar para andar" (ou "seguir", se cair num avatar) e roubaria os passos do teclado. O
+ * intervalo entre teclas passa do STEP_MS, senão o cliente descarta a tecla; no fim espera o
+ * servidor confirmar todos os passos.
+ */
 async function walk(page: Page, key: string, steps: number): Promise<void> {
-  await page.locator('.game canvas').click({ position: { x: 200, y: 200 } });
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
   for (let i = 0; i < steps; i++) {
-    const before = await selfPos(page);
     await page.keyboard.press(key);
-    await expect
-      .poll(async () => {
-        const now = await selfPos(page);
-        return now.x !== before.x || now.y !== before.y;
-      }, { timeout: 2_000 })
-      .toBe(true);
+    await page.waitForTimeout(STEP_MS + 60);
   }
+  await expect.poll(() => page.evaluate(() => window.__pixelwork?.world.pendingCount ?? -1), { timeout: 5_000 }).toBe(0);
 }
 
 /** Estado de assinatura exposto em modo de desenvolvimento: o E2E não lê a renderização. */
