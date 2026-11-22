@@ -16,6 +16,8 @@ técnica nele a amplitude de features.
 - `docs/prompts/`: um prompt por fase de implementação.
 - `docs/deploy.md`: deploy na VPS, backup e restauração.
 - `docs/melhorias.md`: lista de trabalho da revisão de 2026-11 (o que foi feito e o que ficou).
+- `docs/superpowers/specs/` e `docs/superpowers/plans/`: desenhos aprovados e planos de
+  implementação das features novas (redesenho visual, pingpong).
 
 ## Stack
 
