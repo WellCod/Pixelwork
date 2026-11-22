@@ -21,7 +21,10 @@ export interface MediaService {
 }
 
 export interface LiveKitConfig {
+  /** Endereço que o navegador usa (vai no `media.join`). */
   url: string;
+  /** Endereço da API para o servidor; pode ser o interno da rede do compose. */
+  apiUrl?: string;
   apiKey: string;
   apiSecret: string;
 }
@@ -44,7 +47,7 @@ const TOKEN_TTL = '2m';
 
 export function liveKitMedia(config: LiveKitConfig): MediaService {
   // O cliente aceita a URL ws:// e troca para http por conta própria.
-  const rooms = new RoomServiceClient(config.url, config.apiKey, config.apiSecret);
+  const rooms = new RoomServiceClient(config.apiUrl ?? config.url, config.apiKey, config.apiSecret);
   return {
     url: config.url,
     token: async (identity, room, sources) => {

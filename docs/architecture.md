@@ -214,9 +214,16 @@ create table invites (
   space_id uuid not null references spaces on delete cascade,
   role text not null check (role in ('admin', 'member')),
   expires_at timestamptz not null,
-  uses_left int
+  uses_left int check (uses_left is null or uses_left >= 0)
 );
 ```
+
+Índices além das PKs (migration `0001`, revisão de 2026-11): `sessions(user_id)`,
+`sessions(expires_at)`, `oauth_accounts(user_id)`, `org_members(user_id)`,
+`space_members(user_id)`, `invites(space_id)` e `users(guest_expires_at) where is_guest`. As PKs
+compostas começam por `space_id`/`org_id`, e as consultas por usuário (lista de coworkings,
+cascatas ao apagar convidado, jobs) faziam varredura sequencial. Também entrou o check
+`char_length(status_emoji) <= 16` como teto no banco para o grafema validado na aplicação.
 
 - Participação é por coworking, não por empresa. `org_members` serve só para administrar a empresa.
   Isso permite participar de coworkings de empresas diferentes sem ser membro delas.
@@ -264,6 +271,14 @@ Restrições (o servidor rejeita com código de erro):
   gerado (`TILESETS`), para o `compileMap` não ler arquivo.
 - O Phaser não lê tileset externo: o cliente embute os tilesets do catálogo no JSON só para
   renderizar. O mapa salvo continua com `source`.
+- Revisão de 2026-11 (aprovada):
+  - `spawn_in_meeting`: o spawn não pode cair em zona de reunião. Quem entrava nascia lá dentro e
+    furava a tranca; a realocação de quem fica preso também usa o spawn.
+  - `layer_size`: `floor` e `walls` precisam ter exatamente `width * height` posições.
+  - `zone_outside` e `desk_outside`: zona sem nenhum tile dentro do mapa e mesa fora dele.
+  - `chair_shared`: duas mesas com o mesmo tile de cadeira.
+  - Zonas e móveis são recortados ao mapa antes de percorrer os tiles: um retângulo de 1e9 px num
+    JSON pequeno travava o servidor.
 
 Compilação (em `shared`, usada por cliente e servidor):
 
@@ -281,16 +296,17 @@ export interface CompiledMap {
 
 export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
-  | { code: 'missing_layer' | 'wrong_layer_type'; layer: string }
+  | { code: 'missing_layer' | 'wrong_layer_type' | 'layer_size'; layer: string }
   | { code: 'unknown_tileset'; source: string }
   | { code: 'tileset_overlap'; a: string; b: string }   // firstgid + tilecount invade o seguinte
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
-  | { code: 'zone_not_aligned' | 'invalid_zone_type'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation'; deskKey: string }
+  | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside'; deskKey: string }
+  | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
-  | { code: 'spawn_blocked' };
+  | { code: 'spawn_blocked' | 'spawn_in_meeting' };
 
 export function compileMap(json: unknown): { ok: true; map: CompiledMap } | { ok: false; errors: MapError[] };
 ```
@@ -508,6 +524,13 @@ Decisões da fase 5:
   transação da entrada. Validade padrão de 7 dias.
 - Callback do GitHub com `state` divergente, ausente ou código recusado volta para
   `/?erro=github` sem sessão. O cliente do GitHub é injetado (`GitHubClient`).
+- O último admin de um coworking não sai nem é removido (409 `last_admin`): a contagem e a
+  remoção rodam na mesma transação, com as linhas dos admins travadas (`for update`).
+- Exceção registrada ao invariante 4: as rotas de convite (`GET /invites/:token` e o aceite) leem
+  `space_members` pelo `space_id` do convite, porque quem aceita ainda não é membro. O token é a
+  autorização.
+- `requireMember` devolve o `spaceId` que veio da resolução de `space_members`, e as rotas usam
+  esse, nunca o parâmetro cru (revisão de 2026-11).
 - Remover membro (ou sair) libera a mesa pela FK, fecha a conexão com o código 4003 e tira o
   jogador do mapa na hora, sem tolerância. Trocar de coworking é uma desconexão comum: o
   avatar some do anterior depois dos 10 segundos de tolerância.
@@ -695,6 +718,8 @@ Decisões da fase 6:
   aceitando só tile caminhável da mesma zona (a zona do tile no mapa novo); sem nenhum, o spawn.
 - Zona de reunião removida: batidas pendentes são recusadas, a tranca some, quem estava dentro
   recebe o `media.join` da sala nova e a sala `zone:` é encerrada (`deleteRoom`).
+- Zona trancada redesenhada por cima de quem estava fora: a pessoa vai para o spawn em vez de
+  ganhar acesso. Sala que fica vazia com a troca destranca (revisão de 2026-11).
 - No cliente, `map.updated` busca o mapa de novo e recria só a cena do Phaser; a conexão, a mídia
   e as chamadas continuam. A posição de quem foi realocado chega pelo tick.
 - O `CREDITS.txt` do export lista só os tilesets que o mapa usa; a página `/creditos` lista o
@@ -721,6 +746,9 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Editando, mapas que chegam por `map.updated` são ignorados; salvar usa a `baseVersion` do
   início da edição e, no 409, o painel oferece descartar e recarregar o mapa atual.
 - O template para começar do zero é o JSON de `maps/templates/` importado no cliente, sem rota.
+  Ao trocar, `adoptDocument` renumera as chaves do modelo que já foram usadas no mapa atual e
+  leva o contador adiante: a "mesa-1" do modelo é outra mesa, e a atribuição antiga aparece como
+  órfã ao salvar em vez de ser herdada (revisão de 2026-11).
 - Renomear zona grava ao sair do campo: um comando por renomeação, não por tecla.
 
 ## 13. Convidados e coworking de demonstração

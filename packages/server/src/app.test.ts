@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from './app.ts';
+import { buildApp, maskUrl } from './app.ts';
 import { createDb } from './db.ts';
 import { TEST_CONFIG, startTestServer, type TestServer } from './test/harness.ts';
 
@@ -30,5 +30,13 @@ describe('GET /health', () => {
       await brokenApp.close();
       await broken.pool.end();
     }
+  });
+});
+
+describe('maskUrl', () => {
+  it('esconde o token do convite no caminho e deixa o resto', () => {
+    expect(maskUrl('/invites/abc123/accept')).toBe('/invites/***/accept');
+    expect(maskUrl('/invites/abc123')).toBe('/invites/***');
+    expect(maskUrl('/spaces/x/invites')).toBe('/spaces/x/invites');
   });
 });

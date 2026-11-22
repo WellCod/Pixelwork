@@ -9,6 +9,7 @@ Preparado, não feito: uma VPS com Docker roda tudo com `docker-compose.prod.yml
 | `web`      | Caddy 2 com o cliente compilado      | TLS automático, cliente estático, proxy da API e do WebSocket |
 | `app`      | Node 24 + tsx (alvo `app` do Dockerfile) | Fastify, tempo real, jobs; roda migrations e seed ao subir |
 | `postgres` | `postgres:17`                        | Banco, com volume `pgdata`                                   |
+| `backup`   | `postgres:17`                        | `pg_dump` diário em `./backups`, guarda os 7 mais recentes   |
 | `livekit`  | `livekit/livekit-server:v1.13.11`    | SFU de áudio e vídeo                                         |
 
 ## Passo a passo
@@ -16,10 +17,40 @@ Preparado, não feito: uma VPS com Docker roda tudo com `docker-compose.prod.yml
 1. Dois domínios apontando para a VPS: o do app (`APP_DOMAIN`) e o do LiveKit
    (`LIVEKIT_DOMAIN`). O Caddy pede os certificados sozinho.
 2. `cp .env.production.example .env.production` e preencher. Chave e segredo do LiveKit:
-   `docker run --rm livekit/livekit-server:v1.13.11 generate-keys`.
+   `docker run --rm livekit/livekit-server:v1.13.11 generate-keys`. Senha do Postgres só com
+   letras e números (ela entra crua na `DATABASE_URL`): `openssl rand -hex 24`. Com `PUBLIC_URL`
+   em https, o app se recusa a subir com valores de desenvolvimento (chave `devkey`, segredo
+   curto, cookie sem `Secure`, `LOAD_TEST`, senha de exemplo).
 3. `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`.
 
 HTTPS é obrigatório: o navegador só libera câmera e microfone (`getUserMedia`) em contexto seguro.
+
+## O que o compose já faz
+
+- Imagem do app só com as dependências de produção do servidor, rodando como usuário `node`, com
+  `HEALTHCHECK` em `/health`. O Caddy só sobe depois do app saudável.
+- Rotação de log (10 MB x 3 por serviço) e limite de memória por serviço.
+- `TRUST_PROXY=true` no app: o limite de taxa por IP lê o `X-Forwarded-For` do Caddy.
+- O servidor fala com a API do LiveKit pela rede interna (`LIVEKIT_API_URL=http://livekit:7880`).
+- Caddy com HSTS, CSP, `nosniff`, `X-Frame-Options` e cache longo para os arquivos com hash do
+  Vite. A CSP foi conferida contra o bundle (sem `eval`, sem script inline), mas só dá para
+  validar de ponta a ponta no primeiro deploy com HTTPS: se o console acusar bloqueio, ajuste em
+  `deploy/Caddyfile`.
+
+## Backup e restauração
+
+O serviço `backup` grava `backups/coworking-<data>.dump` uma vez por dia e apaga os mais antigos
+que os 7 últimos. Os arquivos ficam na própria VPS: copie para fora (rclone, restic, S3) para
+sobreviver à perda da máquina.
+
+Restaurar num banco vazio:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production stop app
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
+  pg_restore --clean --if-exists -U app -d coworking < backups/coworking-<data>.dump
+docker compose -f docker-compose.prod.yml --env-file .env.production start app
+```
 
 ## Portas no firewall
 

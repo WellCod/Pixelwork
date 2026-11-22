@@ -388,7 +388,12 @@ export class SpaceRuntime {
     this.mapVersion = version;
     const players = new Map(this.world.players);
     for (const [id, p] of players) {
-      const to = relocate(map, p.x, p.y);
+      let to = relocate(map, p.x, p.y);
+      // Zona redesenhada por cima de alguém não fura a tranca: quem não estava dentro nem foi
+      // liberado vai para o spawn (que o compileMap garante fora de sala de reunião).
+      const zone = zoneAt(map, to.x, to.y);
+      const lock = this.locks.get(zone.key);
+      if (lock?.locked && !lock.allowed.has(id) && this.members.get(id)?.zoneKey !== zone.key) to = map.spawn;
       if (to.x === p.x && to.y === p.y) continue;
       players.set(id, { ...p, x: to.x, y: to.y });
       this.moved.add(id);
@@ -401,7 +406,8 @@ export class SpaceRuntime {
       if (p) member.zoneKey = zoneAt(map, p.x, p.y).key;
       this.refresh(id);
     }
-    for (const key of this.locks.keys()) this.broadcast({ t: 'zone.state', zone: this.zoneState(key) });
+    // Sala que ficou vazia com a troca destranca, como quando o último sai andando.
+    for (const key of this.locks.keys()) this.zoneChanged(key);
     // Quem estava numa zona removida já foi mandado para outra sala; a sala antiga fecha.
     for (const key of removed) {
       this.deps.media.deleteRoom(zoneRoom(this.spaceId, key)).catch((error: unknown) => {

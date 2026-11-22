@@ -41,16 +41,17 @@ export interface CompiledMap {
 
 export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
-  | { code: 'missing_layer' | 'wrong_layer_type'; layer: string }
+  | { code: 'missing_layer' | 'wrong_layer_type' | 'layer_size'; layer: string }
   | { code: 'unknown_tileset'; source: string }
   | { code: 'tileset_overlap'; a: string; b: string }
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
-  | { code: 'zone_not_aligned' | 'invalid_zone_type'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation'; deskKey: string }
+  | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside'; deskKey: string }
+  | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
-  | { code: 'spawn_blocked' };
+  | { code: 'spawn_blocked' | 'spawn_in_meeting' };
 
 export type CompileResult = { ok: true; map: CompiledMap } | { ok: false; errors: MapError[] };
 
@@ -164,6 +165,10 @@ export function compileMap(json: unknown): CompileResult {
   const tileData = (name: string): unknown[] => (layer(name)?.data as unknown[] | undefined) ?? [];
   const floor = tileData('floor');
   const walls = tileData('walls');
+  // Camada com outro tamanho compila, mas o Phaser desenharia deslocado ou vazio.
+  for (const name of TILE_LAYERS) {
+    if (tileData(name).length !== size) errors.push({ code: 'layer_size', layer: name });
+  }
 
   const walkable = new Uint8Array(size);
   for (let i = 0; i < size; i++) {
@@ -230,12 +235,17 @@ export function compileMap(json: unknown): CompileResult {
       name: typeof nameProp === 'string' ? nameProp : key,
       tiles: 0,
     };
-    zones.push(zone);
-    const index = zones.length - 1;
     const ty0 = Math.max(0, y / TILE_PX);
     const ty1 = Math.min(height, (y + h) / TILE_PX);
     const tx0 = Math.max(0, x / TILE_PX);
     const tx1 = Math.min(width, (x + w) / TILE_PX);
+    // Zona sem nenhum tile dentro do mapa criaria tranca e sala de mídia que ninguém alcança.
+    if (tx1 <= tx0 || ty1 <= ty0) {
+      errors.push({ code: 'zone_outside', key });
+      continue;
+    }
+    zones.push(zone);
+    const index = zones.length - 1;
     for (let ty = ty0; ty < ty1; ty++) {
       for (let tx = tx0; tx < tx1; tx++) {
         const i = ty * width + tx;
@@ -281,12 +291,22 @@ export function compileMap(json: unknown): CompileResult {
     const dir = orientation as Dir;
     const x = Math.floor(num(object.x) / TILE_PX);
     const y = Math.floor(num(object.y) / TILE_PX);
+    if (!inside(x, y)) {
+      errors.push({ code: 'desk_outside', deskKey: key });
+      continue;
+    }
     const [dx, dy] = DIR_DELTA[dir];
     desks.push({ key, x, y, orientation: dir, chairX: x + dx, chairY: y + dy });
     block(x, y);
   }
+  const chairs = new Map<number, string>();
   for (const desk of desks) {
     if (!isWalkable(desk.chairX, desk.chairY)) errors.push({ code: 'chair_blocked', deskKey: desk.key });
+    // Duas mesas com a mesma cadeira: sentar ali contaria como estar nas duas.
+    const chair = desk.chairY * width + desk.chairX;
+    const other = chairs.get(chair);
+    if (other !== undefined) errors.push({ code: 'chair_shared', a: other, b: desk.key });
+    else chairs.set(chair, desk.key);
   }
 
   const spawns = objectsOf(layer('spawn') as Json);
@@ -299,6 +319,10 @@ export function compileMap(json: unknown): CompileResult {
       y: Math.floor(num(spawns[0].y) / TILE_PX),
     };
     if (!isWalkable(spawn.x, spawn.y)) errors.push({ code: 'spawn_blocked' });
+    // Quem entra nasceria dentro da sala e furaria a tranca.
+    else if (zones[zoneIndex[spawn.y * width + spawn.x] ?? 0]?.type === 'meeting') {
+      errors.push({ code: 'spawn_in_meeting' });
+    }
   }
 
   if (errors.length > 0) return { ok: false, errors };

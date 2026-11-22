@@ -1,5 +1,7 @@
 import {
   CALL_RING_TIMEOUT_MS,
+  TICK_MS,
+  compileMap,
   KNOCK_TIMEOUT_MS,
   RECONNECT_GRACE_MS,
   type Dir,
@@ -195,6 +197,34 @@ describe('salas de reunião e chamadas', () => {
       await first.bot.next('zone.state', (m) => m.zone.locked);
       await first.bot.walk(server.clock, ['up', 'up']);
       expect(await position(first.guest)).toEqual([7, 5]);
+    });
+    it('sala redesenhada por cima de quem está fora não fura a tranca', async () => {
+      const inside = await online();
+      const outside = await online();
+      await enterRoom(inside);
+      inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
+      await outside.bot.next('zone.state', (m) => m.zone.locked);
+      await outside.bot.walk(server.clock, ['down', 'right']);
+
+      // A sala passa a cobrir de x=2 em diante, incluindo a cadeira onde "outside" está.
+      const bigger = buildTestMap({
+        width: 12,
+        height: 10,
+        walls,
+        zones: [{ key: 'sala', type: 'meeting', name: 'Sala', x: 2, y: 1, w: 8, h: 4 }],
+        desks: [
+          { key: 'mesa-1', x: 2, y: 1, orientation: 'down' },
+          { key: 'mesa-2', x: 3, y: 1, orientation: 'down' },
+        ],
+        spawns: [[1, 1]],
+      });
+      const compiled = compileMap(bigger);
+      if (!compiled.ok) throw new Error(JSON.stringify(compiled.errors));
+      server.app.realtime.runtime(server.spaceId)?.replaceMap(compiled.map, 99);
+      server.clock.advance(TICK_MS);
+      expect(await position(outside.guest)).toEqual([1, 1]);
+      expect(await position(inside.guest)).not.toEqual([1, 1]);
+      expect(media.roomsFor(outside.guest.id)).not.toContain(zoneRoom());
     });
   });
 
