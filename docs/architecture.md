@@ -381,6 +381,13 @@ export function step(
   10 segundos fecham a conexão (código 1008). Mais de 50 mensagens por segundo também.
 - Desconexão: o jogador permanece por `RECONNECT_GRACE_MS` antes de `player.leave`. O cliente
   reconecta com backoff exponencial, e na hora quando o navegador avisa que a rede voltou.
+- Tick binário (aprovado em 2026-11, `shared/src/binary.ts`): cada jogador ganha um id curto
+  (u16, o menor livre no runtime) que vai no `Player.n` do `welcome` e do `player.join`. O tick
+  vai como quadro binário: tipo (u8), `ack` (u32), `ts` (f64), quantidade (u16) e 5 bytes por
+  movimento (id curto, x, y, direção), little-endian. O servidor monta o quadro uma vez e troca só
+  o `ack` numa cópia por destinatário. O cliente decodifica para o mesmo `{ t: 'tick' }` de antes,
+  com os ids completos, então o resto do cliente não mudou. As outras mensagens seguem em JSON.
+  Com 50 bots, o tick médio caiu de 1.559 B para 154 B (README, "Números de carga").
 - `ping { id }` → `pong { id, ts }` (aprovado em 2026-11): o cliente manda a cada
   `PING_INTERVAL_MS` (5 s), mede RTT, jitter e a diferença de relógio. Sem nenhuma mensagem do
   servidor por `CONNECTION_TIMEOUT_MS` (15 s), o cliente dá a conexão como morta e reconecta.

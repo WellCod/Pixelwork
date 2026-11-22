@@ -53,6 +53,8 @@ export type DeskDecor = z.infer<typeof DeskDecor>;
 
 export interface Player {
   id: string;
+  /** Id curto (u16) deste jogador no runtime, usado no tick binário. */
+  n: number;
   name: string;
   title: string | null;
   avatar: AvatarSpec;
@@ -105,7 +107,10 @@ export type ServerMsg =
       zones: ZoneState[];
       desks: DeskState[];
     }
-  /** `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. */
+  /**
+   * `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. Na rede o tick vai
+   * em binário (`binary.ts`); o cliente decodifica para este formato, com os ids completos.
+   */
   | { t: 'tick'; ack: number; moves: TickMove[]; ts?: number }
   | { t: 'player.join'; player: Player }
   | { t: 'player.leave'; id: string }

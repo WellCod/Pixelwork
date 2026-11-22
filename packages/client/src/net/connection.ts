@@ -4,6 +4,7 @@ import {
   CLOSE_SESSION_REPLACED,
   CONNECTION_TIMEOUT_MS,
   PING_INTERVAL_MS,
+  decodeTick,
   type ClientMsg,
   type ServerMsg,
 } from '@pixelwork/shared';
@@ -55,6 +56,8 @@ export class Connection {
     private readonly onStatus: (status: ConnectionStatus) => void,
     /** Atraso artificial de envio e recebimento (overlay de netcode em desenvolvimento). */
     private readonly lag: () => number = () => 0,
+    /** Id curto -> id completo, para o tick binário. */
+    private readonly idOf: (short: number) => string | undefined = () => undefined,
   ) {}
 
   open(): void {
@@ -67,6 +70,7 @@ export class Connection {
     const url = new URL(`/ws?space=${encodeURIComponent(this.spaceId)}`, location.href);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
     this.ws = ws;
     this.lastMessageAt = performance.now();
     this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
@@ -74,12 +78,21 @@ export class Connection {
     ws.onopen = () => {
       if (this.ws === ws) this.startHeartbeat();
     };
-    ws.onmessage = (event: MessageEvent<string>) => {
+    ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
       if (this.ws !== ws) return;
       this.lastMessageAt = performance.now();
+      const data = event.data;
+      if (data instanceof ArrayBuffer) {
+        // O id curto é resolvido na entrega, depois do atraso simulado, com o mapa de ids daquele momento.
+        this.delay(() => {
+          const msg = this.tickFrom(data);
+          if (msg) this.receive(msg);
+        }, 'in');
+        return;
+      }
       let msg: ServerMsg;
       try {
-        msg = JSON.parse(event.data) as ServerMsg;
+        msg = JSON.parse(data) as ServerMsg;
       } catch {
         return;
       }
@@ -94,6 +107,17 @@ export class Connection {
       if (final) this.setStatus(final);
       else this.scheduleRetry();
     };
+  }
+
+  private tickFrom(data: ArrayBuffer): ServerMsg | null {
+    const tick = decodeTick(data);
+    if (!tick) return null;
+    const moves: [string, number, number, (typeof tick.moves)[number][3]][] = [];
+    for (const [short, x, y, dir] of tick.moves) {
+      const id = this.idOf(short);
+      if (id) moves.push([id, x, y, dir]);
+    }
+    return { t: 'tick', ack: tick.ack, ts: tick.ts, moves };
   }
 
   private receive(msg: ServerMsg): void {

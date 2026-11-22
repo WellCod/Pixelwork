@@ -24,6 +24,8 @@ export type WorldEvent =
 export class ClientWorld {
   selfId: string | null = null;
   readonly players = new Map<string, Player>();
+  /** Id curto do tick binário -> id. */
+  private readonly shortIds = new Map<number, string>();
   readonly desks = new Map<string, DeskState>();
   readonly zones = new Map<string, ZoneState>();
   /** Muda a cada evento; a UI em React usa como snapshot. */
@@ -57,7 +59,11 @@ export class ClientWorld {
       case 'welcome': {
         this.selfId = msg.selfId;
         this.players.clear();
-        for (const p of msg.players) this.players.set(p.id, p);
+        this.shortIds.clear();
+        for (const p of msg.players) {
+          this.players.set(p.id, p);
+          this.shortIds.set(p.n, p.id);
+        }
         this.desks.clear();
         for (const d of msg.desks) this.desks.set(d.deskKey, d);
         this.zones.clear();
@@ -90,12 +96,16 @@ export class ClientWorld {
       }
       case 'player.join':
         this.players.set(msg.player.id, msg.player);
+        this.shortIds.set(msg.player.n, msg.player.id);
         this.emit({ type: 'join', player: msg.player });
         break;
-      case 'player.leave':
+      case 'player.leave': {
+        const n = this.players.get(msg.id)?.n;
+        if (n !== undefined && this.shortIds.get(n) === msg.id) this.shortIds.delete(n);
         this.players.delete(msg.id);
         this.emit({ type: 'leave', id: msg.id });
         break;
+      }
       case 'player.update': {
         const player = this.players.get(msg.id);
         if (player) Object.assign(player, msg.patch);
@@ -145,6 +155,10 @@ export class ClientWorld {
     this.self = predictStep(this.self, dir, this.map, this.canEnter);
     this.emit({ type: 'selfStep', pos: this.self });
     return { t: 'move', seq: this.seq, dir };
+  }
+
+  idOf(short: number): string | undefined {
+    return this.shortIds.get(short);
   }
 
   /** Passos enviados e ainda não confirmados pelo servidor. */

@@ -75,7 +75,7 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 - [x] Métricas `/metrics` (Prometheus)
 - [x] Clicar para andar e seguir alguém (A* em `shared`)
 - [x] Replay determinístico de entradas
-- [ ] Tick binário com ids curtos
+- [x] Tick binário com ids curtos
 
 ## 6. Fechamento
 

@@ -1,4 +1,4 @@
-import { MIN_STEP_INTERVAL_MS, type ClientMsg, type Dir, type ServerMsg } from '@pixelwork/shared';
+import { MIN_STEP_INTERVAL_MS, decodeTick, type ClientMsg, type Dir, type ServerMsg } from '@pixelwork/shared';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import type { FastifyInstance } from 'fastify';
 import WebSocket from 'ws';
@@ -128,9 +128,18 @@ export class Bot {
   readonly closed: Promise<number>;
   private seq = 0;
 
+  /** Id curto -> id, para decodificar o tick binário como o cliente faz. */
+  private readonly shortIds = new Map<number, string>();
+
   private constructor(readonly ws: WebSocket) {
-    ws.on('message', (data) => {
-      const msg = JSON.parse((data as Buffer).toString('utf8')) as ServerMsg;
+    ws.on('message', (data, isBinary) => {
+      const msg = isBinary ? this.tickFrom(data as Buffer) : (JSON.parse((data as Buffer).toString('utf8')) as ServerMsg);
+      if (!msg) throw new Error('tick binário inválido');
+      if (msg.t === 'welcome') {
+        this.shortIds.clear();
+        for (const p of msg.players) this.shortIds.set(p.n, p.id);
+      }
+      if (msg.t === 'player.join') this.shortIds.set(msg.player.n, msg.player.id);
       const waiter = this.waiters.find((w) => w.match(msg));
       if (waiter) {
         this.waiters = this.waiters.filter((w) => w !== waiter);
@@ -149,6 +158,17 @@ export class Bot {
       ws.once('unexpected-response', (_req, res) => reject(new Error(`HTTP ${res.statusCode}`)));
       ws.once('error', reject);
     });
+  }
+
+  private tickFrom(data: Buffer): ServerMsg | null {
+    const tick = decodeTick(data);
+    if (!tick) return null;
+    return {
+      t: 'tick',
+      ack: tick.ack,
+      ts: tick.ts,
+      moves: tick.moves.map(([n, x, y, dir]) => [this.shortIds.get(n) ?? `?${n}`, x, y, dir]),
+    };
   }
 
   /** Próxima mensagem que satisfaz o filtro, incluindo as que já chegaram. */
