@@ -1,5 +1,5 @@
-import type { ClientMsg, CompiledMap, DeskState, Dir, Player, ServerMsg, ZoneState } from '@pixelwork/shared';
-import { predictStep, reconcile, type PendingMove, type Pos } from './reconcile.ts';
+import { zoneAt, type ClientMsg, type CompiledMap, type DeskState, type Dir, type Player, type ServerMsg, type ZoneState } from '@pixelwork/shared';
+import { predictStep, reconcile, type CanEnter, type PendingMove, type Pos } from './reconcile.ts';
 
 export type WorldEvent =
   | { type: 'reset' }
@@ -32,6 +32,10 @@ export class ClientWorld {
   private authoritative: Pos = { x: 0, y: 0, dir: 'down' };
   private pending: PendingMove[] = [];
   private seq = 0;
+  /** Salas trancadas em que a batida foi aceita: a predição deixa entrar. */
+  private readonly allowedZones = new Set<string>();
+  /** Correções de posição desde o welcome (overlay de netcode). */
+  corrections = 0;
   private readonly listeners = new Set<(event: WorldEvent) => void>();
 
   constructor(public map: CompiledMap) {}
@@ -61,6 +65,7 @@ export class ClientWorld {
         this.authoritative = this.self;
         this.pending = [];
         this.seq = 0;
+        this.allowedZones.clear();
         this.emit({ type: 'reset' });
         break;
       }
@@ -71,9 +76,10 @@ export class ClientWorld {
           if (id === this.selfId) this.authoritative = { x, y, dir };
           else this.emit({ type: 'remoteMove', id, x, y, dir });
         }
-        const result = reconcile(this.authoritative, msg.ack, this.pending, this.map);
+        const result = reconcile(this.authoritative, msg.ack, this.pending, this.map, this.canEnter);
         this.pending = result.pending;
         if (result.pos.x !== this.self.x || result.pos.y !== this.self.y) {
+          this.corrections++;
           this.self = result.pos;
           this.emit({ type: 'selfCorrected', pos: this.self });
         }
@@ -108,12 +114,14 @@ export class ClientWorld {
         break;
       case 'zone.state':
         this.zones.set(msg.zone.zoneKey, msg.zone);
+        if (!msg.zone.locked) this.allowedZones.delete(msg.zone.zoneKey);
         this.emit({ type: 'zone', zone: msg.zone });
         break;
       case 'zone.knockRequest':
         this.emit({ type: 'knockRequest', requestId: msg.requestId, zoneKey: msg.zoneKey, from: msg.from });
         break;
       case 'zone.knockResult':
+        if (msg.allowed) this.allowedZones.add(msg.zoneKey);
         this.emit({ type: 'knockResult', zoneKey: msg.zoneKey, allowed: msg.allowed });
         break;
       case 'call.incoming':
@@ -131,10 +139,27 @@ export class ClientWorld {
   move(dir: Dir): ClientMsg {
     this.seq++;
     this.pending.push({ seq: this.seq, dir });
-    this.self = predictStep(this.self, dir, this.map);
+    this.self = predictStep(this.self, dir, this.map, this.canEnter);
     this.emit({ type: 'selfStep', pos: this.self });
     return { t: 'move', seq: this.seq, dir };
   }
+
+  /** Passos enviados e ainda não confirmados pelo servidor. */
+  get pendingCount(): number {
+    return this.pending.length;
+  }
+
+  /** Posição que o servidor confirmou por último (o "fantasma" do overlay de netcode). */
+  get confirmed(): Pos {
+    return this.authoritative;
+  }
+
+  /** Espelha a regra do servidor: sala trancada só para quem já está dentro ou foi liberado. */
+  private readonly canEnter: CanEnter = (from, x, y) => {
+    const zone = zoneAt(this.map, x, y);
+    if (zone.type !== 'meeting' || !this.zones.get(zone.key)?.locked) return true;
+    return zoneAt(this.map, from.x, from.y).key === zone.key || this.allowedZones.has(zone.key);
+  };
 
   private emit(event: WorldEvent): void {
     this.version++;

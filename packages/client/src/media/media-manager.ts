@@ -1,10 +1,12 @@
 import {
+  DisconnectReason,
   LocalVideoTrack,
   RemoteVideoTrack,
   Room,
   RoomEvent,
   Track,
   VideoQuality,
+  type Participant,
   type RemoteParticipant,
   type RemoteTrack,
 } from 'livekit-client';
@@ -30,6 +32,10 @@ export class MediaManager {
   roomName: string | null = null;
   audioBlocked = false;
   connected = false;
+  /** A conexão de mídia caiu sem o servidor mandar trocar de sala: precisa de um token novo. */
+  lost = false;
+  /** Quem está falando agora (identidades), para o anel no mapa e na lista. */
+  speaking = new Set<string>();
   error: string | null = null;
   version = 0;
 
@@ -53,6 +59,8 @@ export class MediaManager {
     this.screenOn = false;
     const previous = this.room;
     this.room = null;
+    this.lost = false;
+    this.speaking = new Set();
     this.setConnected(false);
     await previous?.disconnect();
     this.changed();
@@ -97,25 +105,32 @@ export class MediaManager {
     return this.expanded;
   }
 
+  /** Falha (permissão negada, sem dispositivo) volta o botão para desligado. */
   async setMic(on: boolean): Promise<void> {
     this.micOn = on;
     this.changed();
-    await this.room?.localParticipant.setMicrophoneEnabled(on).catch((e: unknown) => this.fail(e));
+    await this.room?.localParticipant.setMicrophoneEnabled(on).catch((e: unknown) => {
+      this.micOn = false;
+      this.fail(e, 'microfone');
+    });
   }
 
   async setCamera(on: boolean): Promise<void> {
     this.camOn = on;
     this.changed();
-    await this.room?.localParticipant.setCameraEnabled(on).catch((e: unknown) => this.fail(e));
+    await this.room?.localParticipant.setCameraEnabled(on).catch((e: unknown) => {
+      this.camOn = false;
+      this.fail(e, 'câmera');
+    });
   }
 
   async setScreenShare(on: boolean): Promise<void> {
-    if (on && !this.isPrivate) return;
+    if (on && (!this.isPrivate || !this.room)) return;
     this.screenOn = on;
     this.changed();
     await this.room?.localParticipant.setScreenShareEnabled(on, { audio: true }).catch((e: unknown) => {
       this.screenOn = false;
-      this.fail(e);
+      this.fail(e, 'tela');
     });
   }
 
@@ -175,13 +190,16 @@ export class MediaManager {
     await room?.disconnect();
   }
 
+  /** Microfone e câmera em tentativas separadas: um negado não impede o outro. */
   private async publishLocal(room: Room): Promise<void> {
-    try {
-      await room.localParticipant.setMicrophoneEnabled(this.micOn);
-      await room.localParticipant.setCameraEnabled(this.camOn);
-    } catch (error) {
-      this.fail(error);
-    }
+    await room.localParticipant.setMicrophoneEnabled(this.micOn).catch((error: unknown) => {
+      this.micOn = false;
+      this.fail(error, 'microfone');
+    });
+    await room.localParticipant.setCameraEnabled(this.camOn).catch((error: unknown) => {
+      this.camOn = false;
+      this.fail(error, 'câmera');
+    });
   }
 
   private apply(): void {
@@ -215,7 +233,15 @@ export class MediaManager {
       .on(RoomEvent.TrackMuted, reapply)
       .on(RoomEvent.TrackUnmuted, reapply)
       .on(RoomEvent.LocalTrackPublished, () => this.changed())
-      .on(RoomEvent.LocalTrackUnpublished, () => this.changed())
+      .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        // Parar pelo botão nativo do navegador também desliga o estado daqui.
+        if (publication.source === Track.Source.ScreenShare) this.screenOn = false;
+        this.changed();
+      })
+      .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+        this.speaking = new Set(speakers.map((p) => p.identity));
+        this.changed();
+      })
       .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
         if (track.kind === Track.Kind.Audio) {
           const element = track.attach();
@@ -237,16 +263,26 @@ export class MediaManager {
         this.audioBlocked = !room.canPlaybackAudio;
         this.changed();
       })
-      .on(RoomEvent.Disconnected, () => {
-        if (this.room === room) {
-          this.room = null;
-          this.setConnected(false);
-        }
+      .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+        if (this.room !== room) return;
+        this.room = null;
+        // Removido pelo servidor ou sala apagada: um `media.join` novo já vem a caminho.
+        const expected =
+          reason === DisconnectReason.CLIENT_INITIATED ||
+          reason === DisconnectReason.PARTICIPANT_REMOVED ||
+          reason === DisconnectReason.ROOM_DELETED;
+        this.lost = !expected;
+        this.setConnected(false);
       });
   }
 
-  private fail(error: unknown): void {
-    this.error = error instanceof Error ? error.message : String(error);
+  private fail(error: unknown, device?: string): void {
+    this.error = describeMediaError(error, device);
+    this.changed();
+  }
+
+  dismissError(): void {
+    this.error = null;
     this.changed();
   }
 
@@ -258,5 +294,28 @@ export class MediaManager {
   private changed(): void {
     this.version++;
     for (const listener of this.listeners) listener();
+  }
+}
+
+const DEVICES: Record<string, { the: string; none: string }> = {
+  microfone: { the: 'o microfone', none: 'Nenhum microfone encontrado.' },
+  câmera: { the: 'a câmera', none: 'Nenhuma câmera encontrada.' },
+  tela: { the: 'a tela', none: 'Não há tela disponível para compartilhar.' },
+};
+
+/** Erros do navegador e do LiveKit em português, com o que a pessoa pode fazer. */
+export function describeMediaError(error: unknown, device = 'microfone'): string {
+  const name = error instanceof Error ? error.name : '';
+  const d = DEVICES[device] ?? { the: device, none: `${device}: não encontrado.` };
+  switch (name) {
+    case 'NotAllowedError':
+      return `Sem permissão para usar ${d.the}. Libere no cadeado da barra de endereço.`;
+    case 'NotFoundError':
+    case 'OverconstrainedError':
+      return d.none;
+    case 'NotReadableError':
+      return `Não deu para abrir ${d.the}: outro programa está usando.`;
+    default:
+      return 'Não deu para conectar o áudio e o vídeo agora.';
   }
 }

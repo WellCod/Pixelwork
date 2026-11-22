@@ -18,11 +18,14 @@ import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-
 import { Mover } from './mover.ts';
 import { SLOT_OFFSET, isNear, seatedFacing, type Slot } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
+import { isTyping, releaseFocus } from '../input-focus.ts';
 
 export interface WorldSceneOptions {
   world: ClientWorld;
   mapJson: Record<string, unknown>;
   send: (msg: ClientMsg) => void;
+  /** Fora do ar a predição andaria sozinha e voltaria no welcome: o input fica parado. */
+  canMove?: () => boolean;
   /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
   hasVideoBubble?: (id: string) => boolean;
 }
@@ -115,7 +118,14 @@ export class WorldScene extends Phaser.Scene {
     this.unsubscribe = this.options.world.subscribe((event) => {
       this.onWorldEvent(event);
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribe?.());
+    // `game.destroy` emite DESTROY sem SHUTDOWN; sem os dois, a cena morta segue recebendo eventos.
+    const stop = () => {
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
+    this.events.once(Phaser.Scenes.Events.DESTROY, stop);
+    this.input.on('pointerdown', releaseFocus);
   }
 
   override update(_time: number, delta: number): void {
@@ -156,6 +166,7 @@ export class WorldScene extends Phaser.Scene {
     const time = performance.now();
     const { world } = this.options;
     if (!world.selfId || time - this.lastStepAt < STEP_MS) return;
+    if (this.options.canMove && !this.options.canMove()) return;
     this.lastStepAt = time;
     this.options.send(world.move(dir));
   }
@@ -197,7 +208,7 @@ export class WorldScene extends Phaser.Scene {
         const avatar = world.selfId ? this.avatars.get(world.selfId) : undefined;
         if (!avatar) break;
         avatar.dir = event.pos.dir;
-        if (event.type === 'selfCorrected') avatar.mover.snap(event.pos.x, event.pos.y);
+        if (event.type === 'selfCorrected') avatar.mover.correct(event.pos.x, event.pos.y);
         else avatar.mover.push(event.pos.x, event.pos.y);
         break;
       }
@@ -355,9 +366,4 @@ export class WorldScene extends Phaser.Scene {
       })
       .setOrigin(0, 0);
   }
-}
-
-function isTyping(): boolean {
-  const el = document.activeElement;
-  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 }

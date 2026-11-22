@@ -47,3 +47,11 @@ describe('predictStep', () => {
     expect(predictStep({ x: 1, y: 1, dir: 'down' }, 'left', map)).toEqual({ x: 1, y: 1, dir: 'left' });
   });
 });
+
+describe('predictStep com regra de entrada', () => {
+  it('não prevê entrada num tile recusado pela regra (sala trancada), só vira', () => {
+    const blocked = (_from: unknown, x: number) => x !== 2;
+    expect(predictStep({ x: 1, y: 1, dir: 'down' }, 'right', map, blocked)).toEqual({ x: 1, y: 1, dir: 'right' });
+    expect(predictStep({ x: 1, y: 1, dir: 'down' }, 'down', map, blocked)).toEqual({ x: 1, y: 2, dir: 'down' });
+  });
+});

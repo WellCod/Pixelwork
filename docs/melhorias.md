@@ -19,26 +19,26 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 ## 2. Bugs do cliente
 
-- [ ] Listener do mundo não é removido em `DESTROY` (WorldScene, EditorScene)
-- [ ] Enter abre o chat com foco em botão e cancela o clique
-- [ ] Avatar anda com modal aberto; DecorEditor some ao levantar da cadeira
-- [ ] Clicar no mapa não tira o foco de inputs
-- [ ] Passo descartado por jitter puxa o avatar de volta (buffer de 1 input no servidor)
-- [ ] Rede: heartbeat, bloquear input offline, `JSON.parse` protegido, reconectar no `online`
-- [ ] Erro transitório em `openSpace` manda para o login; `setState` com closure velho
-- [ ] Permissão de mídia negada deixa flags mentindo; erros traduzidos
-- [ ] Compartilhamento de tela preso como ativo
-- [ ] Mídia não se recupera após `Disconnected`
-- [ ] Canvas não acompanha o tamanho do container (`ResizeObserver`)
-- [ ] Timers sem limpeza (ZoneUi, call-store) e batida sem prazo
-- [ ] Animação de outros avatares trava; correção do próprio avatar é salto seco; predição ignora tranca
+- [x] Listener do mundo não é removido em `DESTROY` (WorldScene, EditorScene)
+- [x] Enter abre o chat com foco em botão e cancela o clique
+- [x] Avatar anda com modal aberto; DecorEditor some ao levantar da cadeira
+- [x] Clicar no mapa não tira o foco de inputs
+- [x] Passo descartado por jitter puxa o avatar de volta (buffer de 1 input no servidor)
+- [x] Rede: heartbeat, bloquear input offline, `JSON.parse` protegido, reconectar no `online`
+- [x] Erro transitório em `openSpace` manda para o login; `setState` com closure velho
+- [x] Permissão de mídia negada deixa flags mentindo; erros traduzidos
+- [x] Compartilhamento de tela preso como ativo
+- [x] Mídia não se recupera após `Disconnected`
+- [x] Canvas não acompanha o tamanho do container (`ResizeObserver`)
+- [x] Timers sem limpeza (ZoneUi, call-store) e batida sem prazo
+- [x] Animação de outros avatares trava; correção do próprio avatar é salto seco; predição ignora tranca
 
 ## 3. Servidor e infra
 
 - [x] Corrida: mapa salvo durante a carga do runtime
 - [x] Corrida: membro removido durante o upgrade
 - [x] Runtimes ociosos descarregados
-- [ ] `step()` em lote por tick em vez de copiar o mapa a cada movimento
+- [x] ~~`step()` em lote por tick~~ descartado: quantiza o passo em 100 ms e derruba a velocidade (ver architecture.md, seção 7)
 - [ ] `replaceMap` respeita trancas e destranca salas vazias
 - [ ] Spawn em zona de reunião (`spawn_in_meeting`) e outras validações do `compileMap`
 - [ ] Chaves de mesa não voltam ao começar do modelo ou importar JSON
@@ -64,13 +64,13 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 - [ ] Chat: aviso quando ninguém está perto
 - [ ] Estados de carregamento/erro; confirmação ao sair do editor com edições; `beforeunload`
 - [ ] "Usar nesta aba" quando a sessão é substituída
-- [ ] Acessibilidade: foco no modal, balão de vídeo por teclado, status além da cor
+- [ ] Acessibilidade: balão de vídeo por teclado, status além da cor (foco no modal já feito)
 - [ ] Mobile: header que quebra linha
 - [ ] Polimento: mapa centralizado, zoom, variáveis CSS, transições
 
 ## 5. Features
 
-- [ ] `ping`/`pong` com RTT no HUD
+- [ ] `ping`/`pong` com RTT no HUD (protocolo e medição feitos; falta o HUD)
 - [ ] Overlay de netcode e simulador de latência no dev
 - [ ] Métricas `/metrics` (Prometheus)
 - [ ] Clicar para andar e seguir alguém (A* em `shared`)

@@ -320,6 +320,22 @@ export const CHAT_BUBBLE_MS = 6_000;
   posição autoritativa do próprio jogador vier nos `moves` e divergir da predição, o cliente faz
   snap para ela e reaplica os passos pendentes com `seq > ack`.
 - Outros avatares: interpolação de tile a tile com duração `STEP_MS`.
+- Revisão de 2026-11:
+  - Passo que chega antes de `MIN_STEP_INTERVAL_MS` (jitter da rede junta dois passos) não é mais
+    descartado: espera numa fila de até `MAX_QUEUED_MOVES` (2) e é aplicado assim que o intervalo
+    passa, no máximo no tick seguinte. O `ack` só avança quando o passo é decidido (aplicado ou
+    recusado). Passo além da fila cheia é descartado e confirmado, e o cliente corrige pelo
+    `ack`. Antes o passo sumia e a reconciliação puxava o avatar um tile para trás.
+  - Descartado: aplicar todos os passos em lote no tick. A cópia do mapa de jogadores por
+    passo some, mas o passo passa a ser quantizado em 100 ms e a velocidade cai para um passo a
+    cada 200 ms, com fila crescendo.
+  - A predição do cliente respeita sala trancada (a mesma regra do `canEnter`), contando as
+    salas em que a batida foi aceita.
+  - Correção de até um tile desliza em vez de saltar; maior que isso continua teleporte.
+  - Interpolação dos outros: até dois passos na fila andam na velocidade normal (o segundo é só o
+    descompasso entre tick de 100 ms e passo de 160 ms); acima disso a velocidade sobe. A
+    animação de andar segura 120 ms depois de a fila esvaziar.
+  - Fora do ar (status diferente de `online`) o cliente não aceita input de movimento.
 - Tick: lista de quem se moveu desde o último tick, serializada uma vez; `ack` por cliente.
   Todo o coworking vai para todos (sem área de interesse).
 - Distância de proximidade: euclidiana em tiles, entre centros de tile.
@@ -343,7 +359,10 @@ export function step(
 - Mensagens em JSON, validadas com Zod. Mensagem inválida é descartada; mais de 10 inválidas em
   10 segundos fecham a conexão (código 1008). Mais de 50 mensagens por segundo também.
 - Desconexão: o jogador permanece por `RECONNECT_GRACE_MS` antes de `player.leave`. O cliente
-  reconecta com backoff exponencial.
+  reconecta com backoff exponencial, e na hora quando o navegador avisa que a rede voltou.
+- `ping { id }` → `pong { id, ts }` (aprovado em 2026-11): o cliente manda a cada
+  `PING_INTERVAL_MS` (5 s), mede RTT, jitter e a diferença de relógio. Sem nenhuma mensagem do
+  servidor por `CONNECTION_TIMEOUT_MS` (15 s), o cliente dá a conexão como morta e reconecta.
 - Robustez do gateway (revisão de 2026-11):
   - O socket ganha um listener de `error` logo no `upgrade`: sem ele, um ECONNRESET durante as
     consultas de sessão e participação derrubava o processo.
@@ -363,8 +382,8 @@ export function step(
   - Fechamento: 4001 para `session.replaced` (o cliente não reconecta), 1008 para mensagens
     inválidas ou taxa, 4003 para removido do coworking, 4004 para sessão encerrada (logout ou
     expiração; o cliente volta para o login).
-  - O passo é aplicado quando a mensagem chega; o tick só faz o broadcast. Passo ignorado pelo
-    intervalo mínimo também conta no `ack`. A contagem de `seq` recomeça a cada `welcome`.
+  - O passo é aplicado quando a mensagem chega; o tick só faz o broadcast (e drena a fila de
+    passos adiantados, seção 7). A contagem de `seq` recomeça a cada `welcome`.
   - O tick só sai quando alguém se moveu ou o `ack` de quem recebe mudou.
   - Interpolação: com vários passos na fila, a velocidade sobe na proporção da fila, então o
     avatar nunca fica mais de um passo atrás.

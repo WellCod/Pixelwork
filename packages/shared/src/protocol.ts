@@ -90,6 +90,7 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('call.reply'), callId: z.string().min(1), accept: z.boolean() }),
   z.object({ t: z.literal('call.leave') }),
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
+  z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
@@ -125,6 +126,8 @@ export type ServerMsg =
   | { t: 'desk.updated'; desk: DeskState }
   | { t: 'map.updated'; version: number }
   | { t: 'session.replaced' }
+  /** Resposta ao `ping`; `ts` é a hora do servidor, para estimar a diferença de relógio. */
+  | { t: 'pong'; id: number; ts: number }
   | { t: 'error'; code: string };
 
 /** Fechamento da conexão anterior quando o mesmo usuário abre outra no mesmo coworking. */

@@ -104,6 +104,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       world,
       mapJson: worldMapJson as Record<string, unknown>,
       send: (msg) => connection.current?.send(msg),
+      canMove: () => connection.current?.online ?? false,
       hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
     });
     scene.current = created.scene;
@@ -119,7 +120,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           <div ref={container} className="game" />
           {!editor && <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
-          <MediaControls media={media} />
+          <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
           <CallUi calls={calls} world={world} />
           {!editor && (
             <>

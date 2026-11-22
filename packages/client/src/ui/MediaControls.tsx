@@ -10,7 +10,7 @@ export function useMedia(media: MediaManager): MediaManager {
 }
 
 /** Microfone, câmera e o aviso de que a câmera aparece para quem está perto. */
-export function MediaControls({ media }: { media: MediaManager }) {
+export function MediaControls({ media, onReconnect }: { media: MediaManager; onReconnect: () => void }) {
   useMedia(media);
   const preview = useRef<HTMLVideoElement>(null);
   const local = media.localVideo();
@@ -63,8 +63,23 @@ export function MediaControls({ media }: { media: MediaManager }) {
           Ativar áudio
         </button>
       )}
-      {!media.connected && <span className="muted">Áudio e vídeo conectando…</span>}
-      {media.error && <span className="error">Mídia: {media.error}</span>}
+      {!media.connected && !media.lost && <span className="muted">Áudio e vídeo conectando…</span>}
+      {media.lost && (
+        <span className="error">
+          Áudio e vídeo desconectados.{' '}
+          <button type="button" onClick={onReconnect}>
+            Reconectar
+          </button>
+        </span>
+      )}
+      {media.error && (
+        <span className="error">
+          {media.error}{' '}
+          <button type="button" aria-label="Dispensar aviso" onClick={() => media.dismissError()}>
+            ×
+          </button>
+        </span>
+      )}
     </div>
   );
 }

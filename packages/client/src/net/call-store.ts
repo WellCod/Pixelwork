@@ -37,7 +37,7 @@ export class CallStore {
   /** Liga a store à conexão atual; devolve a função que desliga. */
   start(send: (msg: ClientMsg) => void): () => void {
     this.send = send;
-    return this.world.subscribe((event) => {
+    const stop = this.world.subscribe((event) => {
       const { world } = this;
       switch (event.type) {
         case 'callIncoming':
@@ -70,12 +70,18 @@ export class CallStore {
           break;
       }
     });
+    return () => {
+      stop();
+      if (this.callingTimer) clearTimeout(this.callingTimer);
+      this.callingTimer = null;
+    };
   }
 
   call(userId: string): void {
     this.notice = null;
     this.send({ t: 'call.invite', userId });
     this.set({ kind: 'calling', to: userId });
+    if (this.callingTimer) clearTimeout(this.callingTimer);
     // O servidor manda timeout; isto só protege a UI se a mensagem se perder.
     this.callingTimer = setTimeout(() => {
       if (this.state.kind === 'calling') this.set({ kind: 'idle' });

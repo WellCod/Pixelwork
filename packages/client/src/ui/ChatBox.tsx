@@ -1,5 +1,6 @@
 import { CHAT_MAX_CHARS, type ClientMsg } from '@pixelwork/shared';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
+import { focusIsFree, isTyping } from '../input-focus.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 
 const ERRORS: Record<string, string> = {
@@ -16,8 +17,8 @@ export function ChatBox({ world, send }: { world: ClientWorld; send: (msg: Clien
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement;
-      if (e.key === 'Enter' && !typing) {
+      // Com foco num botão, Enter é dele (Atender, Salvar, Deixar entrar…).
+      if (e.key === 'Enter' && focusIsFree() && !isTyping()) {
         e.preventDefault();
         setOpen(true);
       }
