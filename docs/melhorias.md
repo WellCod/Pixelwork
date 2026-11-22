@@ -81,8 +81,8 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 - [x] README, `docs/architecture.md`, `docs/deploy.md` e CLAUDE.md atualizados
 - [x] `pnpm typecheck`, `pnpm lint` e `pnpm test` (266 testes) passando; imagens Docker construindo
-- [ ] `pnpm e2e` no CI: localmente (macOS + Docker Desktop) o ICE do segundo participante falha
-  também no código anterior; conferir na primeira execução do CI desta branch
+- [x] `pnpm e2e` passando no CI (localmente, no macOS com Docker Desktop, o ICE do segundo
+  participante falha, inclusive no código anterior)
 
 ## Pendências conhecidas
 
