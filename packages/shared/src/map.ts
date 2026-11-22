@@ -313,6 +313,10 @@ export function compileMap(json: unknown): CompileResult {
       errors.push({ code: 'desk_size', deskKey: key });
       continue;
     }
+    if (!inside(x + w - 1, y + h - 1)) {
+      errors.push({ code: 'desk_outside', deskKey: key });
+      continue;
+    }
     // Cadeira na frente do tile de âncora, encostada na borda da pegada.
     const chair = { down: [x, y + h], up: [x, y - 1], left: [x - 1, y], right: [x + w, y] }[dir];
     const back: [number, number][] = facesUpDown

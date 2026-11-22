@@ -275,6 +275,28 @@ describe('móveis de várias células', () => {
     expect(lastFurniture(stack.doc)).toMatchObject({ x: 3 * 16, y: 7 * 16, width: 32, height: 16 });
   });
 
+  it('mesa larga não é criada nem movida com um tile para fora do mapa', () => {
+    const doc = baseDoc();
+    expect(addDesk(doc, doc.width - 1, 2, 'down')).toBeNull();
+    expect(addDesk(doc, 2, doc.height - 1, 'left')).toBeNull();
+    const stack = new CommandStack(doc);
+    stack.execute(addDesk(stack.doc, 2, 2, 'down'));
+    const wide = objectLayer(stack.doc, 'desks').objects.at(-1)?.id ?? -1;
+    expect(moveObject(stack.doc, 'desks', wide, doc.width - 1, 2)).toBeNull();
+    expect(moveObject(stack.doc, 'desks', wide, doc.width - 2, 2)).not.toBeNull();
+  });
+
+  it('objectAt acha a mesa larga clicando em qualquer um dos dois tiles', () => {
+    const stack = new CommandStack(baseDoc());
+    const add = addDesk(stack.doc, 8, 8, 'down');
+    if (!add) throw new Error('mesa fora do mapa');
+    stack.execute(add);
+    const id = objectLayer(stack.doc, 'desks').objects.at(-1)?.id;
+    expect(objectAt(stack.doc, 'desks', 8, 8)?.id).toBe(id);
+    expect(objectAt(stack.doc, 'desks', 9, 8)?.id).toBe(id);
+    expect(objectAt(stack.doc, 'desks', 10, 8)?.id).not.toBe(id);
+  });
+
   it('objectAt acha o sofá clicando em qualquer um dos dois tiles', () => {
     const stack = new CommandStack(baseDoc());
     stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
