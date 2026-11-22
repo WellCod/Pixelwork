@@ -1,5 +1,5 @@
 # Imagem do app (alvo "app") e do Caddy com o cliente compilado (alvo "web").
-FROM node:24-slim AS base
+FROM node:26-slim AS base
 WORKDIR /app
 RUN npm install -g pnpm@11.20.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
@@ -20,7 +20,7 @@ RUN pnpm install --frozen-lockfile --prod --filter @pixelwork/server...
 
 # O servidor roda com tsx: o código usa sintaxe de TypeScript que o Node não remove sozinho
 # (propriedades no construtor), e não há passo de compilação entre os pacotes.
-FROM node:24-slim AS app
+FROM node:26-slim AS app
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 COPY --from=prod-deps /app ./
