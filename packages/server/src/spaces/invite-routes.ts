@@ -150,12 +150,24 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
       if (!self && access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
       if (!isUuid(userId)) return reply.code(404).send({ error: 'not_found' });
 
-      // A FK composta de desk_assignments libera a mesa junto.
-      const removed = await db
-        .delete(spaceMembers)
-        .where(and(eq(spaceMembers.spaceId, access.spaceId), eq(spaceMembers.userId, userId)))
-        .returning({ userId: spaceMembers.userId });
-      if (removed.length === 0) return reply.code(404).send({ error: 'not_found' });
+      // Coworking sem admin ninguém edita nem convida: o último admin não sai nem é removido.
+      // A contagem e a remoção ficam na mesma transação, com a linha dos admins travada.
+      const outcome = await db.transaction(async (tx) => {
+        const admins = await tx
+          .select({ userId: spaceMembers.userId })
+          .from(spaceMembers)
+          .where(and(eq(spaceMembers.spaceId, access.spaceId), eq(spaceMembers.role, 'admin')))
+          .for('update');
+        if (admins.length === 1 && admins[0]?.userId === userId) return 'last_admin' as const;
+        // A FK composta de desk_assignments libera a mesa junto.
+        const removed = await tx
+          .delete(spaceMembers)
+          .where(and(eq(spaceMembers.spaceId, access.spaceId), eq(spaceMembers.userId, userId)))
+          .returning({ userId: spaceMembers.userId });
+        return removed.length === 0 ? ('not_found' as const) : ('removed' as const);
+      });
+      if (outcome === 'last_admin') return reply.code(409).send({ error: 'last_admin' });
+      if (outcome === 'not_found') return reply.code(404).send({ error: 'not_found' });
       app.realtime.runtime(access.spaceId)?.removeMember(userId);
       return reply.code(204).send();
     },

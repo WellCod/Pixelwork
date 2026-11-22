@@ -44,6 +44,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    // O limite de taxa responde com o texto do HTTP no campo error; vira um código próprio.
+    if (response.status === 429) throw new ApiError(429, 'rate_limited');
     throw new ApiError(response.status, typeof body?.error === 'string' ? body.error : null);
   }
   return (response.status === 204 ? undefined : await response.json()) as T;

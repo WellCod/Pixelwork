@@ -38,7 +38,7 @@ export function registerSpaceRoutes(app: FastifyInstance, deps: AuthDeps): void 
     const rows = await db
       .select({ id: spaces.id, name: spaces.name, slug: spaces.slug, map: spaces.map, mapVersion: spaces.mapVersion })
       .from(spaces)
-      .where(eq(spaces.id, request.params.spaceId));
+      .where(eq(spaces.id, membership.spaceId));
     const space = rows[0];
     if (!space) return reply.code(404).send({ error: 'not_found' });
     return { ...space, role: membership.role };

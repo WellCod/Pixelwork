@@ -1,5 +1,5 @@
 import { DIRS, type Dir } from '@pixelwork/shared';
-import { textProp, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
+import { adoptDocument, textProp, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
@@ -104,7 +104,7 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
 
   const fromTemplate = () => {
     if (!confirm('Começar do modelo descarta o mapa em edição. Continuar?')) return;
-    controller.reset(structuredClone(smallOffice) as TiledDoc);
+    controller.reset(adoptDocument(controller.doc, smallOffice as TiledDoc));
   };
 
   return (

@@ -4,6 +4,7 @@ import {
   check,
   customType,
   foreignKey,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -29,7 +30,11 @@ export const users = pgTable(
     guestExpiresAt: timestamp('guest_expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check('users_display_name_length', sql`char_length(${t.displayName}) between 1 and 40`)],
+  (t) => [
+    check('users_display_name_length', sql`char_length(${t.displayName}) between 1 and 40`),
+    // Job horário de limpeza de convidados.
+    index('users_guest_expires_at_idx').on(t.guestExpiresAt).where(sql`${t.isGuest}`),
+  ],
 );
 
 export const oauthAccounts = pgTable(
@@ -41,17 +46,29 @@ export const oauthAccounts = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
   },
-  (t) => [primaryKey({ columns: [t.provider, t.providerUserId] })],
+  (t) => [
+    primaryKey({ columns: [t.provider, t.providerUserId] }),
+    // Cascata ao apagar usuário.
+    index('oauth_accounts_user_id_idx').on(t.userId),
+  ],
 );
 
-export const sessions = pgTable('sessions', {
-  // Só o hash: vazar o banco não permite sequestrar sessões.
-  tokenHash: bytea('token_hash').primaryKey(),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-});
+export const sessions = pgTable(
+  'sessions',
+  {
+    // Só o hash: vazar o banco não permite sequestrar sessões.
+    tokenHash: bytea('token_hash').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    // Cascata ao apagar convidado e job de sessões vencidas.
+    index('sessions_user_id_idx').on(t.userId),
+    index('sessions_expires_at_idx').on(t.expiresAt),
+  ],
+);
 
 export const orgs = pgTable('orgs', {
   id: uuid('id').primaryKey(),
@@ -73,6 +90,8 @@ export const orgMembers = pgTable(
   (t) => [
     primaryKey({ columns: [t.orgId, t.userId] }),
     check('org_members_role', sql`${t.role} in ('owner', 'admin')`),
+    // A PK começa por org_id; GET /spaces procura pelo usuário.
+    index('org_members_user_id_idx').on(t.userId),
   ],
 );
 
@@ -114,6 +133,10 @@ export const spaceMembers = pgTable(
     check('space_members_title_length', sql`char_length(${t.title}) <= 40`),
     check('space_members_status', sql`${t.status} in ('available', 'focus', 'away')`),
     check('space_members_status_text_length', sql`char_length(${t.statusText}) <= 80`),
+    // Um grafema de emoji tem até uns 11 code points (família, bandeira com modificadores).
+    check('space_members_status_emoji_length', sql`char_length(${t.statusEmoji}) <= 16`),
+    // A PK começa por space_id; a lista de coworkings do usuário e a cascata procuram por user_id.
+    index('space_members_user_id_idx').on(t.userId),
   ],
 );
 
@@ -149,5 +172,9 @@ export const invites = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usesLeft: integer('uses_left'),
   },
-  (t) => [check('invites_role', sql`${t.role} in ('admin', 'member')`)],
+  (t) => [
+    check('invites_role', sql`${t.role} in ('admin', 'member')`),
+    check('invites_uses_left', sql`${t.usesLeft} is null or ${t.usesLeft} >= 0`),
+    index('invites_space_id_idx').on(t.spaceId),
+  ],
 );

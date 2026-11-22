@@ -20,6 +20,8 @@ export function describeMapError(error: MapError): string {
       return `Falta a camada "${error.layer}".`;
     case 'wrong_layer_type':
       return `A camada "${error.layer}" é do tipo errado.`;
+    case 'layer_size':
+      return `A camada "${error.layer}" não tem o tamanho do mapa (largura x altura tiles).`;
     case 'unknown_tileset':
       return `Tileset fora do catálogo ou embutido: ${error.source}. Use os .tsj do catálogo como tilesets externos.`;
     case 'tileset_overlap':
@@ -34,14 +36,22 @@ export function describeMapError(error: MapError): string {
       return `A zona ${error.key} não está alinhada à grade de 16 px.`;
     case 'invalid_zone_type':
       return `A zona ${error.key} precisa ter type "open" ou "meeting".`;
+    case 'zone_outside':
+      return `A zona ${error.key} está inteira fora do mapa.`;
     case 'chair_blocked':
       return `A cadeira da mesa ${error.deskKey} está num tile bloqueado.`;
+    case 'desk_outside':
+      return `A mesa ${error.deskKey} está fora do mapa.`;
+    case 'chair_shared':
+      return `As mesas ${error.a} e ${error.b} usam a mesma cadeira.`;
     case 'invalid_orientation':
       return `A mesa ${error.deskKey} precisa de orientation up, down, left ou right.`;
     case 'spawn_count':
       return `A camada spawn precisa de exatamente um ponto (encontrei ${error.found}).`;
     case 'spawn_blocked':
       return 'O spawn está num tile bloqueado.';
+    case 'spawn_in_meeting':
+      return 'O spawn está dentro de uma sala de reunião; quem entra furaria a tranca.';
   }
 }
 

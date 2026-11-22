@@ -21,6 +21,9 @@ export interface GitHubClient {
   user(accessToken: string): Promise<GitHubUser>;
 }
 
+/** GitHub lento não segura o callback (e o socket) indefinidamente. */
+const GITHUB_TIMEOUT_MS = 10_000;
+
 export function githubClient(clientId: string, clientSecret: string): GitHubClient {
   return {
     exchangeCode: async (code, redirectUri) => {
@@ -28,6 +31,7 @@ export function githubClient(clientId: string, clientSecret: string): GitHubClie
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri }),
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
       const body = (await response.json()) as { access_token?: string; error?: string };
       if (!response.ok || !body.access_token) throw new Error(`github: troca de código falhou (${body.error ?? response.status})`);
@@ -36,6 +40,7 @@ export function githubClient(clientId: string, clientSecret: string): GitHubClie
     user: async (accessToken) => {
       const response = await fetch('https://api.github.com/user', {
         headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${accessToken}`, 'user-agent': 'pixelwork' },
+        signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
       });
       if (!response.ok) throw new Error(`github: /user respondeu ${response.status}`);
       const body = (await response.json()) as GitHubUser;

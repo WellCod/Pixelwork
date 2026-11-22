@@ -1,6 +1,6 @@
 import rateLimit from '@fastify/rate-limit';
 import { sql } from 'drizzle-orm';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { githubClient, registerGitHubRoutes, type GitHubClient } from './auth/github.ts';
 import { registerAuthRoutes } from './auth/routes.ts';
 import type { AppConfig } from './config.ts';
@@ -39,6 +39,15 @@ export interface AppDeps {
 /** Limite geral por IP; rotas que criam contas ou gravam muito têm o próprio, mais baixo. */
 export const RATE_LIMIT_PER_MINUTE = 300;
 
+/** Convite é bearer no caminho: quem lê o log não pode entrar no coworking com ele. */
+export function maskUrl(url: string): string {
+  return url.replace(/^\/invites\/[^/?#]+/, '/invites/***');
+}
+
+function serializeRequest(request: FastifyRequest): Record<string, unknown> {
+  return { method: request.method, url: maskUrl(request.url), host: request.host, remoteAddress: request.ip };
+}
+
 export function buildApp({
   db,
   config,
@@ -50,7 +59,10 @@ export function buildApp({
   rateLimit: limit = true,
 }: AppDeps): FastifyInstance {
   // Atrás do Caddy o IP do cliente vem no X-Forwarded-For; sem isso o limite veria só o proxy.
-  const app = Fastify({ logger, trustProxy: config.trustProxy });
+  const app = Fastify({
+    logger: logger ? { serializers: { req: serializeRequest } } : false,
+    trustProxy: config.trustProxy,
+  });
   const routeTable: { method: string; url: string }[] = [];
   app.decorate('routeTable', routeTable);
   app.addHook('onRoute', (route) => {
@@ -58,7 +70,8 @@ export function buildApp({
     for (const method of methods) if (method !== 'HEAD') routeTable.push({ method, url: route.url });
   });
 
-  app.get('/health', async (_request, reply) => {
+  // O healthcheck do Docker chama a cada 15 s: fora do log de requisições.
+  app.get('/health', { logLevel: 'warn' }, async (_request, reply) => {
     try {
       await db.execute(sql`select 1`);
       return { status: 'ok' };

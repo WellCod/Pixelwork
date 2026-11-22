@@ -39,20 +39,20 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 - [x] Corrida: membro removido durante o upgrade
 - [x] Runtimes ociosos descarregados
 - [x] ~~`step()` em lote por tick~~ descartado: quantiza o passo em 100 ms e derruba a velocidade (ver architecture.md, seção 7)
-- [ ] `replaceMap` respeita trancas e destranca salas vazias
-- [ ] Spawn em zona de reunião (`spawn_in_meeting`) e outras validações do `compileMap`
-- [ ] Chaves de mesa não voltam ao começar do modelo ou importar JSON
+- [x] `replaceMap` respeita trancas e destranca salas vazias
+- [x] Spawn em zona de reunião (`spawn_in_meeting`) e outras validações do `compileMap`
+- [x] Chaves de mesa não voltam ao começar do modelo ou importar JSON
 - [x] Backpressure no envio (`bufferedAmount`)
-- [ ] Token de convite mascarado nos logs; `fetch` ao GitHub com timeout
-- [ ] Sessões expiradas apagadas no job; último admin não pode ser removido
-- [ ] Migration de índices e checks
-- [ ] `env.ts` recusa valores de dev em produção; senha codificada na `DATABASE_URL`
-- [ ] Dockerfile: imagem enxuta, `USER node`, `HEALTHCHECK`
-- [ ] Compose de produção: healthchecks, rotação de log, limites, backup do Postgres
-- [ ] Caddy: cabeçalhos de segurança e cache de assets
-- [ ] CI: build do Docker, cache do Playwright, artefatos em falha, `concurrency`, `permissions`
-- [ ] E2E de proximidade exige `true` antes de `false`
-- [ ] Testes novos para os casos acima
+- [x] Token de convite mascarado nos logs; `fetch` ao GitHub com timeout
+- [x] Sessões expiradas apagadas no job; último admin não pode ser removido
+- [x] Migration de índices e checks
+- [x] `env.ts` recusa valores de dev em produção; senha codificada na `DATABASE_URL`
+- [x] Dockerfile: imagem enxuta, `USER node`, `HEALTHCHECK`
+- [x] Compose de produção: healthchecks, rotação de log, limites, backup do Postgres
+- [x] Caddy: cabeçalhos de segurança e cache de assets
+- [x] CI: build do Docker, cache do Playwright, artefatos em falha, `concurrency`, `permissions`
+- [x] E2E de proximidade exige `true` antes de `false`
+- [x] Testes novos para os casos acima
 
 ## 4. UX/UI
 

@@ -258,3 +258,27 @@ export function objectAt(doc: TiledDoc, layer: ObjectLayerName, tx: number, ty: 
     return Math.floor(o.x / TILE_PX) === tx && Math.floor(o.y / TILE_PX) === ty;
   });
 }
+
+/**
+ * Troca o documento em edição por outro (o modelo) sem reaproveitar chave do mapa atual. Toda
+ * chave do documento novo com número já usado no atual (abaixo do contador dele) ganha um número
+ * novo: a mesa "mesa-1" do modelo é outra mesa, e a atribuição antiga aparece como órfã ao salvar
+ * em vez de ser herdada por uma mesa em outro lugar.
+ */
+export function adoptDocument(current: TiledDoc, incoming: TiledDoc): TiledDoc {
+  const doc = JSON.parse(JSON.stringify(incoming)) as TiledDoc;
+  for (const kind of ['zone', 'desk'] as const) {
+    const pattern = new RegExp(`^${PREFIX[kind]}-(\\d+)$`);
+    const carried = nextKeyNumber(current, kind);
+    let next = Math.max(carried, nextKeyNumber(doc, kind));
+    for (const object of objectLayer(doc, LAYER[kind]).objects) {
+      const key = prop(object, KEY_PROP[kind]);
+      const match = typeof key === 'string' ? pattern.exec(key) : null;
+      if (!match || Number(match[1]) >= carried) continue;
+      object.properties = withProp(object.properties, KEY_PROP[kind], `${PREFIX[kind]}-${next}`);
+      next++;
+    }
+    doc.properties = withProp(doc.properties, COUNTERS[kind], String(next));
+  }
+  return doc;
+}

@@ -10,6 +10,7 @@ import { CreditsPage } from './ui/CreditsPage.tsx';
 import { InviteModal } from './ui/InviteModal.tsx';
 import { InvitePage } from './ui/InvitePage.tsx';
 import { MapModal } from './ui/MapModal.tsx';
+import { errorMessage } from './ui/useWorld.ts';
 
 type Current = { space: SpaceDetail; map: CompiledMap };
 
@@ -81,7 +82,8 @@ export function App() {
   }, []);
 
   const fail = useCallback((error: unknown) => {
-    setState({ kind: 'login', error: error instanceof Error ? error.message : 'Falha ao entrar.' });
+    const text = error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : 'Falha ao entrar.';
+    setState({ kind: 'login', error: text });
   }, []);
 
   useEffect(() => {
