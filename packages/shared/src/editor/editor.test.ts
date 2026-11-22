@@ -299,3 +299,39 @@ describe('móveis de várias células', () => {
     expect(json(stack.doc)).toBe(before);
   });
 });
+
+describe('mesa de 2 tiles no editor', () => {
+  const lastDesk = (doc: TiledDoc) => objectLayer(doc, 'desks').objects.at(-1);
+
+  it('mesa nova virada para baixo tem 32x16; para o lado, 16x32', () => {
+    const stack = new CommandStack(baseDoc());
+    stack.execute(addDesk(stack.doc, 6, 5, 'down'));
+    expect(lastDesk(stack.doc)).toMatchObject({ width: 32, height: 16 });
+    stack.execute(addDesk(stack.doc, 2, 6, 'left'));
+    expect(lastDesk(stack.doc)).toMatchObject({ width: 16, height: 32 });
+  });
+
+  it('girar troca largura e altura e continua no contrato', () => {
+    const stack = new CommandStack(baseDoc());
+    stack.execute(addDesk(stack.doc, 6, 5, 'down'));
+    const id = lastDesk(stack.doc)?.id ?? -1;
+    stack.execute(rotateDesk(stack.doc, id));
+    expect(lastDesk(stack.doc)).toMatchObject({ width: 16, height: 32 });
+    expect(prop(lastDesk(stack.doc) ?? {}, 'orientation')).toBe('left');
+    const result = compileMap(stack.doc);
+    expect(result.ok ? [] : result.errors.filter((e) => e.code === 'desk_size')).toEqual([]);
+  });
+
+  it('mesa larga girada encostada na parede dá chair_blocked, sem exceção', () => {
+    const stack = new CommandStack(baseDoc());
+    // Borda esquerda: virada para a esquerda, a cadeira cairia na parede (x = 0).
+    stack.execute(addDesk(stack.doc, 1, 6, 'up'));
+    const id = lastDesk(stack.doc)?.id ?? -1;
+    stack.execute(rotateDesk(stack.doc, id)); // up -> right
+    stack.execute(rotateDesk(stack.doc, id)); // right -> down
+    stack.execute(rotateDesk(stack.doc, id)); // down -> left
+    const result = compileMap(stack.doc);
+    const key = prop(lastDesk(stack.doc) ?? {}, 'desk_key');
+    expect(result.ok ? [] : result.errors).toContainEqual({ code: 'chair_blocked', deskKey: key });
+  });
+});

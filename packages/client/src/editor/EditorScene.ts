@@ -210,15 +210,20 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private drawDesk(o: TiledObject, selected: boolean): void {
+    const w = o.width || TILE_PX;
+    const h = o.height || TILE_PX;
     const image = this.add.image(o.x, o.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4);
-    const [dx, dy] = ARROW[textProp(o, 'orientation', 'down')] ?? [0, 1];
-    // Seta apontando para a cadeira, no tile à frente da mesa.
-    const cx = o.x + TILE_PX / 2 + dx * TILE_PX;
-    const cy = o.y + TILE_PX / 2 + dy * TILE_PX;
+    if (w > TILE_PX) this.content.push(this.add.image(o.x + TILE_PX, o.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    if (h > TILE_PX) this.content.push(this.add.image(o.x, o.y + TILE_PX, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    const orientation = textProp(o, 'orientation', 'down');
+    const [dx, dy] = ARROW[orientation] ?? [0, 1];
+    // Marca da cadeira na frente do tile de âncora, encostada na borda da pegada.
+    const cx = o.x + TILE_PX / 2 + (dx > 0 ? w : dx * TILE_PX);
+    const cy = o.y + TILE_PX / 2 + (dy > 0 ? h : dy * TILE_PX);
     const chair = this.add.circle(cx, cy, 3, 0xfee761, 0.8).setDepth(5);
     const label = this.text(o.x, o.y - 8, textProp(o, 'desk_key')).setDepth(6);
     this.content.push(image, chair, label);
-    if (selected) this.content.push(this.outline(o.x, o.y, TILE_PX, TILE_PX));
+    if (selected) this.content.push(this.outline(o.x, o.y, w, h));
   }
 
   private drawSpawn(o: TiledObject, selected: boolean): void {

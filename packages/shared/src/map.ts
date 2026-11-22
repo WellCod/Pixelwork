@@ -19,8 +19,12 @@ export interface CompiledZone {
 
 export interface CompiledDesk {
   key: string;
+  /** Tile de âncora: o de cima à esquerda da pegada. */
   x: number;
   y: number;
+  /** Pegada em tiles: 1x1, 2x1 (de frente para cima ou baixo) ou 1x2 (para os lados). */
+  w: number;
+  h: number;
   orientation: Dir;
   chairX: number;
   chairY: number;
@@ -48,7 +52,7 @@ export type MapError =
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
   | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside'; deskKey: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
   | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };
@@ -295,9 +299,19 @@ export function compileMap(json: unknown): CompileResult {
       errors.push({ code: 'desk_outside', deskKey: key });
       continue;
     }
-    const [dx, dy] = DIR_DELTA[dir];
-    desks.push({ key, x, y, orientation: dir, chairX: x + dx, chairY: y + dy });
-    block(x, y);
+    // Pegada pelo tamanho do objeto no Tiled: 16x16 é a mesa de 1 tile dos mapas antigos.
+    const w = Math.max(1, Math.round(num(object.width) / TILE_PX) || 1);
+    const h = Math.max(1, Math.round(num(object.height) / TILE_PX) || 1);
+    const facesUpDown = dir === 'up' || dir === 'down';
+    const sizeOk = (w === 1 && h === 1) || (w === 2 && h === 1 && facesUpDown) || (w === 1 && h === 2 && !facesUpDown);
+    if (!sizeOk) {
+      errors.push({ code: 'desk_size', deskKey: key });
+      continue;
+    }
+    // Cadeira na frente do tile de âncora, encostada na borda da pegada.
+    const chair = { down: [x, y + h], up: [x, y - 1], left: [x - 1, y], right: [x + w, y] }[dir];
+    desks.push({ key, x, y, w, h, orientation: dir, chairX: chair[0] ?? x, chairY: chair[1] ?? y });
+    for (let ty = y; ty < y + h; ty++) for (let tx = x; tx < x + w; tx++) block(tx, ty);
   }
   const chairs = new Map<number, string>();
   for (const desk of desks) {
