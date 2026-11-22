@@ -11,6 +11,7 @@ import {
   MAX_QUEUED_MOVES,
   MIN_STEP_INTERVAL_MS,
   RECONNECT_GRACE_MS,
+  Recorder,
   TICK_MS,
   chatRecipients,
   relocate,
@@ -22,6 +23,8 @@ import {
   type DeskState,
   type Dir,
   type Player,
+  type Recording,
+  type ReplayEvent,
   type ServerMsg,
   type SimPlayer,
   type StepRules,
@@ -52,6 +55,8 @@ const RATE_WINDOW_MS = 1_000;
 const MAX_MESSAGES_PER_SECOND = 50;
 const CHAT_BURST = 3;
 const CHAT_PER_SECOND = 1;
+/** Teto da gravação de replay por coworking (~1 MB em JSON); cheia, recomeça de um retrato. */
+const MAX_REPLAY_EVENTS = 20_000;
 
 interface Member {
   profile: PlayerProfile;
@@ -112,6 +117,7 @@ export class SpaceRuntime {
   private readonly knocks = new Map<string, Knock>();
   private readonly calls = new Map<string, Call>();
   private readonly rules: StepRules;
+  private readonly recorder: Recorder;
 
   constructor(
     readonly spaceId: string,
@@ -131,11 +137,37 @@ export class SpaceRuntime {
       if (zone.type === 'meeting') this.locks.set(zone.key, { locked: false, allowed: new Set() });
     }
     this.rules = { canEnter: (id, x, y) => this.canEnter(id, x, y) };
+    this.recorder = new Recorder(MAX_REPLAY_EVENTS, mapVersion, deps.clock.now());
+  }
+
+  /** Gravação desde a última troca de mapa (ou desde que encheu), para o replay. */
+  recording(): Recording {
+    const current = this.recorder.current;
+    return { ...current, events: [...current.events] };
+  }
+
+  private record(event: ReplayEvent): void {
+    if (!this.recorder.push(event)) this.restartRecording();
+  }
+
+  private restartRecording(): void {
+    this.recorder.restart(this.mapVersion, this.deps.clock.now(), this.world.players, this.locks);
+  }
+
+  private recordLock(zoneKey: string): void {
+    const lock = this.locks.get(zoneKey);
+    if (!lock) return;
+    this.record({ t: this.deps.clock.now(), type: 'lock', zoneKey, locked: lock.locked, allowed: [...lock.allowed] });
   }
 
   /** Membros no mapa, incluindo quem está na tolerância de reconexão. */
   memberCount(): number {
     return this.members.size;
+  }
+
+  /** Mapa compilado em uso (o replay reproduz sobre ele). */
+  compiledMap(): CompiledMap {
+    return this.map;
   }
 
   /** Mesa do mapa compilado, para conferir a cadeira. */
@@ -205,6 +237,7 @@ export class SpaceRuntime {
       const sim: SimPlayer = { ...this.map.spawn, dir: 'down', lastStepAt: -Infinity };
       players.set(profile.id, sim);
       this.world = { players };
+      this.record({ t: clock.now(), type: 'join', id: profile.id, x: sim.x, y: sim.y, dir: sim.dir });
       member.activity = this.activityOf(profile.id);
       this.broadcast({ t: 'player.join', player: this.player(profile.id) }, profile.id);
     }
@@ -299,6 +332,7 @@ export class SpaceRuntime {
       member.queued.shift();
       member.lastSeq = next.seq;
       member.ackDirty = true;
+      this.record({ t: this.deps.clock.now(), type: 'step', id: userId, dir: next.dir });
       const result = step(
         this.world,
         [{ playerId: userId, seq: next.seq, dir: next.dir }],
@@ -413,6 +447,8 @@ export class SpaceRuntime {
     }
     // Sala que ficou vazia com a troca destranca, como quando o último sai andando.
     for (const key of this.locks.keys()) this.zoneChanged(key);
+    // Mapa novo, gravação nova: o replay reproduz sobre um mapa só.
+    this.restartRecording();
     // Quem estava numa zona removida já foi mandado para outra sala; a sala antiga fecha.
     for (const key of removed) {
       this.deps.media.deleteRoom(zoneRoom(this.spaceId, key)).catch((error: unknown) => {
@@ -468,6 +504,7 @@ export class SpaceRuntime {
     if (lock.locked && this.occupants(zoneKey).length === 0) {
       lock.locked = false;
       lock.allowed.clear();
+      this.recordLock(zoneKey);
       for (const [requestId, knock] of this.knocks) {
         if (knock.zoneKey === zoneKey) this.resolveKnock(requestId, false);
       }
@@ -483,6 +520,7 @@ export class SpaceRuntime {
     }
     lock.locked = locked;
     lock.allowed = locked ? new Set(this.occupants(zoneKey)) : new Set();
+    this.recordLock(zoneKey);
     this.broadcast({ t: 'zone.state', zone: this.zoneState(zoneKey) });
   }
 
@@ -528,7 +566,10 @@ export class SpaceRuntime {
     knock.timer.cancel();
     const lock = this.locks.get(knock.zoneKey);
     const allowed = allow && lock?.locked === true;
-    if (allowed) lock.allowed.add(knock.from);
+    if (allowed) {
+      lock.allowed.add(knock.from);
+      this.recordLock(knock.zoneKey);
+    }
     const conn = this.members.get(knock.from)?.conn;
     if (conn) this.send(conn, { t: 'zone.knockResult', zoneKey: knock.zoneKey, allowed });
   }
@@ -721,6 +762,7 @@ export class SpaceRuntime {
     const players = new Map(this.world.players);
     players.delete(userId);
     this.world = { players };
+    this.record({ t: this.deps.clock.now(), type: 'leave', id: userId });
     this.moved.delete(userId);
     this.broadcast({ t: 'player.leave', id: userId });
     this.zoneChanged(member.zoneKey);

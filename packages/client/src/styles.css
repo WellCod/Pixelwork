@@ -1002,3 +1002,61 @@ a.button {
 .net-overlay p {
   margin: 6px 0 0;
 }
+
+/* ---- replay ---- */
+
+.replay-canvas {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto 8px;
+  image-rendering: pixelated;
+  border: 2px solid var(--panel-2);
+  border-radius: 4px;
+}
+
+.replay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.replay-controls label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+}
+
+.replay-timeline {
+  width: 100%;
+  margin: 8px 0;
+}
+
+.replay-legend {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.85em;
+}
+
+.replay-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.replay-toggle {
+  position: absolute;
+  right: 146px;
+  bottom: 12px;
+  padding: 4px 10px;
+  font-size: 0.8em;
+  font-family: var(--pixel-font);
+}
