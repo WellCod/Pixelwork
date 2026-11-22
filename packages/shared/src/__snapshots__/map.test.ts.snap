@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compileMap: móveis de várias células > o template salvo antes do redesenho continua compilando com o mesmo resultado 1`] = `
+{
+  "desks": [
+    "mesa-1",
+    "mesa-2",
+    "mesa-3",
+    "mesa-4",
+  ],
+  "size": [
+    30,
+    20,
+  ],
+  "walkable": 462,
+  "zones": [
+    [
+      "__open",
+      299,
+    ],
+    [
+      "produto",
+      99,
+    ],
+    [
+      "engenharia",
+      99,
+    ],
+    [
+      "sala-aurora",
+      63,
+    ],
+    [
+      "copa",
+      40,
+    ],
+  ],
+}
+`;

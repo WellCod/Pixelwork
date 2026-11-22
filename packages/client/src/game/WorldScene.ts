@@ -16,8 +16,9 @@ import * as Phaser from 'phaser';
 import type { ClientWorld, WorldEvent } from '../net/client-world.ts';
 import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
+import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
-import { SLOT_OFFSET, isNear, seatedFacing, type Slot } from './presence.ts';
+import { SLOT_OFFSET, SLOT_OFFSET_WIDE, dividerLayout, isNear, seatedFacing, type Slot } from './presence.ts';
 import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
@@ -44,17 +45,21 @@ const CHAT_OFFSET_OVER_VIDEO = CHAT_OFFSET + 40;
 interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
   ring: Phaser.GameObjects.Ellipse;
-  label: Phaser.GameObjects.Text;
-  title: Phaser.GameObjects.Text;
+  shadow: Phaser.GameObjects.Ellipse;
+  label: NamePill;
+  title: TitlePill;
   mover: Mover;
   textureKey: string;
   dir: Dir;
   hovered: boolean;
-  chat: Phaser.GameObjects.Text | null;
+  chat: Phaser.GameObjects.Container | null;
   chatTimer: Phaser.Time.TimerEvent | null;
 }
 
 const DESK_TILESET = 'desk-decor';
+/** Sombra de contato de móveis e avatares: a cor mais escura da paleta, translúcida. */
+const SHADOW_COLOR = 0x2e222f;
+const SHADOW_ALPHA = 0.18;
 /** Zoom da câmera sobre a escala base (RENDER_SCALE): inteiro, para o pixel art não borrar. */
 const ZOOM_LEVELS = [1, 2, 3] as const;
 const SPEAKING_COLOR = 0x63c74d;
@@ -90,7 +95,10 @@ export class WorldScene extends Phaser.Scene {
   preload(): void {
     for (const id of TILESET_IDS) {
       this.load.image(tilesKey(id), tilesetImageUrl(id));
-      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), { frameWidth: TILE_PX, frameHeight: TILE_PX });
+      this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), {
+        frameWidth: TILESETS[id].tileWidth,
+        frameHeight: TILESETS[id].tileHeight,
+      });
     }
     preloadCharacterLayers(this);
   }
@@ -103,16 +111,18 @@ export class WorldScene extends Phaser.Scene {
     tilemap.createLayer('floor', tilesets).setDepth(-2);
     tilemap.createLayer('walls', tilesets).setDepth(-1);
 
+    // Sombra de contato sob cada móvel (docs/art.md, guia de estilo): elipse translúcida na base
+    // da pegada, desenhada abaixo dos móveis e acima do piso.
+    const shadows = this.add.graphics().setDepth(-0.5);
+    shadows.fillStyle(SHADOW_COLOR, SHADOW_ALPHA);
     for (const object of objectLayer(mapJson, 'furniture')) {
       const tile = object.gid ? resolveGid(mapJson, object.gid) : null;
       if (!tile) continue;
+      const w = object.width ?? TILE_PX;
+      if (TILESETS[tile.id].collides.includes(tile.frame)) shadows.fillEllipse(object.x + w / 2, object.y - 2, w - 2, 6);
       this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
     }
-    for (const object of objectLayer(mapJson, 'zones')) {
-      const name = prop(object, 'name');
-      if (typeof name !== 'string' || name === '') continue;
-      this.text(object.x + 3, object.y + 2, name, '#c0cbdc').setAlpha(0.8).setDepth(LABEL_DEPTH - 1);
-    }
+    this.renderZoneLabels();
 
     this.mapSize = { width: tilemap.widthInPixels, height: tilemap.heightInPixels };
     this.cameras.main.setRoundPixels(true);
@@ -154,6 +164,14 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(LABEL_DEPTH - 3)
       .setVisible(false);
     this.rebuild();
+    // A Inter chega por CSS; quando carrega, os rótulos são refeitos com ela (antes saem na fonte reserva).
+    if (!document.fonts.check(`7px ${LABEL_FONT}`)) {
+      void document.fonts.load(`600 7px ${LABEL_FONT}`).then(() => {
+        if (!this.sys.isActive()) return;
+        this.renderZoneLabels();
+        this.rebuild();
+      });
+    }
     this.unsubscribe = this.options.world.subscribe((event) => {
       this.onWorldEvent(event);
     });
@@ -192,16 +210,17 @@ export class WorldScene extends Phaser.Scene {
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
       const y = avatar.mover.y * TILE_PX + TILE_PX;
       avatar.sprite.setPosition(x, y).setDepth(y);
+      avatar.shadow.setPosition(x, y - 1).setDepth(y - 0.6);
       avatar.ring.setPosition(x, y - 1).setDepth(y - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
-      avatar.title.setPosition(Math.round(x), Math.round(y) + 10);
+      avatar.title.setPosition(Math.round(x), Math.round(y) + 13);
       if (avatar.chat) {
         const offset = this.options.hasVideoBubble?.(id) ? CHAT_OFFSET_OVER_VIDEO : CHAT_OFFSET;
         avatar.chat.setPosition(Math.round(x), Math.round(y) - offset);
       }
 
       const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
-      avatar.title.setVisible(avatar.title.text !== '' && (near || avatar.hovered));
+      avatar.title.setVisible(avatar.title.value !== '' && (near || avatar.hovered));
 
       const walking = avatar.mover.moving || (id === world.selfId && held !== undefined);
       const seated = walking
@@ -323,6 +342,18 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  private zoneLabels: Phaser.GameObjects.Container[] = [];
+
+  private renderZoneLabels(): void {
+    for (const label of this.zoneLabels) label.destroy();
+    this.zoneLabels = [];
+    for (const object of objectLayer(this.options.mapJson, 'zones')) {
+      const name = prop(object, 'name');
+      if (typeof name !== 'string' || name === '') continue;
+      this.zoneLabels.push(zonePill(this, object.x + 4, object.y + 3, name).setDepth(LABEL_DEPTH - 1));
+    }
+  }
+
   private rebuild(): void {
     for (const id of [...this.avatars.keys()]) this.removeAvatar(id);
     for (const player of this.options.world.players.values()) this.addAvatar(player);
@@ -336,12 +367,14 @@ export class WorldScene extends Phaser.Scene {
     const pos = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(pos.dir)).setOrigin(0.5, 1);
+    const shadow = this.add.ellipse(0, 0, 12, 5, SHADOW_COLOR, SHADOW_ALPHA);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
-    const label = this.text(0, 0, '', isSelf ? '#fee761' : '#ffffff').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
-    const title = this.text(0, 0, '', '#8b9bb4').setOrigin(0.5, 0).setDepth(LABEL_DEPTH);
+    const label = new NamePill(this).setDepth(LABEL_DEPTH);
+    const title = new TitlePill(this).setDepth(LABEL_DEPTH);
     const avatar: Avatar = {
       sprite,
       ring,
+      shadow,
       label,
       title,
       mover: new Mover(pos.x, pos.y),
@@ -363,8 +396,9 @@ export class WorldScene extends Phaser.Scene {
   private refreshAvatar(player: Player): void {
     const avatar = this.avatars.get(player.id);
     if (!avatar) return;
-    avatar.label.setText(player.statusEmoji ? `${player.name} ${player.statusEmoji}` : player.name);
-    avatar.title.setText(player.title ?? '');
+    const self = player.id === this.options.world.selfId;
+    avatar.label.set(player.statusEmoji ? `${player.name} ${player.statusEmoji}` : player.name, player.status, self);
+    avatar.title.set(player.title ?? '');
     const textureKey = ensureAvatarTexture(this, player.avatar);
     if (textureKey !== avatar.textureKey) {
       avatar.textureKey = textureKey;
@@ -378,6 +412,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.following === id) this.setFollowing(null);
     avatar.sprite.destroy();
     avatar.ring.destroy();
+    avatar.shadow.destroy();
     avatar.label.destroy();
     avatar.title.destroy();
     avatar.chat?.destroy();
@@ -426,18 +461,7 @@ export class WorldScene extends Phaser.Scene {
     if (!avatar) return;
     avatar.chat?.destroy();
     avatar.chatTimer?.remove();
-    avatar.chat = this.add
-      .text(0, 0, text, {
-        fontFamily: 'sans-serif',
-        fontSize: '8px',
-        color: '#181425',
-        backgroundColor: '#ffffff',
-        padding: { x: 3, y: 2 },
-        wordWrap: { width: 110 },
-        resolution: 4,
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(LABEL_DEPTH + 1);
+    avatar.chat = chatBubble(this, text).setDepth(LABEL_DEPTH + 1);
     avatar.chatTimer = this.time.delayedCall(CHAT_BUBBLE_MS, () => {
       avatar.chat?.destroy();
       avatar.chat = null;
@@ -459,24 +483,45 @@ export class WorldScene extends Phaser.Scene {
     const objects: Phaser.GameObjects.GameObject[] = [];
 
     const x = desk.x * TILE_PX;
-    const bottom = (desk.y + 1) * TILE_PX;
-    const item = (itemId: string | null, dx: number, dy: number, depth: number) => {
+    const bottom = (desk.y + desk.h) * TILE_PX;
+    const item = (itemId: string | null, dx: number, dy: number, depth: number, flip = false) => {
       const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
       if (frame === undefined) return;
       objects.push(
         this.add
           .image(x + dx, bottom + dy, sheetKey(DESK_TILESET), frame)
           .setOrigin(0, 1)
+          .setFlipX(flip)
           .setDepth(depth),
       );
     };
 
-    item(decor?.variant ?? 'basic', 0, 0, bottom);
-    item(`monitor-${decor?.monitor ?? 'single'}`, 0, -2, bottom + 0.1);
+    const variant = decor?.variant ?? 'basic';
+    const monitor = `monitor-${decor?.monitor ?? 'single'}`;
+    const wide = desk.w === 2;
+    const tall = desk.h === 2;
+    // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
+    if (wide) {
+      item(`${variant}-wide-l`, 0, 0, bottom);
+      item(`${variant}-wide-r`, TILE_PX, 0, bottom);
+    } else if (tall) {
+      item(`${variant}-tall-t`, 0, -TILE_PX, bottom);
+      item(`${variant}-tall-b`, 0, 0, bottom);
+    } else {
+      item(variant, 0, 0, bottom);
+    }
+    const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, -2] as const };
+    item(monitor, offsets.monitor[0], offsets.monitor[1], bottom + 0.1);
+    // Sem parede atrás, a decoração "de parede" vai presa numa divisória em vez de flutuar.
+    const divider = decor?.slots.back ? dividerLayout(desk) : null;
+    if (divider) {
+      for (const piece of divider.pieces) item(piece.item, piece.dx, piece.dy, divider.behind ? bottom - 0.2 : bottom + 0.3, piece.flip);
+    }
     if (decor) {
       for (const slot of SLOTS) {
-        const [dx, dy] = SLOT_OFFSET[desk.orientation][slot];
-        item(decor.slots[slot], dx, dy, bottom + (slot === 'back' ? -0.1 : 0.2));
+        const [dx, dy] = slot === 'back' && divider ? divider.back : offsets[slot];
+        const backDepth = divider ? (divider.behind ? bottom - 0.15 : bottom + 0.35) : bottom - 0.1;
+        item(decor.slots[slot], dx, dy, slot === 'back' ? backDepth : bottom + 0.2);
       }
     }
 
@@ -486,22 +531,8 @@ export class WorldScene extends Phaser.Scene {
     this.deskObjects.set(deskKey, objects);
   }
 
-  private plaque(desk: CompiledDesk, name: string): Phaser.GameObjects.Text {
-    const cx = desk.x * TILE_PX + TILE_PX / 2;
-    const cy = desk.y * TILE_PX - 9;
-    return this.text(cx, cy, name, '#feae34').setOrigin(0.5, 0).setDepth(LABEL_DEPTH - 2).setAlpha(0.9);
-  }
-
-  private text(x: number, y: number, value: string, color: string): Phaser.GameObjects.Text {
-    return this.add
-      .text(x, y, value, {
-        fontFamily: 'monospace',
-        fontSize: '8px',
-        color,
-        stroke: '#181425',
-        strokeThickness: 2,
-        resolution: 4,
-      })
-      .setOrigin(0, 0);
+  private plaque(desk: CompiledDesk, name: string): Phaser.GameObjects.Container {
+    const cx = desk.x * TILE_PX + (desk.w * TILE_PX) / 2;
+    return deskPlaque(this, cx, desk.y * TILE_PX - 11, name).setDepth(LABEL_DEPTH - 2);
   }
 }

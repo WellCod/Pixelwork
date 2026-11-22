@@ -42,6 +42,16 @@ export function CreditsPage() {
           </ul>
         </section>
       ))}
+      <section>
+        <h2>Fonte</h2>
+        <ul>
+          <li>
+            {/* Não é asset do catálogo (vem por dependência), mas a licença pede o crédito. */}
+            <strong>Inter</strong>: Rasmus Andersson, SIL Open Font License 1.1 (
+            <a href="https://github.com/rsms/inter">origem</a>)
+          </li>
+        </ul>
+      </section>
       <a href="/">Voltar</a>
     </main>
   );

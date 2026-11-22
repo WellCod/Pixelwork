@@ -1,14 +1,14 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2'] as const;
 export const BODY_IDS = ['base'] as const;
-export const HAIR_IDS = ['short', 'long', 'spiky'] as const;
-export const OUTFIT_IDS = ['basic', 'hoodie'] as const;
-export const ACCESSORY_IDS = ['glasses', 'cap'] as const;
-export const DESK_VARIANTS = ['basic', 'dark'] as const;
-export const DECOR_ITEMS = ['mug', 'lamp', 'books'] as const;
-export const WALL_ITEMS = ['poster', 'clock'] as const;
-export const FLOOR_ITEMS = ['plant-small', 'bin'] as const;
+export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro'] as const;
+export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater'] as const;
+export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow'] as const;
+export const DESK_VARIANTS = ['basic', 'dark', 'white'] as const;
+export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck'] as const;
+export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo'] as const;
+export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat'] as const;
 export const SKIN_PALETTES = ['light', 'medium', 'dark', 'pale', 'tan', 'deep'] as const;
 export const HAIR_PALETTES = ['brown', 'black', 'blond', 'red', 'gray', 'pink', 'blue', 'green'] as const;
 export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gray', 'black', 'cream'] as const;
@@ -16,161 +16,167 @@ export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gra
 export const RAMPS = {
   "skin": {
     "light": [
-      "#b86f50",
-      "#c28569",
-      "#e8b796",
-      "#ead4aa"
+      "#9e4539",
+      "#cd683d",
+      "#fca790",
+      "#fdcbb0"
     ],
     "medium": [
-      "#733e39",
-      "#b86f50",
-      "#c28569",
-      "#e4a672"
+      "#7a3045",
+      "#9e4539",
+      "#cd683d",
+      "#e6904e"
     ],
     "dark": [
-      "#3e2731",
-      "#733e39",
-      "#b86f50",
-      "#c28569"
+      "#45293f",
+      "#6e2727",
+      "#9e4539",
+      "#cd683d"
     ],
     "pale": [
-      "#c28569",
-      "#e4a672",
-      "#ead4aa",
+      "#966c6c",
+      "#fca790",
+      "#fdcbb0",
       "#ffffff"
     ],
     "tan": [
-      "#733e39",
-      "#be4a2f",
-      "#d77643",
-      "#e4a672"
+      "#9e4539",
+      "#cd683d",
+      "#e6904e",
+      "#fbb954"
     ],
     "deep": [
-      "#181425",
-      "#3e2731",
-      "#733e39",
-      "#b86f50"
+      "#2e222f",
+      "#45293f",
+      "#6e2727",
+      "#9e4539"
     ]
   },
   "hair": {
     "brown": [
-      "#3e2731",
-      "#733e39",
-      "#b86f50",
-      "#d77643"
+      "#3e3546",
+      "#4c3e24",
+      "#9e4539",
+      "#cd683d"
     ],
     "black": [
-      "#181425",
-      "#262b44",
-      "#3a4466",
-      "#5a6988"
+      "#2e222f",
+      "#3e3546",
+      "#625565",
+      "#7f708a"
     ],
     "blond": [
-      "#b86f50",
-      "#f77622",
-      "#feae34",
-      "#fee761"
+      "#cd683d",
+      "#e6904e",
+      "#fbb954",
+      "#fbff86"
     ],
     "red": [
-      "#3e2731",
-      "#a22633",
-      "#be4a2f",
-      "#d77643"
+      "#6e2727",
+      "#b33831",
+      "#ea4f36",
+      "#f57d4a"
     ],
     "gray": [
-      "#3a4466",
-      "#8b9bb4",
-      "#c0cbdc",
+      "#625565",
+      "#9babb2",
+      "#c7dcd0",
       "#ffffff"
     ],
     "pink": [
-      "#68386c",
-      "#b55088",
-      "#f6757a",
-      "#e8b796"
+      "#a24b6f",
+      "#cf657f",
+      "#ed8099",
+      "#fca790"
     ],
     "blue": [
-      "#262b44",
-      "#124e89",
-      "#0099db",
-      "#2ce8f5"
+      "#323353",
+      "#484a77",
+      "#4d65b4",
+      "#4d9be6"
     ],
     "green": [
-      "#193c3e",
-      "#265c42",
-      "#3e8948",
-      "#63c74d"
+      "#165a4c",
+      "#239063",
+      "#1ebc73",
+      "#91db69"
     ]
   },
   "outfit": {
     "blue": [
-      "#262b44",
-      "#124e89",
-      "#0099db",
-      "#2ce8f5"
+      "#323353",
+      "#4d65b4",
+      "#4d9be6",
+      "#8fd3ff"
     ],
     "red": [
-      "#3e2731",
-      "#a22633",
-      "#e43b44",
-      "#f6757a"
+      "#6e2727",
+      "#ae2334",
+      "#e83b3b",
+      "#f68181"
     ],
     "green": [
-      "#193c3e",
-      "#265c42",
-      "#3e8948",
-      "#63c74d"
+      "#165a4c",
+      "#239063",
+      "#91db69",
+      "#cddf6c"
     ],
     "purple": [
-      "#3e2731",
-      "#68386c",
-      "#b55088",
-      "#f6757a"
+      "#45293f",
+      "#6b3e75",
+      "#905ea9",
+      "#a884f3"
     ],
     "yellow": [
-      "#733e39",
-      "#f77622",
-      "#feae34",
-      "#fee761"
+      "#9e4539",
+      "#f79617",
+      "#f9c22b",
+      "#fbff86"
     ],
     "gray": [
-      "#262b44",
-      "#5a6988",
-      "#8b9bb4",
-      "#c0cbdc"
+      "#3e3546",
+      "#625565",
+      "#9babb2",
+      "#c7dcd0"
     ],
     "black": [
-      "#181425",
-      "#262b44",
-      "#3a4466",
-      "#5a6988"
+      "#2e222f",
+      "#313638",
+      "#3e3546",
+      "#625565"
     ],
     "cream": [
-      "#b86f50",
-      "#e4a672",
-      "#ead4aa",
+      "#966c6c",
+      "#ab947a",
+      "#fdcbb0",
       "#ffffff"
     ]
   }
 } as const;
 
-// Metadados dos .tsj: colisão e item_id por índice de tile.
-export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = {
+// Metadados dos .tsj: tamanho da célula, colisão e item_id por índice de tile.
+export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number; columns: number; tilecount: number; collides: readonly number[]; items: Readonly<Record<number, string>> }> = {
   "floors": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
-    "tilecount": 8,
+    "tilecount": 64,
     "collides": [],
     "items": {}
   },
   "walls": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
-    "tilecount": 8,
+    "tilecount": 16,
     "collides": [],
     "items": {}
   },
   "furniture": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
-    "tilecount": 16,
+    "tilecount": 40,
     "collides": [
       0,
       2,
@@ -180,7 +186,23 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
       7,
       8,
       9,
-      11
+      11,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      32
     ],
     "items": {
       "0": "desk",
@@ -194,15 +216,51 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
       "8": "coffee-machine",
       "9": "armchair",
       "10": "rug",
-      "11": "plant-tall"
+      "11": "plant-tall",
+      "12": "chair-back",
+      "13": "chair-left",
+      "14": "chair-right",
+      "15": "kitchen-chair",
+      "16": "beanbag-blue",
+      "17": "beanbag-pink",
+      "18": "beanbag-yellow",
+      "19": "cactus",
+      "20": "monstera",
+      "21": "snake-plant",
+      "22": "flowers",
+      "23": "ficus",
+      "24": "succulent",
+      "25": "floor-lamp",
+      "26": "trash-bin",
+      "27": "printer",
+      "28": "coat-rack",
+      "29": "fire-extinguisher",
+      "30": "cardboard-box",
+      "31": "bar-stool",
+      "32": "side-table"
     }
   },
   "desk-decor": {
+    "tileWidth": 16,
+    "tileHeight": 16,
     "columns": 8,
-    "tilecount": 16,
+    "tilecount": 48,
     "collides": [
       0,
-      7
+      7,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
     ],
     "items": {
       "0": "basic",
@@ -216,7 +274,112 @@ export const TILESETS: Record<TilesetId, { columns: number; tilecount: number; c
       "8": "lamp",
       "9": "books",
       "10": "clock",
-      "11": "bin"
+      "11": "bin",
+      "12": "white",
+      "13": "basic-wide-l",
+      "14": "basic-wide-r",
+      "15": "basic-tall-t",
+      "16": "basic-tall-b",
+      "17": "dark-wide-l",
+      "18": "dark-wide-r",
+      "19": "dark-tall-t",
+      "20": "dark-tall-b",
+      "21": "white-wide-l",
+      "22": "white-wide-r",
+      "23": "white-tall-t",
+      "24": "white-tall-b",
+      "25": "pencil-cup",
+      "26": "headphones",
+      "27": "cactus-mini",
+      "28": "photo",
+      "29": "water-bottle",
+      "30": "sticky-notes",
+      "31": "speaker",
+      "32": "takeaway-coffee",
+      "33": "trophy",
+      "34": "duck",
+      "35": "calendar",
+      "36": "shelf-mini",
+      "37": "framed-photo",
+      "38": "backpack",
+      "39": "vase-tall",
+      "40": "cat",
+      "41": "divider",
+      "42": "divider-wide-l",
+      "43": "divider-wide-r",
+      "44": "divider-side"
+    }
+  },
+  "furniture-2x1": {
+    "tileWidth": 32,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "items": {
+      "0": "sofa-peach",
+      "1": "sofa-sage",
+      "2": "coffee-table",
+      "3": "aquarium",
+      "4": "bench",
+      "5": "sideboard",
+      "6": "sofa-blue"
+    }
+  },
+  "furniture-2x2": {
+    "tileWidth": 32,
+    "tileHeight": 32,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "items": {
+      "0": "meeting-table-round",
+      "1": "bookshelf-tall",
+      "2": "fridge",
+      "3": "tree",
+      "4": "vending-machine",
+      "5": "arcade",
+      "6": "planter",
+      "7": "whiteboard"
+    }
+  },
+  "furniture-3x2": {
+    "tileWidth": 48,
+    "tileHeight": 32,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "items": {
+      "0": "meeting-table-long",
+      "1": "kitchen-counter",
+      "2": "ping-pong",
+      "3": "sofa-l",
+      "4": "reception",
+      "5": "foosball"
     }
   }
 };
@@ -259,6 +422,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "tileset",
+    "id": "furniture-2x1",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-2x2",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-3x2",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/body",
     "id": "base",
     "license": "own",
@@ -287,6 +471,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/hair",
+    "id": "curly",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/hair",
+    "id": "bun",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/hair",
+    "id": "afro",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/outfit",
     "id": "basic",
     "license": "own",
@@ -296,6 +501,34 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "character/outfit",
     "id": "hoodie",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "shirt",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "dress",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "jacket",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "sweater",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -315,6 +548,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/accessory",
+    "id": "headphones",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "beanie",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "bow",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/variants",
     "id": "basic",
     "license": "own",
@@ -324,6 +578,13 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "desk/variants",
     "id": "dark",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/variants",
+    "id": "white",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -350,6 +611,76 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/decorItems",
+    "id": "pencil-cup",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "headphones",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "cactus-mini",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "photo",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "water-bottle",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "sticky-notes",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "speaker",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "takeaway-coffee",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "trophy",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "duck",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/wallItems",
     "id": "poster",
     "license": "own",
@@ -364,6 +695,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/wallItems",
+    "id": "calendar",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "shelf-mini",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "framed-photo",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/floorItems",
     "id": "plant-small",
     "license": "own",
@@ -373,6 +725,27 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "desk/floorItems",
     "id": "bin",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "backpack",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "vase-tall",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "cat",
     "license": "own",
     "author": "Pixelwork",
     "source": null

@@ -264,6 +264,17 @@ Restrições (o servidor rejeita com código de erro):
 - `name` da zona é desenhado como rótulo no mapa (ex.: "Product team").
 - A cadeira da mesa é o tile à frente dela, conforme `orientation`. Esse tile precisa ser
   caminhável. "Sentado" = estar no tile da cadeira da própria mesa.
+- Mesa de 2 tiles (revisão visual de 2026-11, aprovada): a pegada vem do `width`/`height` do
+  objeto na camada `desks`. Aceitas: 16x16 (mesa de 1 tile, a dos mapas antigos), 32x16 virada
+  para cima ou para baixo, 16x32 virada para a esquerda ou a direita; o resto é `desk_size`. O
+  objeto é ancorado no canto de cima à esquerda, a pegada inteira bloqueia, e a cadeira fica na
+  frente do tile de âncora, encostada na borda da pegada (para baixo `(x, y+h)`, para cima
+  `(x, y-1)`, à esquerda `(x-1, y)`, à direita `(x+w, y)`). `CompiledDesk` ganhou `w` e `h`. O
+  editor cria mesas de 2 tiles e, ao girar, troca largura e altura. A pegada inteira tem que estar
+  no mapa (senão `desk_outside`); o editor não cria, move nem gira mesa para fora.
+- `CompiledDesk.wallBehind`: todos os tiles logo atrás da pegada (do lado oposto à cadeira) têm
+  parede. Sem parede atrás, o item do slot "fundo" fica pendurado numa divisória baixa desenhada
+  pelo cliente (`dividerLayout`), em vez de flutuar.
 - Decisões da fase 1: caminhável = tem piso, não tem parede e não tem móvel com `collides`. A
   própria mesa ocupa e bloqueia o seu tile. Objetos de tile (móveis) seguem a âncora do Tiled, no
   canto inferior esquerdo. Entrada que não é objeto JSON devolve `not_orthogonal` (não há
@@ -289,7 +300,7 @@ export interface CompiledMap {
   walkable: Uint8Array;          // 1 = caminhável, índice y * width + x
   zoneIndex: Uint16Array;        // índice em zones para cada tile
   zones: { key: string; type: 'open' | 'meeting'; name: string; tiles: number }[];
-  desks: { key: string; x: number; y: number; orientation: Dir; chairX: number; chairY: number }[];
+  desks: { key: string; x: number; y: number; w: number; h: number; orientation: Dir; chairX: number; chairY: number; wallBehind: boolean }[];
   spawn: { x: number; y: number };
   tilesets: string[];            // catalogIds referenciados
 }
@@ -303,7 +314,7 @@ export type MapError =
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
   | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside'; deskKey: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
   | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };
@@ -722,6 +733,19 @@ Decisões de interface (revisão de 2026-11):
   a posição que o servidor confirmou. O simulador aplica atraso e jitter no próprio cliente, nas
   duas direções, preservando a ordem das mensagens; não simula perda, porque sobre TCP perda
   vira atraso.
+- Tema claro (redesenho visual de 2026-11): fundo creme, superfícies brancas com sombra suave,
+  texto grafite, azul da paleta como cor de ação, fonte Inter (`@fontsource-variable/inter`,
+  SIL OFL 1.1, servida pelo app por causa da CSP). No mapa, nome em pílula escura com bolinha de
+  status embaixo dos pés (acima da cabeça brigaria com o balão de vídeo), zona em pílula clara,
+  balão de chat branco com rabicho; os rótulos são refeitos quando a Inter termina de carregar.
+- Sombra de contato translúcida desenhada pelo Phaser sob cada móvel colidível e sob cada avatar.
+- Editor: ferramenta Tapete (`paintRug`, arrastar retângulo), escolha do tile de parede, nomes dos
+  pisos e paleta de móveis em miniaturas por categoria (`editor/categories.ts`, só organização da
+  tela). `placeFurniture` recebe tileset e frame, grava a pegada pela célula do tileset e, em mapa
+  salvo antes de um tileset existir, acrescenta a referência a ele no mesmo comando (desfazer
+  continua exato).
+- Catálogo: `TILESETS[id]` traz `tileWidth`/`tileHeight`; cliente e editor carregam cada
+  spritesheet com a célula do seu tileset.
 - O canvas fica fora do fluxo do layout: o tamanho vem do container, observado por
   `ResizeObserver`.
 

@@ -4,11 +4,11 @@
   "name": "desk-decor",
   "image": "desk-decor.png",
   "imagewidth": 128,
-  "imageheight": 32,
+  "imageheight": 96,
   "tilewidth": 16,
   "tileheight": 16,
   "columns": 8,
-  "tilecount": 16,
+  "tilecount": 48,
   "margin": 0,
   "spacing": 0,
   "tiles": [
@@ -139,6 +139,401 @@
           "name": "item_id",
           "type": "string",
           "value": "bin"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "white"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "basic-wide-l"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "basic-wide-r"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "basic-tall-t"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "basic-tall-b"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "dark-wide-l"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "dark-wide-r"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "dark-tall-t"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "dark-tall-b"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "white-wide-l"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "white-wide-r"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "white-tall-t"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "properties": [
+        {
+          "name": "collides",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "white-tall-b"
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "pencil-cup"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "headphones"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "cactus-mini"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "photo"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "water-bottle"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "sticky-notes"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "speaker"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "takeaway-coffee"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "trophy"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "duck"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "calendar"
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "shelf-mini"
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "framed-photo"
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "backpack"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "vase-tall"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "cat"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider-wide-l"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider-wide-r"
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "divider-side"
         }
       ]
     }

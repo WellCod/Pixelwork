@@ -1,4 +1,4 @@
-import { TILESETS, compileMap, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
+import { TILESETS, TILESET_IDS, compileMap, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
 import {
   CommandStack,
   addDesk,
@@ -7,17 +7,19 @@ import {
   moveSpawn,
   objectAt,
   paint,
+  paintRug,
   placeFurniture,
   removeObject,
   rotateDesk,
   setZoneProps,
   type ObjectLayerName,
+  type RugId,
   type TileRect,
   type TiledDoc,
   type ZoneType,
 } from '@pixelwork/shared/editor';
 
-export type Tool = 'select' | 'floor' | 'wall' | 'erase' | 'furniture' | 'zone' | 'desk' | 'spawn';
+export type Tool = 'select' | 'floor' | 'wall' | 'rug' | 'erase' | 'furniture' | 'zone' | 'desk' | 'spawn';
 
 export interface Selection {
   layer: ObjectLayerName;
@@ -25,13 +27,45 @@ export interface Selection {
 }
 
 export const FLOOR_OPTIONS = [
-  { frame: 0, label: 'Madeira' },
-  { frame: 1, label: 'Carpete' },
-  { frame: 2, label: 'Cozinha' },
+  { frame: 0, label: 'Madeira clara' },
+  { frame: 53, label: 'Taco' },
+  { frame: 54, label: 'Madeira escura' },
+  { frame: 3, label: 'Ladrilho creme' },
+  { frame: 58, label: 'Ladrilho sálvia' },
+  { frame: 2, label: 'Copa (xadrez)' },
+  { frame: 4, label: 'Carpete cinza' },
+  { frame: 1, label: 'Carpete lavanda' },
+  { frame: 59, label: 'Carpete azul' },
+  { frame: 57, label: 'Cimento' },
+  { frame: 56, label: 'Calçada' },
+  { frame: 55, label: 'Grama' },
 ] as const;
 
-/** Tile de parede usado pelo pincel (a face, como no template). */
-const WALL_FRAME = 1;
+/** Tiles do pincel de parede: faces lisas, janelas e decoração (tudo colide, como parede). */
+export const WALL_OPTIONS = [
+  { frame: 1, label: 'Parede clara' },
+  { frame: 3, label: 'Parede sálvia' },
+  { frame: 4, label: 'Parede creme' },
+  { frame: 10, label: 'Parede lilás' },
+  { frame: 0, label: 'Topo da parede' },
+  { frame: 2, label: 'Janela' },
+  { frame: 14, label: 'Janela com cortina' },
+  { frame: 5, label: 'Quadro' },
+  { frame: 6, label: 'Pôster' },
+  { frame: 7, label: 'Relógio' },
+  { frame: 8, label: 'Lousa' },
+  { frame: 9, label: 'Prateleira' },
+  { frame: 11, label: 'Mural de cortiça' },
+  { frame: 12, label: 'Planta pendurada' },
+  { frame: 13, label: 'TV' },
+] as const;
+
+export const RUG_OPTIONS: { rug: RugId; label: string }[] = [
+  { rug: 'lavender', label: 'Tapete lavanda' },
+  { rug: 'sage', label: 'Tapete sálvia' },
+  { rug: 'cream', label: 'Tapete creme' },
+];
+
 
 /** Ordem de clique na ferramenta de seleção: o que fica por cima primeiro. */
 const PICK_ORDER: ObjectLayerName[] = ['spawn', 'desks', 'furniture', 'zones'];
@@ -42,10 +76,14 @@ function firstGid(doc: TiledDoc, id: TilesetId): number | null {
 }
 
 /** Móveis do catálogo com o frame no tileset `furniture`. */
-export const FURNITURE_OPTIONS = Object.entries(TILESETS.furniture.items).map(([frame, item]) => ({
-  frame: Number(frame),
-  item,
-}));
+/** Tilesets de móveis colocáveis: o `furniture` (16x16) e os de várias células. */
+export const FURNITURE_TILESETS = TILESET_IDS.filter((id) => id.startsWith('furniture'));
+
+export const FURNITURE_OPTIONS = FURNITURE_TILESETS.flatMap((tileset) =>
+  Object.entries(TILESETS[tileset].items).map(([frame, item]) => ({ tileset, frame: Number(frame), item })),
+);
+
+export type FurnitureChoice = { tileset: TilesetId; frame: number };
 
 /**
  * Estado do editor fora do Phaser: pilha de comandos, ferramenta, opções e seleção. A cena só
@@ -54,8 +92,10 @@ export const FURNITURE_OPTIONS = Object.entries(TILESETS.furniture.items).map(([
 export class EditorController {
   readonly stack: CommandStack;
   tool: Tool = 'select';
-  floorFrame = 0;
-  furnitureFrame = FURNITURE_OPTIONS[0]?.frame ?? 0;
+  floorFrame: number = FLOOR_OPTIONS[0].frame;
+  wallFrame: number = WALL_OPTIONS[0].frame;
+  rug: RugId = 'lavender';
+  furniture: FurnitureChoice = FURNITURE_OPTIONS[0] ?? { tileset: 'furniture', frame: 0 };
   eraseLayer: 'walls' | 'floor' = 'walls';
   deskOrientation: Dir = 'down';
   selection: Selection | null = null;
@@ -100,7 +140,9 @@ export class EditorController {
     this.changed();
   }
 
-  setOption(patch: Partial<Pick<EditorController, 'floorFrame' | 'furnitureFrame' | 'eraseLayer' | 'deskOrientation'>>): void {
+  setOption(
+    patch: Partial<Pick<EditorController, 'floorFrame' | 'wallFrame' | 'rug' | 'furniture' | 'eraseLayer' | 'deskOrientation'>>,
+  ): void {
     Object.assign(this, patch);
     this.changed();
   }
@@ -122,7 +164,7 @@ export class EditorController {
       if (base !== null) this.stack.execute(paint(doc, 'floor', tiles, base + this.floorFrame));
     } else if (this.tool === 'wall') {
       const base = firstGid(doc, 'walls');
-      if (base !== null) this.stack.execute(paint(doc, 'walls', tiles, base + WALL_FRAME));
+      if (base !== null) this.stack.execute(paint(doc, 'walls', tiles, base + this.wallFrame));
     } else if (this.tool === 'erase') {
       this.stack.execute(paint(doc, this.eraseLayer, tiles, 0));
     }
@@ -132,8 +174,7 @@ export class EditorController {
     const { doc } = this;
     switch (this.tool) {
       case 'furniture': {
-        const base = firstGid(doc, 'furniture');
-        if (base !== null) this.stack.execute(placeFurniture(doc, base + this.furnitureFrame, tx, ty));
+        this.stack.execute(placeFurniture(doc, this.furniture.tileset, this.furniture.frame, tx, ty));
         break;
       }
       case 'desk': {
@@ -151,6 +192,11 @@ export class EditorController {
       default:
         break;
     }
+  }
+
+  /** Fim do arrasto da ferramenta de tapete: pinta o retângulo com o tapete escolhido. */
+  drawRug(rect: TileRect): void {
+    this.stack.execute(paintRug(this.doc, this.rug, rect.x, rect.y, rect.x + rect.w - 1, rect.y + rect.h - 1));
   }
 
   drawZone(rect: TileRect): void {
