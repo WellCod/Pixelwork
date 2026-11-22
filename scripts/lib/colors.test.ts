@@ -1,18 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PALETTE, nearest } from './colors.ts';
+import { EXTRAS, PALETTE, RESURRECT, nearest } from './colors.ts';
 import { parsePalette } from './palette.ts';
 import { sprite, toPng } from './pixels.ts';
 
 const root = join(import.meta.dirname, '../..');
 const paletteFile = parsePalette(readFileSync(join(root, 'assets/palette.hex'), 'utf8'));
 
-describe('PALETTE (Resurrect 64)', () => {
-  it('tem 64 nomes com valores únicos, iguais ao assets/palette.hex', () => {
+describe('PALETTE (Resurrect 64 + carvalho)', () => {
+  it('é a Resurrect 64 mais os 3 tons de carvalho, valores únicos, igual ao assets/palette.hex', () => {
+    expect(Object.values(RESURRECT)).toHaveLength(64);
+    expect(Object.values(EXTRAS)).toEqual(['#f3e2c7', '#e6cba5', '#d2b086']);
     const values = Object.values(PALETTE);
-    expect(values).toHaveLength(64);
-    expect(new Set(values).size).toBe(64);
+    expect(new Set(values).size).toBe(67);
     expect(new Set(values)).toEqual(new Set(paletteFile));
   });
 
@@ -30,6 +31,11 @@ describe('PALETTE (Resurrect 64)', () => {
   it('nearest devolve a própria cor quando ela está na paleta e a mais próxima quando não', () => {
     expect(nearest('#fdcbb0')).toBe('#fdcbb0');
     expect(nearest('#000000')).toBe(PALETTE.ink);
+  });
+
+  it('nearest só devolve cores da Resurrect 64, nunca os tons extras', () => {
+    expect(nearest('#e6cba5')).not.toBe(PALETTE.oak);
+    expect(Object.values(RESURRECT)).toContain(nearest('#e6cba5'));
   });
 });
 
