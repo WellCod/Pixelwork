@@ -2,7 +2,7 @@
 // tileset: só acrescentar no fim (os mapas salvos referenciam os tiles pela posição).
 import { grid, pattern, type Pixels } from '../lib/pixels.ts';
 import { officeChair, pottedPlant } from './office.ts';
-import { RUG_LAVENDER, creamTile, grayCarpet, rug as rugTiles, wallFace as wallFaceNew, wallTop as wallTopNew, wallWindow, woodLight } from './surfaces.ts';
+import * as S from './surfaces.ts';
 
 const T = 16;
 const g = (label: string, rows: string[]) => grid(rows, T, label);
@@ -15,35 +15,45 @@ export interface TileArt {
 
 // ---- pisos ----
 
-/** Carpete com trama miúda. */
-const carpet = pattern(T, (x, y) => {
-  if ((x + y) % 4 === 0 && y % 2 === 0) return 'k';
-  if ((x - y + T) % 8 === 4 && x % 2 === 1) return 'g';
-  return 'n';
-});
-
-/** Ladrilho de cozinha 8x8 com rejunte. */
-const kitchen = pattern(T, (x, y) => {
-  if (x % 8 === 7 || y % 8 === 7) return 'G';
-  const light = (Math.floor(x / 8) + Math.floor(y / 8)) % 2 === 0;
-  if (light) return x % 8 === 0 || y % 8 === 0 ? 'W' : 'W';
-  return x % 8 === 0 || y % 8 === 0 ? 'W' : 'L';
-});
-
-// Frame 0 redesenhado no padrão novo; 1 e 2 ainda no antigo (redesenho na Task 6).
 export const FLOORS: TileArt[] = [
-  { pixels: woodLight },
-  { pixels: carpet },
-  { pixels: kitchen },
-  // Daqui para baixo, só acrescentar.
-  { pixels: creamTile },
-  { pixels: grayCarpet },
-  ...rugTiles(RUG_LAVENDER).map((pixels) => ({ pixels })),
-];
+  { pixels: S.woodLight },
+  { pixels: S.lilacCarpet },
+  { pixels: S.kitchenChecker },
+  // Daqui para baixo, só acrescentar. Tapetes: 16 tiles cada, na ordem da máscara de bordas.
+  { pixels: S.creamTile },
+  { pixels: S.grayCarpet },
+  ...S.rug(S.RUG_LAVENDER).map((pixels) => ({ pixels })),
+  ...S.rug(S.RUG_SAGE).map((pixels) => ({ pixels })),
+  ...S.rug(S.RUG_CREAM).map((pixels) => ({ pixels })),
+  { pixels: S.herringbone },
+  { pixels: S.woodDark },
+  { pixels: S.grass },
+  { pixels: S.stonePath },
+  { pixels: S.concrete },
+  { pixels: S.sageTile },
+  { pixels: S.iceCarpet },
+]
 
 // ---- paredes ----
 
-export const WALLS: TileArt[] = [{ pixels: wallTopNew }, { pixels: wallFaceNew }, { pixels: wallWindow }];
+export const WALLS: TileArt[] = [
+  { pixels: S.wallTop },
+  { pixels: S.wallFace },
+  { pixels: S.wallWindow },
+  // Daqui para baixo, só acrescentar.
+  { pixels: S.wallFaceSage },
+  { pixels: S.wallFaceCream },
+  { pixels: S.wallPainting },
+  { pixels: S.wallPoster },
+  { pixels: S.wallClock },
+  { pixels: S.wallWhiteboard },
+  { pixels: S.wallShelf },
+  { pixels: S.wallFaceLilac },
+  { pixels: S.wallCorkboard },
+  { pixels: S.wallHangingPlant },
+  { pixels: S.wallTv },
+  { pixels: S.wallWindowCurtain },
+]
 
 // ---- móveis ----
 

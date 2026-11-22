@@ -1,15 +1,16 @@
 import { DIRS, type Dir } from '@pixelwork/shared';
-import { adoptDocument, textProp, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
+import { adoptDocument, textProp, type RugId, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
 import { describeMapError } from '../ui/MapModal.tsx';
-import { FLOOR_OPTIONS, FURNITURE_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
+import { FLOOR_OPTIONS, FURNITURE_OPTIONS, RUG_OPTIONS, WALL_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
 
 const TOOLS: { tool: Tool; label: string; hint: string }[] = [
   { tool: 'select', label: 'Selecionar', hint: 'Clique para selecionar; arraste para mover.' },
   { tool: 'floor', label: 'Piso', hint: 'Arraste para pintar o piso.' },
   { tool: 'wall', label: 'Parede', hint: 'Arraste para levantar paredes.' },
+  { tool: 'rug', label: 'Tapete', hint: 'Arraste para desenhar o tapete, de qualquer tamanho.' },
   { tool: 'erase', label: 'Borracha', hint: 'Arraste para apagar a camada escolhida.' },
   { tool: 'furniture', label: 'Móvel', hint: 'Clique para pôr o móvel escolhido.' },
   { tool: 'zone', label: 'Zona', hint: 'Arraste para desenhar a zona.' },
@@ -152,6 +153,30 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
             <select value={controller.floorFrame} onChange={(e) => controller.setOption({ floorFrame: Number(e.target.value) })}>
               {FLOOR_OPTIONS.map((o) => (
                 <option key={o.frame} value={o.frame}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {controller.tool === 'wall' && (
+          <label className="fields">
+            Tipo de parede
+            <select value={controller.wallFrame} onChange={(e) => controller.setOption({ wallFrame: Number(e.target.value) })}>
+              {WALL_OPTIONS.map((o) => (
+                <option key={o.frame} value={o.frame}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {controller.tool === 'rug' && (
+          <label className="fields">
+            Tapete
+            <select value={controller.rug} onChange={(e) => controller.setOption({ rug: e.target.value as RugId })}>
+              {RUG_OPTIONS.map((o) => (
+                <option key={o.rug} value={o.rug}>
                   {o.label}
                 </option>
               ))}

@@ -97,7 +97,7 @@ export class EditorScene extends Phaser.Scene {
     const { tool } = this.controller;
     if (tool === 'floor' || tool === 'wall' || tool === 'erase') {
       this.stroke = [[tile.x, tile.y]];
-    } else if (tool === 'zone') {
+    } else if (tool === 'zone' || tool === 'rug') {
       this.dragStart = tile;
     } else if (tool === 'select') {
       this.controller.click(tile.x, tile.y);
@@ -125,13 +125,16 @@ export class EditorScene extends Phaser.Scene {
     if (this.dragStart) {
       const start = this.dragStart;
       this.dragStart = null;
+      const rect = {
+        x: Math.min(start.x, tile.x),
+        y: Math.min(start.y, tile.y),
+        w: Math.abs(tile.x - start.x) + 1,
+        h: Math.abs(tile.y - start.y) + 1,
+      };
       if (this.controller.tool === 'zone') {
-        this.controller.drawZone({
-          x: Math.min(start.x, tile.x),
-          y: Math.min(start.y, tile.y),
-          w: Math.abs(tile.x - start.x) + 1,
-          h: Math.abs(tile.y - start.y) + 1,
-        });
+        this.controller.drawZone(rect);
+      } else if (this.controller.tool === 'rug') {
+        this.controller.drawRug(rect);
       } else if (start.x !== tile.x || start.y !== tile.y) {
         const selected = this.controller.selected();
         if (selected && this.controller.selection) {
@@ -244,7 +247,7 @@ export class EditorScene extends Phaser.Scene {
       g.lineStyle(1, 0xffffff, 0.6).strokeRect(this.hover.x * TILE_PX, this.hover.y * TILE_PX, TILE_PX, TILE_PX);
     }
     for (const [x, y] of this.stroke) g.fillStyle(0xfee761, 0.35).fillRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
-    if (this.dragStart && this.hover && this.controller.tool === 'zone') {
+    if (this.dragStart && this.hover && (this.controller.tool === 'zone' || this.controller.tool === 'rug')) {
       const x = Math.min(this.dragStart.x, this.hover.x);
       const y = Math.min(this.dragStart.y, this.hover.y);
       const w = Math.abs(this.hover.x - this.dragStart.x) + 1;
