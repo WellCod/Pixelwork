@@ -702,6 +702,12 @@ Decisões de interface (revisão de 2026-11):
   borrar; mapa menor que a tela fica centralizado alargando os limites da câmera.
 - Quem fala (`ActiveSpeakersChanged` do LiveKit) ganha um anel sob o avatar e destaque na lista.
 - Status na lista também por forma (círculo, quadrado, anel) e texto, não só cor.
+- Overlay de netcode (F3 ou botão "Rede"), disponível também em produção: RTT, jitter e
+  diferença de relógio pelo `ping`, latência do tick (hora do servidor no tick contra a hora
+  local corrigida), passos pendentes e correções da reconciliação. Um quadrado tracejado mostra
+  a posição que o servidor confirmou. O simulador aplica atraso e jitter no próprio cliente, nas
+  duas direções, preservando a ordem das mensagens; não simula perda, porque sobre TCP perda
+  vira atraso.
 - O canvas fica fora do fluxo do layout: o tamanho vem do container, observado por
   `ResizeObserver`.
 

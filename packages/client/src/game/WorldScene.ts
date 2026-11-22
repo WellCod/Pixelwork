@@ -28,6 +28,8 @@ export interface WorldSceneOptions {
   canMove?: () => boolean;
   /** Quem está falando agora (LiveKit), para o anel sob o avatar. */
   isSpeaking?: (id: string) => boolean;
+  /** Overlay de netcode aberto: desenha o fantasma da posição confirmada pelo servidor. */
+  showGhost?: () => boolean;
   /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
   hasVideoBubble?: (id: string) => boolean;
 }
@@ -71,6 +73,7 @@ export class WorldScene extends Phaser.Scene {
   private lastStepAt = -Infinity;
   private unsubscribe: (() => void) | null = null;
   private zoomIndex = 0;
+  private ghost: Phaser.GameObjects.Rectangle | null = null;
   private mapSize = { width: 0, height: 0 };
 
   constructor(private readonly options: WorldSceneOptions) {
@@ -130,6 +133,13 @@ export class WorldScene extends Phaser.Scene {
     // Campos de texto da UI em React precisam das teclas de seta e WASD.
     keyboard.disableGlobalCapture();
 
+    this.ghost = this.add
+      .rectangle(0, 0, TILE_PX, TILE_PX)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, 0x2ce8f5, 0.9)
+      .setFillStyle(0x2ce8f5, 0.15)
+      .setDepth(LABEL_DEPTH - 3)
+      .setVisible(false);
     this.rebuild();
     this.unsubscribe = this.options.world.subscribe((event) => {
       this.onWorldEvent(event);
@@ -153,6 +163,9 @@ export class WorldScene extends Phaser.Scene {
     if (held) this.tryStep(held);
 
     const self = world.selfId ? this.avatars.get(world.selfId) : undefined;
+    const ghostOn = this.options.showGhost?.() ?? false;
+    this.ghost?.setVisible(ghostOn && world.selfId !== null);
+    if (ghostOn) this.ghost?.setPosition(world.confirmed.x * TILE_PX, world.confirmed.y * TILE_PX);
     for (const [id, avatar] of this.avatars) {
       avatar.mover.update(delta);
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
