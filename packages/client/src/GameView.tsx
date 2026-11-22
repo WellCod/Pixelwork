@@ -74,6 +74,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
         if (next === 'replaced' || next === 'removed' || next === 'ended') void media.close();
       },
       () => netSim.delay(),
+      (short) => world.idOf(short),
     );
     connection.current = conn;
     const stopMap = world.subscribe((event) => {

@@ -14,6 +14,8 @@ import {
   Recorder,
   TICK_MS,
   chatRecipients,
+  encodeTick,
+  withAck,
   relocate,
   step,
   zoneAt,
@@ -28,7 +30,7 @@ import {
   type ServerMsg,
   type SimPlayer,
   type StepRules,
-  type TickMove,
+  type ShortMove,
   type WorldState,
   type ZoneState,
 } from '@pixelwork/shared';
@@ -45,7 +47,8 @@ import {
 } from './media.ts';
 
 export interface Conn {
-  send(data: string): void;
+  /** Texto para as mensagens JSON; bytes para o tick binário. */
+  send(data: string | Uint8Array): void;
   close(code: number, reason: string): void;
 }
 
@@ -60,6 +63,8 @@ const MAX_REPLAY_EVENTS = 20_000;
 
 interface Member {
   profile: PlayerProfile;
+  /** Id curto do tick binário; liberado quando a pessoa sai do mapa. */
+  short: number;
   conn: Conn | null;
   /** Maior `seq` decidido (aplicado ou recusado) desde a conexão atual; vai no `ack` do tick. */
   lastSeq: number;
@@ -219,6 +224,7 @@ export class SpaceRuntime {
     } else {
       member = {
         profile,
+        short: this.allocateShort(),
         conn: null,
         lastSeq: 0,
         lastReceived: 0,
@@ -358,24 +364,31 @@ export class SpaceRuntime {
     member.leaveTimer = this.deps.scheduler.setTimeout(() => this.leave(userId), RECONNECT_GRACE_MS);
   }
 
-  /** Envia a lista de quem se moveu, serializada uma vez; só o `ack` muda por cliente. */
+  /** Menor id curto livre (u16); o tick binário identifica cada jogador por ele. */
+  private allocateShort(): number {
+    const used = new Set([...this.members.values()].map((m) => m.short));
+    for (let n = 1; n <= 0xffff; n++) if (!used.has(n)) return n;
+    throw new Error('ids curtos esgotados');
+  }
+
+  /** Envia a lista de quem se moveu, montada uma vez em binário; só o `ack` muda por cliente. */
   tick(): void {
     // Relógio de parede só para a métrica: a simulação continua no relógio injetado.
     const started = this.deps.metrics ? performance.now() : 0;
     for (const [id, member] of this.members) if (member.queued.length > 0) this.drainMoves(id, member);
-    const moves: TickMove[] = [];
+    const moves: ShortMove[] = [];
     for (const id of this.moved) {
       const p = this.world.players.get(id);
-      if (p) moves.push([id, p.x, p.y, p.dir]);
+      const short = this.members.get(id)?.short;
+      if (p && short !== undefined) moves.push([short, p.x, p.y, p.dir]);
     }
     this.moved.clear();
-    const movesJson = JSON.stringify(moves);
-    const ts = this.deps.clock.now();
+    const frame = encodeTick(0, this.deps.clock.now(), moves);
 
     for (const member of this.members.values()) {
       if (!member.conn || (moves.length === 0 && !member.ackDirty)) continue;
       member.ackDirty = false;
-      member.conn.send(`{"t":"tick","ack":${member.lastSeq},"moves":${movesJson},"ts":${ts}}`);
+      member.conn.send(withAck(frame, member.lastSeq));
     }
     this.deps.metrics?.tick.observe((performance.now() - started) / 1000);
   }
@@ -776,7 +789,7 @@ export class SpaceRuntime {
     const member = this.members.get(id);
     const sim = this.world.players.get(id);
     if (!member || !sim) throw new Error(`jogador ${id} sem estado`);
-    return { ...member.profile, x: sim.x, y: sim.y, dir: sim.dir, activity: member.activity };
+    return { ...member.profile, n: member.short, x: sim.x, y: sim.y, dir: sim.dir, activity: member.activity };
   }
 
   private send(conn: Conn, msg: ServerMsg): void {

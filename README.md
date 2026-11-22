@@ -131,6 +131,17 @@ O tick cresce linearmente com quem se moveu (todo o coworking vai para todos, se
 interesse), e a CPU fica abaixo de 10% de um núcleo com 50 pessoas andando sem parar. Os bots
 rodam num único processo Node, então parte da latência é fila do próprio cliente de teste.
 
+Tick binário (revisão de 2026-11): com ids curtos e 5 bytes por movimento, o tick médio com 50
+bots caiu de 1.559 B (JSON, código anterior) para 154 B, medidos na mesma máquina (macOS, 20 s
+de medição). A CPU do servidor ficou na mesma faixa (4,1% contra 5,0%, dentro do ruído da
+medição):
+
+| Bots | Latência p50 | p95 | p99 | Tick médio | Mensagens por bot/s | CPU do servidor |
+|-----:|-----:|-----:|-----:|-----:|-----:|-----:|
+| 10 | 0 ms | 1 ms | 1 ms | 44 B | 9,9 | 1,7% |
+| 25 | 1 ms | 1 ms | 1 ms | 86 B | 10,3 | 3,4% |
+| 50 | 1 ms | 2 ms | 2 ms | 154 B | 10,2 | 5,0% |
+
 ## Testes
 
 - Unitários: `compileMap` com uma fixture por código de erro, simulação, proximidade com histerese,

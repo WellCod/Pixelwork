@@ -214,7 +214,7 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
           }
           if (deps.metrics) {
             deps.metrics.messagesOut++;
-            deps.metrics.bytesOut += Buffer.byteLength(data);
+            deps.metrics.bytesOut += typeof data === 'string' ? Buffer.byteLength(data) : data.byteLength;
           }
           ws.send(data);
         },
