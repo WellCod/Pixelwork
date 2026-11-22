@@ -210,8 +210,8 @@ export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir)
       baseObject(id, {
         x: tx * TILE_PX,
         y: ty * TILE_PX,
-        width: TILE_PX,
-        height: TILE_PX,
+        // Mesa nova é a larga: 2 tiles de frente para a cadeira (docs/architecture.md, seção 6).
+        ...deskSize(orientation, 2),
         properties: [
           { name: 'desk_key', type: 'string', value: key ?? '' },
           { name: 'orientation', type: 'string', value: orientation },
@@ -221,11 +221,20 @@ export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir)
   );
 }
 
+/** Largura e altura em pixels da mesa de `tiles` tiles virada para `orientation`. */
+function deskSize(orientation: Dir, tiles: 1 | 2): { width: number; height: number } {
+  const across = orientation === 'up' || orientation === 'down';
+  return { width: (across ? tiles : 1) * TILE_PX, height: (across ? 1 : tiles) * TILE_PX };
+}
+
+/** Gira no sentido horário; a mesa larga troca largura e altura para continuar de frente. */
 export function rotateDesk(doc: TiledDoc, id: number): EditorCommand {
   const desk = find(doc, 'desks', id);
   const current = prop(desk, 'orientation');
   const next = CLOCKWISE[(current as Dir | undefined) ?? 'down'];
-  return { kind: 'replaceObject', layer: 'desks', object: setProps(desk, { orientation: next }) };
+  const tiles = Math.max(desk.width, desk.height) > TILE_PX ? 2 : 1;
+  const rotated = { ...setProps(desk, { orientation: next }), ...deskSize(next, tiles) };
+  return { kind: 'replaceObject', layer: 'desks', object: rotated };
 }
 
 // ---- comuns ----

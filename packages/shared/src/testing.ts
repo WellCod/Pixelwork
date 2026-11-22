@@ -17,7 +17,8 @@ export interface TestMapOptions {
   /** Âncora no tile de baixo à esquerda; `w`/`h` em tiles (padrão 1). */
   furniture?: { x: number; y: number; tile: number; tileset?: TilesetId; w?: number; h?: number }[];
   zones?: { key: string; type: string; name?: string; x: number; y: number; w: number; h: number }[];
-  desks?: { key: string; x: number; y: number; orientation: string }[];
+  /** `size: 2` é a mesa larga: 32x16 virada para cima/baixo, 16x32 para os lados. */
+  desks?: { key: string; x: number; y: number; orientation: string; size?: 1 | 2 }[];
   spawns?: [x: number, y: number][];
 }
 
@@ -96,15 +97,17 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
         id: 5,
         name: 'desks',
         type: 'objectgroup',
-        objects: (options.desks ?? []).map((d) =>
-          object({
+        objects: (options.desks ?? []).map((d) => {
+          const wide = d.size === 2;
+          const vertical = d.orientation === 'left' || d.orientation === 'right';
+          return object({
             x: d.x * TILE_PX,
             y: d.y * TILE_PX,
-            width: TILE_PX,
-            height: TILE_PX,
+            width: wide && !vertical ? 2 * TILE_PX : TILE_PX,
+            height: wide && vertical ? 2 * TILE_PX : TILE_PX,
             properties: props({ desk_key: d.key, orientation: d.orientation }),
-          }),
-        ),
+          });
+        }),
       },
       {
         id: 6,

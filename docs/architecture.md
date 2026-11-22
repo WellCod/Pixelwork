@@ -264,6 +264,13 @@ Restrições (o servidor rejeita com código de erro):
 - `name` da zona é desenhado como rótulo no mapa (ex.: "Product team").
 - A cadeira da mesa é o tile à frente dela, conforme `orientation`. Esse tile precisa ser
   caminhável. "Sentado" = estar no tile da cadeira da própria mesa.
+- Mesa de 2 tiles (revisão visual de 2026-11, aprovada): a pegada vem do `width`/`height` do
+  objeto na camada `desks`. Aceitas: 16x16 (mesa de 1 tile, a dos mapas antigos), 32x16 virada
+  para cima ou para baixo, 16x32 virada para a esquerda ou a direita; o resto é `desk_size`. O
+  objeto é ancorado no canto de cima à esquerda, a pegada inteira bloqueia, e a cadeira fica na
+  frente do tile de âncora, encostada na borda da pegada (para baixo `(x, y+h)`, para cima
+  `(x, y-1)`, à esquerda `(x-1, y)`, à direita `(x+w, y)`). `CompiledDesk` ganhou `w` e `h`. O
+  editor cria mesas de 2 tiles e, ao girar, troca largura e altura.
 - Decisões da fase 1: caminhável = tem piso, não tem parede e não tem móvel com `collides`. A
   própria mesa ocupa e bloqueia o seu tile. Objetos de tile (móveis) seguem a âncora do Tiled, no
   canto inferior esquerdo. Entrada que não é objeto JSON devolve `not_orthogonal` (não há
@@ -303,7 +310,7 @@ export type MapError =
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; a: string; b: string }
   | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside'; deskKey: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
   | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };

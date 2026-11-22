@@ -37,7 +37,7 @@ describe('compileMap: mapas válidos', () => {
     expect(isWalkable(map, 7, 5)).toBe(false);
     expect(isWalkable(map, 2, 2)).toBe(false);
     expect(map.desks).toEqual([
-      { key: 'mesa-1', x: 2, y: 2, orientation: 'down', chairX: 2, chairY: 3 },
+      { key: 'mesa-1', x: 2, y: 2, w: 1, h: 1, orientation: 'down', chairX: 2, chairY: 3 },
     ]);
     expect(map.spawn).toEqual({ x: 1, y: 6 });
     expect(zoneAt(map, 1, 1)).toMatchObject({ key: 'produto', type: 'open', name: 'Product team' });
@@ -85,6 +85,47 @@ describe('compileMap: móveis de várias células', () => {
       desks: result.map.desks.map((d) => d.key),
       zones: result.map.zones.map((z) => [z.key, z.tiles]),
     }).toMatchSnapshot();
+  });
+});
+
+describe('compileMap: mesa de 2 tiles', () => {
+  const compiled = (desks: NonNullable<TestMapOptions['desks']>) => compileMap(buildTestMap({ width: 12, height: 10, desks }));
+
+  it('mesa 32x16 virada para baixo bloqueia os dois tiles e a cadeira fica na frente da âncora', () => {
+    const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'down', size: 2 }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(isWalkable(result.map, 3, 2)).toBe(false);
+    expect(isWalkable(result.map, 4, 2)).toBe(false);
+    expect(result.map.desks[0]).toEqual({ key: 'mesa-1', x: 3, y: 2, w: 2, h: 1, orientation: 'down', chairX: 3, chairY: 3 });
+  });
+
+  it('mesa 16x32 virada para a direita bloqueia os dois tiles e a cadeira fica à direita da âncora', () => {
+    const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'right', size: 2 }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(isWalkable(result.map, 3, 3)).toBe(false);
+    expect(result.map.desks[0]).toMatchObject({ w: 1, h: 2, chairX: 4, chairY: 2 });
+  });
+
+  it('pegada fora de 1x1, 2x1 de frente ou 1x2 de lado é desk_size', () => {
+    const json = buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-1', x: 3, y: 2, orientation: 'down' }] });
+    const desk = (layerOf(json, 'desks').objects as Record<string, unknown>[])[0] ?? {};
+    desk.width = 32;
+    desk.height = 32;
+    const result = compileMap(json);
+    expect(result.ok ? [] : result.errors).toContainEqual({ code: 'desk_size', deskKey: 'mesa-1' });
+    const sideways = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'left', size: 2 }]);
+    expect(sideways.ok).toBe(true);
+    const json2 = buildTestMap({ width: 12, height: 10, desks: [{ key: 'mesa-2', x: 3, y: 2, orientation: 'left' }] });
+    const desk2 = (layerOf(json2, 'desks').objects as Record<string, unknown>[])[0] ?? {};
+    desk2.width = 32;
+    const result2 = compileMap(json2);
+    expect(result2.ok ? [] : result2.errors).toContainEqual({ code: 'desk_size', deskKey: 'mesa-2' });
+  });
+
+  it('mesa de 1 tile continua igual (w e h valem 1)', () => {
+    const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'down' }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(result.map.desks[0]).toEqual({ key: 'mesa-1', x: 3, y: 2, w: 1, h: 1, orientation: 'down', chairX: 3, chairY: 3 });
   });
 });
 
