@@ -37,7 +37,7 @@ describe('compileMap: mapas válidos', () => {
     expect(isWalkable(map, 7, 5)).toBe(false);
     expect(isWalkable(map, 2, 2)).toBe(false);
     expect(map.desks).toEqual([
-      { key: 'mesa-1', x: 2, y: 2, w: 1, h: 1, orientation: 'down', chairX: 2, chairY: 3, wallBehind: false },
+      { key: 'mesa-1', x: 2, y: 2, width: 1, height: 1, orientation: 'down', chairX: 2, chairY: 3, wallBehind: false },
     ]);
     expect(map.spawn).toEqual({ x: 1, y: 6 });
     expect(zoneAt(map, 1, 1)).toMatchObject({ key: 'produto', type: 'open', name: 'Product team' });
@@ -96,14 +96,14 @@ describe('compileMap: mesa de 2 tiles', () => {
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     expect(isWalkable(result.map, 3, 2)).toBe(false);
     expect(isWalkable(result.map, 4, 2)).toBe(false);
-    expect(result.map.desks[0]).toMatchObject({ key: 'mesa-1', x: 3, y: 2, w: 2, h: 1, orientation: 'down', chairX: 3, chairY: 3 });
+    expect(result.map.desks[0]).toMatchObject({ key: 'mesa-1', x: 3, y: 2, width: 2, height: 1, orientation: 'down', chairX: 3, chairY: 3 });
   });
 
   it('mesa 16x32 virada para a direita bloqueia os dois tiles e a cadeira fica à direita da âncora', () => {
     const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'right', size: 2 }]);
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     expect(isWalkable(result.map, 3, 3)).toBe(false);
-    expect(result.map.desks[0]).toMatchObject({ w: 1, h: 2, chairX: 4, chairY: 2 });
+    expect(result.map.desks[0]).toMatchObject({ width: 1, height: 2, chairX: 4, chairY: 2 });
   });
 
   it('pegada fora de 1x1, 2x1 de frente ou 1x2 de lado é desk_size', () => {
@@ -127,10 +127,10 @@ describe('compileMap: mesa de 2 tiles', () => {
     expect(result.ok ? [] : result.errors).toContainEqual({ code: 'desk_outside', deskKey: 'mesa-1' });
   });
 
-  it('mesa de 1 tile continua igual (w e h valem 1)', () => {
+  it('mesa de 1 tile continua igual (width e height valem 1)', () => {
     const result = compiled([{ key: 'mesa-1', x: 3, y: 2, orientation: 'down' }]);
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
-    expect(result.map.desks[0]).toMatchObject({ key: 'mesa-1', x: 3, y: 2, w: 1, h: 1, orientation: 'down', chairX: 3, chairY: 3 });
+    expect(result.map.desks[0]).toMatchObject({ key: 'mesa-1', x: 3, y: 2, width: 1, height: 1, orientation: 'down', chairX: 3, chairY: 3 });
   });
 });
 
@@ -226,7 +226,7 @@ describe('compileMap: um erro por código', () => {
         const deskDecorRef = (mapJson.tilesets as { firstgid: number; source: string }[]).find((tilesetRef) => tilesetRef.source === 'desk-decor.tsj');
         if (deskDecorRef) deskDecorRef.firstgid = FIRSTGID.furniture + 1;
       },
-      { code: 'tileset_overlap', a: 'furniture', b: 'desk-decor' },
+      { code: 'tileset_overlap', first: 'furniture', second: 'desk-decor' },
     ],
     [
       'móvel sem posição numérica',
@@ -263,7 +263,7 @@ describe('compileMap: um erro por código', () => {
         ],
       },
       undefined,
-      { code: 'zone_overlap', a: 'a', b: 'b' },
+      { code: 'zone_overlap', first: 'a', second: 'b' },
     ],
     [
       'zona desalinhada',
@@ -327,7 +327,7 @@ describe('compileMap: um erro por código', () => {
         ],
       },
       undefined,
-      { code: 'chair_shared', a: 'mesa-1', b: 'mesa-2' },
+      { code: 'chair_shared', first: 'mesa-1', second: 'mesa-2' },
     ],
   ];
 

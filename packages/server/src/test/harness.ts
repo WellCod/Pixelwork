@@ -144,9 +144,9 @@ export class Bot {
       // Mantém o mapa de ids curtos em dia, como o cliente de verdade.
       if (message.t === 'welcome') {
         this.shortIds.clear();
-        for (const player of message.players) this.shortIds.set(player.n, player.id);
+        for (const player of message.players) this.shortIds.set(player.shortId, player.id);
       }
-      if (message.t === 'player.join') this.shortIds.set(message.player.n, message.player.id);
+      if (message.t === 'player.join') this.shortIds.set(message.player.shortId, message.player.id);
       const waiter = this.waiters.find((pendingWaiter) => pendingWaiter.match(message));
       if (waiter) {
         this.waiters = this.waiters.filter((pendingWaiter) => pendingWaiter !== waiter);

@@ -9,7 +9,7 @@ export type { ZoneType };
 import type { Dir } from '../protocol.ts';
 import {
   objectLayer,
-  prop,
+  propertyValue,
   type EditorCommand,
   type ObjectLayerName,
   type TiledDoc,
@@ -51,10 +51,10 @@ function nextObjectId(doc: TiledDoc): number {
  * o maior número em uso + 1, nunca abaixo de 1. Chaves fora do padrão não contam.
  */
 function nextKeyNumber(doc: TiledDoc, kind: 'zone' | 'desk'): number {
-  const storedCounter = Number(prop(doc, COUNTERS[kind]));
+  const storedCounter = Number(propertyValue(doc, COUNTERS[kind]));
   const pattern = new RegExp(`^${PREFIX[kind]}-(\\d+)$`);
   const usedNumbers = objectLayer(doc, LAYER[kind]).objects.map((object) => {
-    const key = prop(object, KEY_PROP[kind]);
+    const key = propertyValue(object, KEY_PROP[kind]);
     const match = typeof key === 'string' ? pattern.exec(key) : null;
     return match ? Number(match[1]) : 0;
   });
@@ -185,8 +185,8 @@ function freeFirstgid(tilesetRefs: TilesetRef[], tileset: TilesetId): number {
 export interface TileRect {
   x: number;
   y: number;
-  w: number;
-  h: number;
+  width: number;
+  height: number;
 }
 
 /**
@@ -194,11 +194,11 @@ export interface TileRect {
  * Null quando nada sobra dentro do mapa.
  */
 function clampRect(doc: TiledDoc, rect: TileRect): TileRect | null {
-  const left = Math.max(0, Math.min(rect.x, rect.x + rect.w - 1));
-  const top = Math.max(0, Math.min(rect.y, rect.y + rect.h - 1));
-  const right = Math.min(doc.width - 1, Math.max(rect.x, rect.x + rect.w - 1));
-  const bottom = Math.min(doc.height - 1, Math.max(rect.y, rect.y + rect.h - 1));
-  return right >= left && bottom >= top ? { x: left, y: top, w: right - left + 1, h: bottom - top + 1 } : null;
+  const left = Math.max(0, Math.min(rect.x, rect.x + rect.width - 1));
+  const top = Math.max(0, Math.min(rect.y, rect.y + rect.height - 1));
+  const right = Math.min(doc.width - 1, Math.max(rect.x, rect.x + rect.width - 1));
+  const bottom = Math.min(doc.height - 1, Math.max(rect.y, rect.y + rect.height - 1));
+  return right >= left && bottom >= top ? { x: left, y: top, width: right - left + 1, height: bottom - top + 1 } : null;
 }
 
 /** Zona nova no retângulo (em tiles), com chave `zona-<n>` gerada. */
@@ -212,8 +212,8 @@ export function addZone(doc: TiledDoc, rect: TileRect, type: ZoneType, name: str
       baseObject(id, {
         x: clamped.x * TILE_PX,
         y: clamped.y * TILE_PX,
-        width: clamped.w * TILE_PX,
-        height: clamped.h * TILE_PX,
+        width: clamped.width * TILE_PX,
+        height: clamped.height * TILE_PX,
         properties: [
           { name: 'zone_key', type: 'string', value: key ?? '' },
           { name: 'type', type: 'string', value: type },
@@ -233,8 +233,8 @@ export function resizeZone(doc: TiledDoc, id: number, rect: TileRect): EditorCom
     ...zone,
     x: clamped.x * TILE_PX,
     y: clamped.y * TILE_PX,
-    width: clamped.w * TILE_PX,
-    height: clamped.h * TILE_PX,
+    width: clamped.width * TILE_PX,
+    height: clamped.height * TILE_PX,
   };
   if (resized.x === zone.x && resized.y === zone.y && resized.width === zone.width && resized.height === zone.height) return null;
   return { kind: 'replaceObject', layer: 'zones', object: resized };
@@ -244,7 +244,7 @@ export function resizeZone(doc: TiledDoc, id: number, rect: TileRect): EditorCom
 export function setZoneProps(doc: TiledDoc, id: number, values: { name?: string; type?: ZoneType }): EditorCommand | null {
   const zone = findObject(doc, 'zones', id);
   const changes = Object.fromEntries(
-    Object.entries(values).filter(([name, value]) => prop(zone, name) !== value),
+    Object.entries(values).filter(([name, value]) => propertyValue(zone, name) !== value),
   ) as Record<string, string>;
   if (Object.keys(changes).length === 0) return null;
   return { kind: 'replaceObject', layer: 'zones', object: setProps(zone, changes) };
@@ -283,7 +283,7 @@ function deskSize(orientation: Dir, tiles: 1 | 2): { width: number; height: numb
 /** Gira no sentido horário; a mesa larga troca largura e altura para continuar de frente. */
 export function rotateDesk(doc: TiledDoc, id: number): EditorCommand | null {
   const desk = findObject(doc, 'desks', id);
-  const currentOrientation = prop(desk, 'orientation');
+  const currentOrientation = propertyValue(desk, 'orientation');
   const nextOrientation = CLOCKWISE[(currentOrientation as Dir | undefined) ?? 'down'];
   const deskTiles = Math.max(desk.width, desk.height) > TILE_PX ? 2 : 1;
   const rotated = { ...setProps(desk, { orientation: nextOrientation }), ...deskSize(nextOrientation, deskTiles) };
@@ -370,7 +370,7 @@ export function adoptDocument(current: TiledDoc, incoming: TiledDoc): TiledDoc {
     const currentNextNumber = nextKeyNumber(current, kind);
     let nextNumber = Math.max(currentNextNumber, nextKeyNumber(doc, kind));
     for (const object of objectLayer(doc, LAYER[kind]).objects) {
-      const key = prop(object, KEY_PROP[kind]);
+      const key = propertyValue(object, KEY_PROP[kind]);
       const match = typeof key === 'string' ? pattern.exec(key) : null;
       if (!match || Number(match[1]) >= currentNextNumber) continue;
       object.properties = withProp(object.properties, KEY_PROP[kind], `${PREFIX[kind]}-${nextNumber}`);

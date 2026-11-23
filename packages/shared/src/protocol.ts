@@ -59,7 +59,7 @@ export type DeskDecor = z.infer<typeof DeskDecor>;
 export interface Player {
   id: string;
   /** Id curto (u16) deste jogador no runtime, usado no tick binário. */
-  n: number;
+  shortId: number;
   name: string;
   title: string | null;
   avatar: AvatarSpec;

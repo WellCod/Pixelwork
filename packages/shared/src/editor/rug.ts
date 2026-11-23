@@ -5,11 +5,11 @@ import type { EditorCommand, TiledDoc, TilesetRef } from './commands.ts';
 
 export type RugId = 'lavender' | 'sage' | 'cream';
 
-/** Primeiro frame de cada tapete no tileset `floors` (o do item `rug-<cor>`); o frame é `first + máscara`. */
-export const RUGS: Record<RugId, { first: number }> = {
-  lavender: { first: frameOf('floors', 'rug-lavender') },
-  sage: { first: frameOf('floors', 'rug-sage') },
-  cream: { first: frameOf('floors', 'rug-cream') },
+/** Primeiro frame de cada tapete no tileset `floors` (o do item `rug-<cor>`); o frame é `firstFrame + máscara`. */
+export const RUGS: Record<RugId, { firstFrame: number }> = {
+  lavender: { firstFrame: frameOf('floors', 'rug-lavender') },
+  sage: { firstFrame: frameOf('floors', 'rug-sage') },
+  cream: { firstFrame: frameOf('floors', 'rug-cream') },
 };
 
 /** Bordas de fora do retângulo `width`x`height` no tile (x, y) relativo: N=1, S=2, O=4, L=8. */
@@ -34,7 +34,7 @@ export function paintRug(doc: TiledDoc, rug: RugId, x0: number, y0: number, x1: 
   for (let y = top; y <= bottom; y++) {
     for (let x = left; x <= right; x++) {
       // gid = início do tileset no mapa + primeiro frame do tapete + máscara das bordas deste tile.
-      const gid = floorsRef.firstgid + RUGS[rug].first + rugMask(x - left, y - top, rugWidth, rugHeight);
+      const gid = floorsRef.firstgid + RUGS[rug].firstFrame + rugMask(x - left, y - top, rugWidth, rugHeight);
       const tileIndex = y * doc.width + x;
       // Só entra no comando o que muda, para repintar o mesmo tapete não empilhar desfazer vazio.
       if (floorLayer.data[tileIndex] !== gid) cells.push({ i: tileIndex, gid });

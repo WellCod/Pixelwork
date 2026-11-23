@@ -81,19 +81,19 @@ export function dividerLayout(desk: CompiledDesk): DividerLayout | null {
     const down = desk.orientation === 'down';
     const dy = down ? -7 : 6;
     const pieces =
-      desk.w === 2
+      desk.width === 2
         ? [
             { item: 'divider-wide-l', dx: 0, dy, flip: false },
             { item: 'divider-wide-r', dx: TILE, dy, flip: false },
           ]
         : [{ item: 'divider', dx: 0, dy, flip: false }];
-    return { pieces, back: [desk.w === 2 ? 8 : 0, down ? -9 : 4], behind: down };
+    return { pieces, back: [desk.width === 2 ? 8 : 0, down ? -9 : 4], behind: down };
   }
   // Lateral: um painel por tile de altura, empilhados de baixo para cima a partir da base.
   const left = desk.orientation === 'left';
-  const dx = left ? desk.w * TILE - 12 : -4;
-  const pieces = Array.from({ length: desk.h }, (_, i) => ({ item: 'divider-side', dx, dy: -(desk.h - 1 - i) * TILE, flip: !left }));
-  return { pieces, back: [left ? desk.w * TILE - 8 : -8, desk.h === 2 ? -10 : -2], behind: true };
+  const dx = left ? desk.width * TILE - 12 : -4;
+  const pieces = Array.from({ length: desk.height }, (_, i) => ({ item: 'divider-side', dx, dy: -(desk.height - 1 - i) * TILE, flip: !left }));
+  return { pieces, back: [left ? desk.width * TILE - 8 : -8, desk.height === 2 ? -10 : -2], behind: true };
 }
 
 export interface DeskSprite {
@@ -121,8 +121,8 @@ export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSp
     if (item) sprites.push({ item, dx, dy, z, flip });
   };
   const variant = decor?.variant ?? 'basic';
-  const wide = desk.w === 2;
-  const tall = desk.h === 2;
+  const wide = desk.width === 2;
+  const tall = desk.height === 2;
   // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
   if (wide) {
     add(`${variant}-wide-l`, 0, 0, 0);

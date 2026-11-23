@@ -16,7 +16,7 @@ describe('mesas interativas', () => {
   it('mesa de pingpong vira CompiledTable com a pegada', () => {
     const map = compiled({ furniture: [PING_PONG] });
     expect(map.tables).toHaveLength(1);
-    expect(map.tables[0]).toMatchObject({ key: 'ping-pong@4,3', game: 'pong', x: 4, y: 3, w: 3, h: 2 });
+    expect(map.tables[0]).toMatchObject({ key: 'ping-pong@4,3', game: 'pong', x: 4, y: 3, width: 3, height: 2 });
   });
 
   it('lados são as colunas caminháveis à esquerda e à direita', () => {

@@ -20,7 +20,7 @@ import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, z
 import { Mover } from './mover.ts';
 import { deskSprites, isNear, seatedFacing } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
-import { embedTilesets, objectLayer, prop, resolveGid } from './tiled.ts';
+import { embedTilesets, objectLayer, propertyValue, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
 export interface WorldSceneOptions {
@@ -393,7 +393,7 @@ export class WorldScene extends Phaser.Scene {
           : state.phase === 'waiting'
             ? 'Pingpong: esperando'
             : `${firstName(state.left)} ${state.score.left} × ${state.score.right} ${firstName(state.right)}`;
-      const centerX = (table.x + table.w / 2) * TILE_PX;
+      const centerX = (table.x + table.width / 2) * TILE_PX;
       this.tablePlaques.set(table.key, tablePlaque(this, centerX, table.y * TILE_PX - 2, text).setDepth(LABEL_DEPTH - 2));
     }
     this.updateTablePlaques();
@@ -406,8 +406,8 @@ export class WorldScene extends Phaser.Scene {
       const plaque = this.tablePlaques.get(table.key);
       if (!plaque) continue;
       // Distância até o tile mais próximo da pegada (zero em cada eixo quando está dentro dela).
-      const dx = Math.max(table.x - world.self.x, 0, world.self.x - (table.x + table.w - 1));
-      const dy = Math.max(table.y - world.self.y, 0, world.self.y - (table.y + table.h - 1));
+      const dx = Math.max(table.x - world.self.x, 0, world.self.x - (table.x + table.width - 1));
+      const dy = Math.max(table.y - world.self.y, 0, world.self.y - (table.y + table.height - 1));
       plaque.setVisible(Math.hypot(dx, dy) <= PROXIMITY_ENTER_TILES);
     }
   }
@@ -418,7 +418,7 @@ export class WorldScene extends Phaser.Scene {
     for (const label of this.zoneLabels) label.destroy();
     this.zoneLabels = [];
     for (const object of objectLayer(this.options.mapJson, 'zones')) {
-      const name = prop(object, 'name');
+      const name = propertyValue(object, 'name');
       if (typeof name !== 'string' || name === '') continue;
       this.zoneLabels.push(zonePill(this, object.x + 4, object.y + 3, name).setDepth(LABEL_DEPTH - 1));
     }
@@ -560,7 +560,7 @@ export class WorldScene extends Phaser.Scene {
     // Os sprites da mesa são posicionados a partir do canto esquerdo e da base da pegada, e a
     // profundidade de cada um é a da base somada ao z relativo que o `deskSprites` define.
     const x = desk.x * TILE_PX;
-    const bottom = (desk.y + desk.h) * TILE_PX;
+    const bottom = (desk.y + desk.height) * TILE_PX;
     const addItem = (itemId: string | null, dx: number, dy: number, depth: number, flip = false) => {
       const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
       if (frame === undefined) return;
@@ -582,7 +582,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private plaque(desk: CompiledDesk, name: string): Phaser.GameObjects.Container {
-    const centerX = desk.x * TILE_PX + (desk.w * TILE_PX) / 2;
+    const centerX = desk.x * TILE_PX + (desk.width * TILE_PX) / 2;
     return deskPlaque(this, centerX, desk.y * TILE_PX - 11, name).setDepth(LABEL_DEPTH - 2);
   }
 }

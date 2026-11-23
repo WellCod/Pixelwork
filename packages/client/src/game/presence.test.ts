@@ -34,8 +34,8 @@ describe('isNear', () => {
 });
 
 describe('dividerLayout', () => {
-  const desk = (orientation: 'down' | 'up' | 'left' | 'right', w: number, h: number, wallBehind = false) =>
-    ({ key: 'm', x: 0, y: 0, w, h, orientation, chairX: 0, chairY: 0, wallBehind });
+  const desk = (orientation: 'down' | 'up' | 'left' | 'right', width: number, height: number, wallBehind = false) =>
+    ({ key: 'm', x: 0, y: 0, width, height, orientation, chairX: 0, chairY: 0, wallBehind });
 
   it('com parede atrás não há divisória', () => {
     expect(dividerLayout(desk('down', 2, 1, true))).toBeNull();
@@ -57,7 +57,7 @@ describe('dividerLayout', () => {
 
 describe('deskSprites', () => {
   const desk = (overrides: Partial<CompiledDesk>): CompiledDesk => ({
-    key: 'm', x: 0, y: 0, w: 2, h: 1, orientation: 'down', chairX: 0, chairY: 1, wallBehind: true, ...overrides,
+    key: 'm', x: 0, y: 0, width: 2, height: 1, orientation: 'down', chairX: 0, chairY: 1, wallBehind: true, ...overrides,
   });
   const decor: DeskDecor = { variant: 'white', monitor: 'dual', slots: { left: 'duck', right: 'pencil-cup', back: 'calendar', floor: 'cat' } };
   const at = (sprites: ReturnType<typeof deskSprites>, item: string) => sprites.find((sprite) => sprite.item === item);
@@ -72,7 +72,7 @@ describe('deskSprites', () => {
   });
 
   it('mesa lateral virada para a esquerda usa as metades de cima e de baixo e os deslocamentos dela', () => {
-    const sprites = deskSprites(desk({ w: 1, h: 2, orientation: 'left' }), decor);
+    const sprites = deskSprites(desk({ width: 1, height: 2, orientation: 'left' }), decor);
     expect(at(sprites, 'white-tall-t')).toMatchObject({ dx: 0, dy: -16 });
     expect(at(sprites, 'white-tall-b')).toMatchObject({ dx: 0, dy: 0 });
     expect(at(sprites, 'monitor-dual')).toMatchObject({ dx: 0, dy: -17 });
@@ -88,6 +88,6 @@ describe('deskSprites', () => {
   });
 
   it('mesa livre (sem decoração): variação padrão e um monitor, sem itens', () => {
-    expect(deskSprites(desk({ w: 1 }), null).map((sprite) => sprite.item)).toEqual(['basic', 'monitor-single']);
+    expect(deskSprites(desk({ width: 1 }), null).map((sprite) => sprite.item)).toEqual(['basic', 'monitor-single']);
   });
 });

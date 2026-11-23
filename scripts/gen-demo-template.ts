@@ -36,7 +36,7 @@ const wall = (frame: number, x: number, y: number) => (walls[cellIndex(x, y)] = 
 const rug = (id: RugId, x0: number, y0: number, widthTiles: number, heightTiles: number) => {
   for (let y = 0; y < heightTiles; y++) {
     for (let x = 0; x < widthTiles; x++) {
-      floor[cellIndex(x0 + x, y0 + y)] = FIRSTGID.floors + RUGS[id].first + rugMask(x, y, widthTiles, heightTiles);
+      floor[cellIndex(x0 + x, y0 + y)] = FIRSTGID.floors + RUGS[id].firstFrame + rugMask(x, y, widthTiles, heightTiles);
     }
   }
 };

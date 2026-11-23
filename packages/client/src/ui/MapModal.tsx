@@ -25,13 +25,13 @@ export function describeMapError(error: MapError): string {
     case 'unknown_tileset':
       return `Tileset fora do catálogo ou embutido: ${error.source}. Use os .tsj do catálogo como tilesets externos.`;
     case 'tileset_overlap':
-      return `Os tilesets ${error.a} e ${error.b} dividem gids. Dê ao segundo um firstgid depois do fim do primeiro (o padrão é 100 por tileset).`;
+      return `Os tilesets ${error.first} e ${error.second} dividem gids. Dê ao segundo um firstgid depois do fim do primeiro (o padrão é 100 por tileset).`;
     case 'duplicate_key':
       return `${error.kind === 'zone' ? 'zone_key' : 'desk_key'} repetido: ${error.key}.`;
     case 'invalid_key':
       return `${error.kind === 'zone' ? 'zone_key' : 'desk_key'} inválido: "${error.key}" (use a-z, 0-9 e hífen).`;
     case 'zone_overlap':
-      return `As zonas ${error.a} e ${error.b} se sobrepõem.`;
+      return `As zonas ${error.first} e ${error.second} se sobrepõem.`;
     case 'zone_not_aligned':
       return `A zona ${error.key} não está alinhada à grade de 16 px.`;
     case 'invalid_zone_type':
@@ -45,7 +45,7 @@ export function describeMapError(error: MapError): string {
     case 'desk_outside':
       return `A mesa ${error.deskKey} está fora do mapa.`;
     case 'chair_shared':
-      return `As mesas ${error.a} e ${error.b} usam a mesma cadeira.`;
+      return `As mesas ${error.first} e ${error.second} usam a mesma cadeira.`;
     case 'furniture_position':
       return `O móvel ${error.objectId} não tem posição numérica (x e y).`;
     case 'invalid_orientation':

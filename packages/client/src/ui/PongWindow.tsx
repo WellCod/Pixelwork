@@ -97,17 +97,17 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
       const now = Date.now();
       // Campo, linha central tracejada e as bordas de cima e de baixo.
       context2d.fillStyle = FIELD;
-      context2d.fillRect(0, 0, PONG.W, PONG.H);
+      context2d.fillRect(0, 0, PONG.FIELD_WIDTH, PONG.FIELD_HEIGHT);
       context2d.fillStyle = LINE;
-      for (let y = 2; y < PONG.H; y += 6) context2d.fillRect(PONG.W / 2 - 0.5, y, 1, 3);
-      context2d.fillRect(0, 0, PONG.W, 1);
-      context2d.fillRect(0, PONG.H - 1, PONG.W, 1);
+      for (let y = 2; y < PONG.FIELD_HEIGHT; y += 6) context2d.fillRect(PONG.FIELD_WIDTH / 2 - 0.5, y, 1, 3);
+      context2d.fillRect(0, 0, PONG.FIELD_WIDTH, 1);
+      context2d.fillRect(0, PONG.FIELD_HEIGHT - 1, PONG.FIELD_WIDTH, 1);
 
       // A própria raquete é prevista a partir das teclas ainda não confirmadas; a do outro vem do servidor.
       const myPaddleY = lastGame
         ? predictPaddle(lastGame.paddles[side], world.gameAckedDir, world.gamePending, lastGame.receivedAt, now)
-        : PONG.H / 2;
-      const theirPaddleY = lastGame ? lastGame.paddles[oppositeSide(side)] : PONG.H / 2;
+        : PONG.FIELD_HEIGHT / 2;
+      const theirPaddleY = lastGame ? lastGame.paddles[oppositeSide(side)] : PONG.FIELD_HEIGHT / 2;
       const drawPaddle = (paddleSide: PongSide, y: number, color: string) => {
         context2d.fillStyle = color;
         const x = paddleSide === 'left' ? PONG.LEFT_X : PONG.RIGHT_X;
@@ -120,16 +120,16 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
       // Bola extrapolada desde o último estado só com a partida rolando; fora disso fica parada.
       const ball = lastGame.phase === 'playing' ? extrapolateBall(lastGame.ball, lastGame.receivedAt, now) : lastGame.ball;
       context2d.fillStyle = BALL;
-      context2d.fillRect(Math.round(ball.x - PONG.BALL / 2), Math.round(ball.y - PONG.BALL / 2), PONG.BALL, PONG.BALL);
+      context2d.fillRect(Math.round(ball.x - PONG.BALL_SIZE / 2), Math.round(ball.y - PONG.BALL_SIZE / 2), PONG.BALL_SIZE, PONG.BALL_SIZE);
 
       const drawBanner = (text: string) => {
         context2d.fillStyle = SHADE;
-        context2d.fillRect(0, PONG.H / 2 - 9, PONG.W, 18);
+        context2d.fillRect(0, PONG.FIELD_HEIGHT / 2 - 9, PONG.FIELD_WIDTH, 18);
         context2d.fillStyle = LINE;
         context2d.font = '600 10px "Inter Variable", system-ui, sans-serif';
         context2d.textAlign = 'center';
         context2d.textBaseline = 'middle';
-        context2d.fillText(text, PONG.W / 2, PONG.H / 2 + 0.5);
+        context2d.fillText(text, PONG.FIELD_WIDTH / 2, PONG.FIELD_HEIGHT / 2 + 0.5);
       };
       if (lastGame.phase === 'countdown') {
         // Tempo até o saque no relógio do servidor, descontado o tempo desde que o estado chegou.
@@ -196,7 +196,7 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
         </strong>
         <span>{nameOf(table.right)}</span>
       </div>
-      <canvas ref={canvas} className="pong-field" width={PONG.W} height={PONG.H} aria-label="Campo da partida" />
+      <canvas ref={canvas} className="pong-field" width={PONG.FIELD_WIDTH} height={PONG.FIELD_HEIGHT} aria-label="Campo da partida" />
       {statusBar}
       <div className="pong-controls">
         <span className="hint">Setas ou W/S movem a sua raquete (azul).</span>

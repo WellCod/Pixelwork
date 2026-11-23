@@ -27,7 +27,7 @@ const TICK_COUNT_OFFSET = 13;
 const DIR_CODES: readonly Dir[] = ['up', 'down', 'left', 'right'];
 
 /** Movimento do tick com o id curto (u16) do jogador no lugar do UUID. */
-export type ShortMove = [short: number, x: number, y: number, dir: Dir];
+export type ShortMove = [shortId: number, x: number, y: number, dir: Dir];
 
 /** Monta o quadro binário do tick no formato descrito acima. */
 export function encodeTick(ack: number, ts: number, moves: readonly ShortMove[]): Uint8Array {

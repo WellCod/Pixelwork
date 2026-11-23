@@ -15,7 +15,7 @@ export interface WorldState {
 }
 
 /** Pedido de passo de um jogador (o `move` do cliente). */
-export interface Input {
+export interface StepInput {
   playerId: string;
   seq: number;
   dir: Dir;
@@ -39,7 +39,7 @@ export interface StepRules {
  */
 export function step(
   state: WorldState,
-  inputs: readonly Input[],
+  inputs: readonly StepInput[],
   now: number,
   map: CompiledMap,
   rules: StepRules = {},

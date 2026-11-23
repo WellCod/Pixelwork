@@ -897,7 +897,7 @@ export class SpaceRuntime {
     const member = this.members.get(id);
     const simPlayer = this.world.players.get(id);
     if (!member || !simPlayer) throw new Error(`jogador ${id} sem estado`);
-    return { ...member.profile, n: member.shortId, x: simPlayer.x, y: simPlayer.y, dir: simPlayer.dir, activity: member.activity };
+    return { ...member.profile, shortId: member.shortId, x: simPlayer.x, y: simPlayer.y, dir: simPlayer.dir, activity: member.activity };
   }
 
   private send(connection: Conn, message: ServerMsg): void {

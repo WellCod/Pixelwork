@@ -203,7 +203,7 @@ export class EditorController {
 
   /** Fim do arrasto da ferramenta de tapete: pinta o retângulo com o tapete escolhido. */
   drawRug(rect: TileRect): void {
-    this.stack.execute(paintRug(this.doc, this.rug, rect.x, rect.y, rect.x + rect.w - 1, rect.y + rect.h - 1));
+    this.stack.execute(paintRug(this.doc, this.rug, rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1));
   }
 
   /** Fim do arrasto da ferramenta de zona: cria a zona, seleciona e volta para a seleção. */

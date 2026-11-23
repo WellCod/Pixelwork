@@ -1,5 +1,5 @@
 import { TILESETS, TILESET_IDS, TILE_PX, tilesetImageUrl } from '@pixelwork/shared';
-import { prop, textProp, type TiledObject } from '@pixelwork/shared/editor';
+import { propertyValue, textProp, type TiledObject } from '@pixelwork/shared/editor';
 import * as Phaser from 'phaser';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 import { baseZoom } from '../game/scale.ts';
@@ -136,8 +136,8 @@ export class EditorScene extends Phaser.Scene {
       const rect = {
         x: Math.min(start.x, tile.x),
         y: Math.min(start.y, tile.y),
-        w: Math.abs(tile.x - start.x) + 1,
-        h: Math.abs(tile.y - start.y) + 1,
+        width: Math.abs(tile.x - start.x) + 1,
+        height: Math.abs(tile.y - start.y) + 1,
       };
       if (this.controller.tool === 'zone') {
         this.controller.drawZone(rect);
@@ -201,7 +201,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private drawZone(zone: TiledObject, selected: boolean): void {
-    const meeting = prop(zone, 'type') === 'meeting';
+    const meeting = propertyValue(zone, 'type') === 'meeting';
     const color = meeting ? 0xb55088 : 0x0099db;
     const rect = this.add
       .rectangle(zone.x, zone.y, zone.width, zone.height, color, 0.15)
