@@ -154,6 +154,7 @@ export class SpaceRuntime {
       },
       broadcast: (msg) => this.broadcast(msg),
       activityChanged: (userId) => this.refresh(userId),
+      observeFrame: (seconds) => deps.metrics?.gameFrame.observe(seconds),
     });
   }
 
@@ -180,6 +181,11 @@ export class SpaceRuntime {
   /** Membros no mapa, incluindo quem está na tolerância de reconexão. */
   memberCount(): number {
     return this.members.size;
+  }
+
+  /** Partidas de pingpong com o laço de 30 Hz rodando. */
+  activeGames(): number {
+    return this.games.activeMatches();
   }
 
   /** Mapa compilado em uso (o replay reproduz sobre ele). */
@@ -279,6 +285,7 @@ export class SpaceRuntime {
       game: this.games.seatOf(profile.id),
     });
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
+    this.games.reconnected(profile.id);
     this.syncMedia(profile.id);
   }
 
@@ -399,6 +406,7 @@ export class SpaceRuntime {
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
     if (call) this.endCall(call, 'left');
+    this.games.disconnected(userId);
     member.leaveTimer = this.deps.scheduler.setTimeout(() => this.leave(userId), RECONNECT_GRACE_MS);
   }
 
@@ -476,6 +484,8 @@ export class SpaceRuntime {
 
     this.map = map;
     this.mapVersion = version;
+    // Antes do refresh dos jogadores abaixo: quem jogava volta a 'idle'.
+    this.games.replaceTables(map.tables);
     const players = new Map(this.world.players);
     for (const [id, p] of players) {
       let to = relocate(map, p.x, p.y);
@@ -655,7 +665,7 @@ export class SpaceRuntime {
       return;
     }
     const id = randomUUID();
-    if (this.callOf(target) || this.activityOf(target) === 'meeting') {
+    if (this.callOf(target) || this.activityOf(target) === 'meeting' || this.games.seatOf(target)) {
       this.send(conn, { t: 'call.ended', callId: id, reason: 'busy' });
       return;
     }

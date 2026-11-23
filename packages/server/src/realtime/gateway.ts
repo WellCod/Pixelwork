@@ -32,6 +32,8 @@ export interface Gateway {
   connections(): number;
   /** Jogadores em todos os runtimes carregados (inclui a tolerância de reconexão). */
   players(): number;
+  /** Partidas de pingpong em andamento em todos os runtimes. */
+  games(): number;
   /** Coworkings com runtime em memória. */
   runtimesLoaded(): number;
   /**
@@ -293,6 +295,7 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
   return {
     connections: () => sockets.size,
     players: () => [...loaded.values()].reduce((sum, r) => sum + r.memberCount(), 0),
+    games: () => [...loaded.values()].reduce((sum, r) => sum + r.activeGames(), 0),
     runtimesLoaded: () => loaded.size,
     runtime: (spaceId) => {
       const runtime = loaded.get(spaceId);
