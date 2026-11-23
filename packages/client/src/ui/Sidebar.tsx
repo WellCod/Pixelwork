@@ -73,7 +73,7 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
                   <div className="person-status">
                     {[
                       p.status !== 'available' ? STATUS_LABEL[p.status] : null,
-                      p.activity === 'call' ? 'Em chamada' : p.activity === 'meeting' ? 'Em reunião' : null,
+                      p.activity === 'call' ? 'Em chamada' : p.activity === 'meeting' ? 'Em reunião' : p.activity === 'game' ? 'Jogando' : null,
                       p.statusText,
                     ]
                       .filter(Boolean)

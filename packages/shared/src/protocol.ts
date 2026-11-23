@@ -1,3 +1,4 @@
+import type { PongEvent, PongPhase, PongSide, PongState } from './pong.ts';
 import { z } from 'zod';
 import {
   ACCESSORY_IDS,
@@ -26,7 +27,7 @@ export const DIR_DELTA: Readonly<Record<Dir, readonly [dx: number, dy: number]>>
 };
 
 export type Status = 'available' | 'focus' | 'away';
-export type Activity = 'idle' | 'meeting' | 'call';
+export type Activity = 'idle' | 'meeting' | 'call' | 'game';
 
 export const AvatarSpec = z.object({
   body: z.enum(BODY_IDS),
@@ -80,6 +81,21 @@ export interface DeskState {
   decor: DeskDecor | null;
 }
 
+/** Mesa de jogo vista por todos (plaquinha com o placar). `left`/`right`: id do jogador ou 'bot'. */
+export interface TableState {
+  tableKey: string;
+  phase: 'free' | 'waiting' | 'playing' | 'ended';
+  left: string | null;
+  right: string | null;
+  score: { left: number; right: number };
+}
+
+/** Mesa e lado do próprio jogador. */
+export interface GameSeat {
+  tableKey: string;
+  side: PongSide;
+}
+
 const Seq = z.number().int().nonnegative();
 const Key = z.string().min(1).max(40);
 
@@ -93,6 +109,11 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('call.leave') }),
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
   z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
+  z.object({ t: z.literal('game.join'), tableKey: Key }),
+  z.object({ t: z.literal('game.bot') }),
+  z.object({ t: z.literal('game.rematch') }),
+  z.object({ t: z.literal('game.leave') }),
+  z.object({ t: z.literal('game.input'), seq: Seq, dir: z.union([z.literal(-1), z.literal(0), z.literal(1)]) }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
@@ -106,6 +127,9 @@ export type ServerMsg =
       players: Player[];
       zones: ZoneState[];
       desks: DeskState[];
+      tables: TableState[];
+      /** Mesa em que o próprio jogador está (reabre a janela do jogo ao reconectar). */
+      game: GameSeat | null;
     }
   /**
    * `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. Na rede o tick vai
@@ -133,7 +157,21 @@ export type ServerMsg =
   | { t: 'session.replaced' }
   /** Resposta ao `ping`; `ts` é a hora do servidor, para estimar a diferença de relógio. */
   | { t: 'pong'; id: number; ts: number }
-  | { t: 'error'; code: string };
+  | { t: 'error'; code: string }
+  /** Estado da partida, 30 vezes por segundo, só para os jogadores. `ack`: último `seq` de input do destinatário. */
+  | {
+      t: 'game.state';
+      tableKey: string;
+      ack: number;
+      phase: PongPhase;
+      serveAt: number;
+      ball: PongState['ball'];
+      paddles: PongState['paddles'];
+      score: PongState['score'];
+      serverTs: number;
+    }
+  | { t: 'game.events'; tableKey: string; events: PongEvent[] }
+  | { t: 'table.state'; table: TableState };
 
 /** Fechamento da conexão anterior quando o mesmo usuário abre outra no mesmo coworking. */
 export const CLOSE_SESSION_REPLACED = 4001;

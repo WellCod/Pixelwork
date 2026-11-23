@@ -263,6 +263,8 @@ export class SpaceRuntime {
       players: [...this.members.keys()].map((id) => this.player(id)),
       zones: this.zoneStates(),
       desks: [...this.desks.values()],
+      tables: [],
+      game: null,
     });
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
     this.syncMedia(profile.id);
