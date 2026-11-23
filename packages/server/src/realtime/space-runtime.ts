@@ -442,6 +442,7 @@ export class SpaceRuntime {
   close(): void {
     this.ticker?.cancel();
     this.ticker = null;
+    this.games.close();
     for (const knock of this.knocks.values()) knock.timer.cancel();
     for (const call of this.calls.values()) call.timer?.cancel();
     for (const member of this.members.values()) {

@@ -150,6 +150,9 @@ export class GameRegistry {
     this.offline.add(userId);
     const table = this.tableOf(userId);
     const match = table?.match;
+    // A tecla solta durante a queda nunca chega: a raquete para em vez de correr até a parede.
+    const seat = this.seats.get(userId);
+    if (match && seat) match.inputs[seat.side] = 0;
     if (!table || !match || match.state.phase === 'ended' || match.state.phase === 'paused') return;
     match.timer?.cancel();
     match.timer = null;
@@ -187,6 +190,11 @@ export class GameRegistry {
       this.changed(table);
     }
     for (const id of seated) this.host.activityChanged(id);
+  }
+
+  /** Runtime descarregado: nenhum intervalo de partida sobrevive. */
+  close(): void {
+    for (const table of this.tables.values()) this.stop(table);
   }
 
   seatOf(userId: string): GameSeat | null {
@@ -241,17 +249,19 @@ export class GameRegistry {
     const { state, events } = stepPong(before, inputs, this.host.clock.now());
     match.state = state;
     this.sendState(table, state);
+    if (state.phase === 'ended') {
+      match.timer?.cancel();
+      match.timer = null;
+    }
+    // A mesa muda antes dos eventos: quem recebe o `end` já vê a mesa em `ended` (e não confunde
+    // fim normal com desistência).
+    const scored = before.score.left !== state.score.left || before.score.right !== state.score.right;
+    if (scored || before.phase !== state.phase) this.changed(table);
     if (events.length > 0) {
       for (const id of [table.left, table.right].filter(isHuman)) {
         this.host.send(id, { t: 'game.events', tableKey: table.def.key, events });
       }
     }
-    if (state.phase === 'ended') {
-      match.timer?.cancel();
-      match.timer = null;
-    }
-    const scored = before.score.left !== state.score.left || before.score.right !== state.score.right;
-    if (scored || before.phase !== state.phase) this.changed(table);
     this.host.observeFrame?.((performance.now() - started) / 1000);
   }
 
