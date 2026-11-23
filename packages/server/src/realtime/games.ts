@@ -4,6 +4,8 @@ import {
   PONG,
   botInput,
   newPong,
+  pausePong,
+  resumePong,
   stepPong,
   type CompiledTable,
   type GameSeat,
@@ -22,6 +24,8 @@ export interface GameHost {
   broadcast(msg: ServerMsg): void;
   /** A atividade do jogador mudou (entrou ou saiu de uma mesa). */
   activityChanged(userId: string): void;
+  /** Duração de cada quadro da partida, em segundos (métrica). */
+  observeFrame?(seconds: number): void;
 }
 
 export interface GameOptions {
@@ -55,6 +59,8 @@ const isHuman = (id: string | null): id is string => id !== null && id !== BOT;
 export class GameRegistry {
   private readonly tables = new Map<string, Table>();
   private readonly seats = new Map<string, GameSeat>();
+  /** Jogadores sem conexão (dentro da tolerância de reconexão). */
+  private readonly offline = new Set<string>();
   private readonly start: (now: number) => PongState;
 
   constructor(
@@ -125,6 +131,7 @@ export class GameRegistry {
     const seat = this.seats.get(userId);
     const table = seat && this.tables.get(seat.tableKey);
     this.seats.delete(userId);
+    this.offline.delete(userId);
     if (!seat || !table) return;
     const opponent = table[other(seat.side)];
     if (isHuman(opponent) && table.match && table.match.state.phase !== 'ended') {
@@ -138,6 +145,48 @@ export class GameRegistry {
     this.host.activityChanged(userId);
   }
 
+  /** Queda de conexão: a partida pausa até a pessoa voltar ou a tolerância acabar. */
+  disconnected(userId: string): void {
+    this.offline.add(userId);
+    const table = this.tableOf(userId);
+    const match = table?.match;
+    if (!table || !match || match.state.phase === 'ended' || match.state.phase === 'paused') return;
+    match.timer?.cancel();
+    match.timer = null;
+    match.state = pausePong(match.state);
+    this.sendState(table, match.state);
+  }
+
+  /** Volta da queda: a partida retoma com contagem quando todos os jogadores estão conectados. */
+  reconnected(userId: string): void {
+    this.offline.delete(userId);
+    const table = this.tableOf(userId);
+    const match = table?.match;
+    if (!table || !match || match.state.phase !== 'paused') return;
+    if ([table.left, table.right].some((id) => isHuman(id) && this.offline.has(id))) return;
+    match.state = resumePong(match.state, this.host.clock.now());
+    match.timer = this.host.scheduler.setInterval(() => this.frame(table, match), PONG.FRAME_MS);
+  }
+
+  /** Troca de mapa: encerra as partidas, libera as mesas antigas e passa a usar as novas. */
+  replaceTables(defs: CompiledTable[]): void {
+    const seated = [...this.seats.keys()];
+    for (const table of this.tables.values()) {
+      this.stop(table);
+      table.left = null;
+      table.right = null;
+      this.changed(table);
+    }
+    this.seats.clear();
+    this.tables.clear();
+    for (const def of defs) {
+      const table: Table = { def, left: null, right: null, match: null, acks: new Map() };
+      this.tables.set(def.key, table);
+      this.changed(table);
+    }
+    for (const id of seated) this.host.activityChanged(id);
+  }
+
   seatOf(userId: string): GameSeat | null {
     return this.seats.get(userId) ?? null;
   }
@@ -148,6 +197,11 @@ export class GameRegistry {
 
   activeMatches(): number {
     return [...this.tables.values()].filter((t) => t.match?.timer).length;
+  }
+
+  private tableOf(userId: string): Table | undefined {
+    const seat = this.seats.get(userId);
+    return seat && this.tables.get(seat.tableKey);
   }
 
   private stateOf(table: Table): TableState {
@@ -176,6 +230,7 @@ export class GameRegistry {
   }
 
   private frame(table: Table, match: Match): void {
+    const started = performance.now();
     const before = match.state;
     const inputs = {
       left: table.left === BOT ? botInput(before, 'left') : match.inputs.left,
@@ -183,11 +238,26 @@ export class GameRegistry {
     };
     const { state, events } = stepPong(before, inputs, this.host.clock.now());
     match.state = state;
-    const key = table.def.key;
+    this.sendState(table, state);
+    if (events.length > 0) {
+      for (const id of [table.left, table.right].filter(isHuman)) {
+        this.host.send(id, { t: 'game.events', tableKey: table.def.key, events });
+      }
+    }
+    if (state.phase === 'ended') {
+      match.timer?.cancel();
+      match.timer = null;
+    }
+    const scored = before.score.left !== state.score.left || before.score.right !== state.score.right;
+    if (scored || before.phase !== state.phase) this.changed(table);
+    this.host.observeFrame?.((performance.now() - started) / 1000);
+  }
+
+  private sendState(table: Table, state: PongState): void {
     for (const id of [table.left, table.right].filter(isHuman)) {
       this.host.send(id, {
         t: 'game.state',
-        tableKey: key,
+        tableKey: table.def.key,
         ack: table.acks.get(id) ?? 0,
         phase: state.phase,
         serveAt: state.serveAt,
@@ -196,14 +266,7 @@ export class GameRegistry {
         score: state.score,
         serverTs: state.at,
       });
-      if (events.length > 0) this.host.send(id, { t: 'game.events', tableKey: key, events });
     }
-    if (state.phase === 'ended') {
-      match.timer?.cancel();
-      match.timer = null;
-    }
-    const scored = before.score.left !== state.score.left || before.score.right !== state.score.right;
-    if (scored || before.phase !== state.phase) this.changed(table);
   }
 
   private changed(table: Table): void {

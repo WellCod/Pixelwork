@@ -161,4 +161,73 @@ describe('GameRegistry', () => {
     games.leave('a');
     expect(activity).toEqual(['a', 'a']);
   });
+
+  it('queda pausa e reconexão retoma com contagem', () => {
+    const { games, clock, lastState, table } = setup();
+    games.join('a', KEY, LEFT, false);
+    games.join('b', KEY, RIGHT, false);
+    clock.advance(PONG.COUNTDOWN_MS + 500);
+    games.disconnected('a');
+    expect(clock.pending()).toBe(0);
+    expect(lastState('b')?.phase).toBe('paused');
+    expect(table()?.phase).toBe('playing');
+    games.reconnected('a');
+    expect(clock.pending()).toBe(1);
+    clock.advance(100);
+    expect(lastState('a')).toMatchObject({ phase: 'countdown', ball: { x: 80, y: 45 } });
+  });
+
+  it('reconectar sem partida pausada não cria intervalo', () => {
+    const { games, clock } = setup();
+    games.join('a', KEY, LEFT, false);
+    games.disconnected('a');
+    games.reconnected('a');
+    expect(clock.pending()).toBe(0);
+  });
+
+  it('os dois caem e a mesa fica free sem timer', () => {
+    const { games, clock, table } = setup();
+    games.join('a', KEY, LEFT, false);
+    games.join('b', KEY, RIGHT, false);
+    games.disconnected('a');
+    games.disconnected('b');
+    games.leave('a');
+    games.leave('b');
+    expect(clock.pending()).toBe(0);
+    expect(table()).toMatchObject({ phase: 'free', left: null, right: null });
+  });
+
+  it('troca de mapa encerra a partida e libera a mesa', () => {
+    const { games, clock, broadcasts, activity } = setup();
+    games.join('a', KEY, LEFT, false);
+    games.bot('a');
+    activity.length = 0;
+    games.replaceTables([]);
+    expect(clock.pending()).toBe(0);
+    expect(games.seatOf('a')).toBeNull();
+    expect(games.states()).toEqual([]);
+    expect(broadcasts.at(-1)).toEqual({
+      t: 'table.state',
+      table: { tableKey: KEY, phase: 'free', left: null, right: null, score: { left: 0, right: 0 } },
+    });
+    expect(activity).toEqual(['a']);
+  });
+
+  it('conta a duração de cada quadro', () => {
+    const frames: number[] = [];
+    const clock = new ManualClock();
+    const games = new GameRegistry(map.tables, {
+      clock,
+      scheduler: clock,
+      send: () => undefined,
+      broadcast: () => undefined,
+      activityChanged: () => undefined,
+      observeFrame: (seconds) => frames.push(seconds),
+    });
+    games.join('a', KEY, LEFT, false);
+    games.bot('a');
+    // Três quadros de 1000/30 ms somam um tico acima de 100 ms em ponto flutuante.
+    clock.advance(101);
+    expect(frames).toHaveLength(3);
+  });
 });

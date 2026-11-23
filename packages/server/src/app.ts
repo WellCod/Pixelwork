@@ -90,6 +90,7 @@ export function buildApp({
       connections: gateway.connections(),
       runtimes: gateway.runtimesLoaded(),
       players: gateway.players(),
+      games: gateway.games(),
     });
   });
 
