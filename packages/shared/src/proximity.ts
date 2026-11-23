@@ -8,8 +8,8 @@ export interface Positioned {
 }
 
 /** Euclidiana em tiles, entre centros de tile. */
-export function tileDistance(a: { x: number; y: number }, b: { x: number; y: number }): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+export function tileDistance(from: { x: number; y: number }, to: { x: number; y: number }): number {
+  return Math.hypot(from.x - to.x, from.y - to.y);
 }
 
 /**
@@ -38,6 +38,7 @@ export function nextProximity(
       result.add(other.id);
       continue;
     }
+    // Histerese: quem já estava perto usa o raio maior, para não piscar na fronteira.
     const limit = current.has(other.id) ? PROXIMITY_EXIT_TILES : PROXIMITY_ENTER_TILES;
     if (tileDistance(self, other) <= limit) result.add(other.id);
   }
@@ -48,21 +49,22 @@ export function nextProximity(
 export function volumeAt(distance: number): number {
   if (distance <= 1) return 1;
   if (distance >= PROXIMITY_EXIT_TILES) return 0.2;
+  // Reta de (1 tile, volume 1,0) até (PROXIMITY_EXIT_TILES, volume 0,2).
   return 1 - (0.8 * (distance - 1)) / (PROXIMITY_EXIT_TILES - 1);
 }
 
-/** Os mais próximos com câmera ligada, até o máximo de balões. */
+/** Os mais próximos com câmera ligada, até o máximo de balões; empate desfeito pelo id. */
 export function selectBubbles(
   self: { x: number; y: number },
   candidates: readonly (Positioned & { hasCamera: boolean })[],
   max: number,
 ): string[] {
   return candidates
-    .filter((c) => c.hasCamera)
-    .map((c) => ({ id: c.id, d: tileDistance(self, c) }))
-    .sort((a, b) => a.d - b.d || a.id.localeCompare(b.id))
+    .filter((candidate) => candidate.hasCamera)
+    .map((candidate) => ({ id: candidate.id, distance: tileDistance(self, candidate) }))
+    .sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id))
     .slice(0, max)
-    .map((c) => c.id);
+    .map((candidate) => candidate.id);
 }
 
 /**
@@ -73,10 +75,10 @@ export function chatRecipients(map: CompiledMap, author: Positioned, players: re
   const zone = zoneAt(map, author.x, author.y);
   return players
     .filter(
-      (p) =>
-        p.id === author.id ||
-        (zoneAt(map, p.x, p.y) === zone &&
-          (zone.type === 'meeting' || tileDistance(author, p) <= PROXIMITY_ENTER_TILES)),
+      (player) =>
+        player.id === author.id ||
+        (zoneAt(map, player.x, player.y) === zone &&
+          (zone.type === 'meeting' || tileDistance(author, player) <= PROXIMITY_ENTER_TILES)),
     )
-    .map((p) => p.id);
+    .map((player) => player.id);
 }

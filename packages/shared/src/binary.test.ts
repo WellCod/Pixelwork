@@ -40,7 +40,7 @@ describe('tick binário', () => {
     const json = JSON.stringify({
       t: 'tick',
       ack: 1,
-      moves: moves.map(([, x, y, d]) => ['01a2047c-984a-7d77-ae26-657a0b259a2d', x, y, d]),
+      moves: moves.map(([, x, y, dir]) => ['01a2047c-984a-7d77-ae26-657a0b259a2d', x, y, dir]),
       ts: 1,
     }).length;
     expect(binary * 8).toBeLessThan(json);

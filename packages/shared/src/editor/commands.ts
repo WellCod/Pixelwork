@@ -41,6 +41,7 @@ export interface TilesetRef {
   source: string;
 }
 
+/** Documento do Tiled como o editor o vê; campos desconhecidos passam intactos. */
 export interface TiledDoc {
   width: number;
   height: number;
@@ -53,6 +54,7 @@ export interface TiledDoc {
 export type TileLayerName = 'floor' | 'walls';
 export type ObjectLayerName = 'furniture' | 'zones' | 'desks' | 'spawn';
 
+/** Comando aplicável ao documento; `paint.cells[].i` é o índice do tile (y * width + x). */
 export type EditorCommand =
   | { kind: 'paint'; layer: TileLayerName; cells: { i: number; gid: number }[] }
   | { kind: 'addObject'; layer: ObjectLayerName; object: TiledObject; index?: number }
@@ -71,27 +73,30 @@ export interface DocFields {
   tilesets?: TilesetRef[] | undefined;
 }
 
+/** Comando que não se aplica ao documento (camada ausente, objeto inexistente, tile fora). */
 export class EditorError extends Error {}
 
 function tileLayer(doc: TiledDoc, name: TileLayerName): TileLayer {
-  const layer = doc.layers.find((l): l is TileLayer => l.name === name && l.type === 'tilelayer');
+  const layer = doc.layers.find((candidate): candidate is TileLayer => candidate.name === name && candidate.type === 'tilelayer');
   if (!layer) throw new EditorError(`camada de tiles "${name}" ausente`);
   return layer;
 }
 
+/** Camada de objetos pelo nome; ausente é erro. */
 export function objectLayer(doc: TiledDoc, name: ObjectLayerName): ObjectLayer {
-  const layer = doc.layers.find((l): l is ObjectLayer => l.name === name && l.type === 'objectgroup');
+  const layer = doc.layers.find((candidate): candidate is ObjectLayer => candidate.name === name && candidate.type === 'objectgroup');
   if (!layer) throw new EditorError(`camada de objetos "${name}" ausente`);
   return layer;
 }
 
 /** Cópia rasa do documento com uma camada trocada: o resto é compartilhado. */
 function withLayer(doc: TiledDoc, layer: TileLayer | ObjectLayer): TiledDoc {
-  return { ...doc, layers: doc.layers.map((l) => (l.name === layer.name ? layer : l)) };
+  return { ...doc, layers: doc.layers.map((existing) => (existing.name === layer.name ? layer : existing)) };
 }
 
+/** Valor da propriedade do Tiled `name`, ou undefined. */
 export function prop(object: { properties?: TiledProperty[] }, name: string): unknown {
-  return object.properties?.find((p) => p.name === name)?.value;
+  return object.properties?.find((property) => property.name === name)?.value;
 }
 
 /** Propriedade como texto (vazio se faltar ou não for string). */
@@ -100,15 +105,16 @@ export function textProp(object: { properties?: TiledProperty[] }, name: string,
   return typeof value === 'string' ? value : fallback;
 }
 
+/** Aplica o comando sem alterar `doc`; devolve o documento novo e o comando que o desfaz. */
 export function apply(doc: TiledDoc, command: EditorCommand): { doc: TiledDoc; inverse: EditorCommand } {
   switch (command.kind) {
     case 'paint': {
       const layer = tileLayer(doc, command.layer);
       const data = [...layer.data];
-      const previous = command.cells.map(({ i }) => ({ i, gid: data[i] ?? 0 }));
-      for (const { i, gid } of command.cells) {
-        if (i < 0 || i >= data.length) throw new EditorError(`tile fora do mapa: ${i}`);
-        data[i] = gid;
+      const previous = command.cells.map(({ i: tileIndex }) => ({ i: tileIndex, gid: data[tileIndex] ?? 0 }));
+      for (const { i: tileIndex, gid } of command.cells) {
+        if (tileIndex < 0 || tileIndex >= data.length) throw new EditorError(`tile fora do mapa: ${tileIndex}`);
+        data[tileIndex] = gid;
       }
       // Desfeito na ordem contrária, para o mesmo tile pintado duas vezes voltar ao original.
       return {
@@ -118,10 +124,11 @@ export function apply(doc: TiledDoc, command: EditorCommand): { doc: TiledDoc; i
     }
     case 'addObject': {
       const layer = objectLayer(doc, command.layer);
-      if (layer.objects.some((o) => o.id === command.object.id)) {
+      if (layer.objects.some((object) => object.id === command.object.id)) {
         throw new EditorError(`objeto ${command.object.id} já existe`);
       }
       const objects = [...layer.objects];
+      // Sem `index`, entra no fim; com ele (vindo do desfazer de uma remoção), volta à posição original.
       objects.splice(command.index ?? objects.length, 0, command.object);
       return {
         doc: withLayer(doc, { ...layer, objects }),
@@ -130,27 +137,29 @@ export function apply(doc: TiledDoc, command: EditorCommand): { doc: TiledDoc; i
     }
     case 'removeObject': {
       const layer = objectLayer(doc, command.layer);
-      const index = layer.objects.findIndex((o) => o.id === command.id);
-      const object = layer.objects[index];
-      if (!object) throw new EditorError(`objeto ${command.id} não existe`);
+      const index = layer.objects.findIndex((object) => object.id === command.id);
+      const removed = layer.objects[index];
+      if (!removed) throw new EditorError(`objeto ${command.id} não existe`);
       return {
-        doc: withLayer(doc, { ...layer, objects: layer.objects.filter((o) => o.id !== command.id) }),
-        inverse: { kind: 'addObject', layer: command.layer, object, index },
+        doc: withLayer(doc, { ...layer, objects: layer.objects.filter((object) => object.id !== command.id) }),
+        inverse: { kind: 'addObject', layer: command.layer, object: removed, index },
       };
     }
     case 'replaceObject': {
       const layer = objectLayer(doc, command.layer);
-      const previous = layer.objects.find((o) => o.id === command.object.id);
+      const previous = layer.objects.find((object) => object.id === command.object.id);
       if (!previous) throw new EditorError(`objeto ${command.object.id} não existe`);
       return {
         doc: withLayer(doc, {
           ...layer,
-          objects: layer.objects.map((o) => (o.id === command.object.id ? command.object : o)),
+          objects: layer.objects.map((object) => (object.id === command.object.id ? command.object : object)),
         }),
         inverse: { kind: 'replaceObject', layer: command.layer, object: previous },
       };
     }
     case 'setDocFields': {
+      // Só os campos presentes em `fields` mudam; o inverso guarda o valor anterior de cada um
+      // (undefined quando o campo não existia, para o desfazer apagá-lo).
       const next: TiledDoc = { ...doc };
       const previous: DocFields = {};
       if ('nextobjectid' in command.fields) {
@@ -171,6 +180,7 @@ export function apply(doc: TiledDoc, command: EditorCommand): { doc: TiledDoc; i
       return { doc: next, inverse: { kind: 'setDocFields', fields: previous } };
     }
     case 'batch': {
+      // Aplica em ordem; os inversos ficam em ordem contrária para o desfazer andar de trás para frente.
       let current = doc;
       const inverses: EditorCommand[] = [];
       for (const inner of command.commands) {

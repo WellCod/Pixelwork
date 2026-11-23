@@ -4,31 +4,31 @@ import { PONG, botInput, newPong, pausePong, resumePong, stepPong, type PongDir,
 const idle = { left: 0, right: 0 } as const;
 
 /** Estado em jogo, com a bola e as raquetes onde o teste mandar. */
-function playing(over: Partial<PongState> & { ball?: Partial<PongState['ball']> }): PongState {
+function playing(overrides: Partial<PongState> & { ball?: Partial<PongState['ball']> }): PongState {
   const base = newPong(0);
   return {
     ...base,
-    ...over,
+    ...overrides,
     phase: 'playing',
     at: 0,
     serveAt: 0,
-    ball: { x: 80, y: 45, vx: 0, vy: 0, ...over.ball },
+    ball: { x: 80, y: 45, vx: 0, vy: 0, ...overrides.ball },
   };
 }
 
 /** Roda quadros até `until` ms, juntando os eventos. */
 function run(state: PongState, until: number, inputs: { left: PongDir; right: PongDir } = idle) {
   const events: PongEvent[] = [];
-  let s = state;
-  for (let t = s.at + PONG.FRAME_MS; t <= until + 1e-9; t += PONG.FRAME_MS) {
-    const out = stepPong(s, inputs, t);
-    s = out.state;
-    events.push(...out.events);
+  let current = state;
+  for (let t = current.at + PONG.FRAME_MS; t <= until + 1e-9; t += PONG.FRAME_MS) {
+    const result = stepPong(current, inputs, t);
+    current = result.state;
+    events.push(...result.events);
   }
-  return { state: s, events };
+  return { state: current, events };
 }
 
-const frame = (s: PongState, inputs: { left: PongDir; right: PongDir } = idle) => stepPong(s, inputs, s.at + PONG.FRAME_MS);
+const frame = (state: PongState, inputs: { left: PongDir; right: PongDir } = idle) => stepPong(state, inputs, state.at + PONG.FRAME_MS);
 
 describe('stepPong', () => {
   it('contagem segura a bola e solta no serveAt', () => {
@@ -83,24 +83,24 @@ describe('stepPong', () => {
 
   it('ponto e saque alternado a cada 2', () => {
     // A bola sai pela esquerda: ponto da direita; quem sofreu o primeiro (esquerda) saca primeiro.
-    const lose = (s: PongState, side: 'left' | 'right') =>
-      frame({ ...s, phase: 'playing', ball: { x: side === 'left' ? -1 : 161, y: 45, vx: side === 'left' ? -80 : 80, vy: 0 } });
-    let s = playing({});
+    const lose = (state: PongState, side: 'left' | 'right') =>
+      frame({ ...state, phase: 'playing', ball: { x: side === 'left' ? -1 : 161, y: 45, vx: side === 'left' ? -80 : 80, vy: 0 } });
+    let state = playing({});
     const serving: string[] = [];
     for (const side of ['left', 'right', 'left', 'right', 'left'] as const) {
-      const out = lose(s, side);
-      expect(out.events).toContainEqual({ type: 'point', side: side === 'left' ? 'right' : 'left' });
-      s = out.state;
-      expect(s.phase).toBe('countdown');
-      serving.push(s.servingSide);
+      const result = lose(state, side);
+      expect(result.events).toContainEqual({ type: 'point', side: side === 'left' ? 'right' : 'left' });
+      state = result.state;
+      expect(state.phase).toBe('countdown');
+      serving.push(state.servingSide);
     }
     expect(serving).toEqual(['left', 'left', 'right', 'right', 'left']);
-    expect(s.score).toEqual({ left: 2, right: 3 });
+    expect(state.score).toEqual({ left: 2, right: 3 });
   });
 
   it('fim aos 7', () => {
-    const s = playing({ score: { left: 6, right: 3 }, ball: { x: 161, y: 45, vx: 80, vy: 0 } });
-    const { state, events } = frame(s);
+    const finalPoint = playing({ score: { left: 6, right: 3 }, ball: { x: 161, y: 45, vx: 80, vy: 0 } });
+    const { state, events } = frame(finalPoint);
     expect(events).toContainEqual({ type: 'end', winner: 'left' });
     expect(state.phase).toBe('ended');
     expect(state.score.left).toBe(PONG.WIN);
@@ -118,23 +118,23 @@ describe('stepPong', () => {
 
 describe('botInput', () => {
   it('bot devolve bola lenta e reta', () => {
-    let s = playing({ ball: { x: 100, y: 45, vx: 80, vy: 0 } });
+    let state = playing({ ball: { x: 100, y: 45, vx: 80, vy: 0 } });
     const events: PongEvent[] = [];
     for (let i = 0; i < 40; i++) {
-      const out = frame(s, { left: 0, right: botInput(s, 'right') });
-      s = out.state;
-      events.push(...out.events);
+      const result = frame(state, { left: 0, right: botInput(state, 'right') });
+      state = result.state;
+      events.push(...result.events);
     }
     expect(events).toContainEqual({ type: 'hit', side: 'right' });
   });
 
   it('bot perde bola rápida longe da raquete', () => {
-    let s = playing({ ball: { x: 130, y: 85, vx: 200, vy: 0 }, paddles: { left: 45, right: 9 } });
+    let state = playing({ ball: { x: 130, y: 85, vx: 200, vy: 0 }, paddles: { left: 45, right: 9 } });
     const events: PongEvent[] = [];
     for (let i = 0; i < 10; i++) {
-      const out = frame(s, { left: 0, right: botInput(s, 'right') });
-      s = out.state;
-      events.push(...out.events);
+      const result = frame(state, { left: 0, right: botInput(state, 'right') });
+      state = result.state;
+      events.push(...result.events);
     }
     expect(events).toContainEqual({ type: 'point', side: 'left' });
   });

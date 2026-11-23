@@ -12,9 +12,10 @@ export const RUGS: Record<RugId, { first: number }> = {
   cream: { first: frameOf('floors', 'rug-cream') },
 };
 
-/** Bordas de fora do retângulo `w`x`h` no tile (x, y) relativo: N=1, S=2, O=4, L=8. */
-export function rugMask(x: number, y: number, w: number, h: number): number {
-  return (y === 0 ? 1 : 0) | (y === h - 1 ? 2 : 0) | (x === 0 ? 4 : 0) | (x === w - 1 ? 8 : 0);
+/** Bordas de fora do retângulo `width`x`height` no tile (x, y) relativo: N=1, S=2, O=4, L=8. */
+export function rugMask(x: number, y: number, width: number, height: number): number {
+  // Um bit por borda; numa fileira ou coluna única os dois bits opostos acendem juntos.
+  return (y === 0 ? 1 : 0) | (y === height - 1 ? 2 : 0) | (x === 0 ? 4 : 0) | (x === width - 1 ? 8 : 0);
 }
 
 /** Pinta o tapete no retângulo entre dois cantos (em qualquer ordem), recortado ao mapa. */
@@ -24,17 +25,19 @@ export function paintRug(doc: TiledDoc, rug: RugId, x0: number, y0: number, x1: 
   const right = Math.min(doc.width - 1, Math.max(x0, x1));
   const bottom = Math.min(doc.height - 1, Math.max(y0, y1));
   if (right < left || bottom < top) return null;
-  const floors = ((doc.tilesets as TilesetRef[] | undefined) ?? []).find((t) => t.source === 'floors.tsj');
-  const layer = doc.layers.find((l) => l.name === 'floor');
-  if (!floors || layer?.type !== 'tilelayer') return null;
-  const w = right - left + 1;
-  const h = bottom - top + 1;
+  const floorsRef = ((doc.tilesets as TilesetRef[] | undefined) ?? []).find((tilesetRef) => tilesetRef.source === 'floors.tsj');
+  const floorLayer = doc.layers.find((layer) => layer.name === 'floor');
+  if (!floorsRef || floorLayer?.type !== 'tilelayer') return null;
+  const rugWidth = right - left + 1;
+  const rugHeight = bottom - top + 1;
   const cells: { i: number; gid: number }[] = [];
   for (let y = top; y <= bottom; y++) {
     for (let x = left; x <= right; x++) {
-      const gid = floors.firstgid + RUGS[rug].first + rugMask(x - left, y - top, w, h);
-      const i = y * doc.width + x;
-      if (layer.data[i] !== gid) cells.push({ i, gid });
+      // gid = início do tileset no mapa + primeiro frame do tapete + máscara das bordas deste tile.
+      const gid = floorsRef.firstgid + RUGS[rug].first + rugMask(x - left, y - top, rugWidth, rugHeight);
+      const tileIndex = y * doc.width + x;
+      // Só entra no comando o que muda, para repintar o mesmo tapete não empilhar desfazer vazio.
+      if (floorLayer.data[tileIndex] !== gid) cells.push({ i: tileIndex, gid });
     }
   }
   return cells.length > 0 ? { kind: 'paint', layer: 'floor', cells } : null;

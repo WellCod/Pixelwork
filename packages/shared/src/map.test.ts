@@ -7,7 +7,7 @@ import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testin
 type Mutate = (map: Record<string, unknown>) => void;
 
 const layerOf = (map: Record<string, unknown>, name: string) =>
-  (map.layers as Record<string, unknown>[]).find((l) => l.name === name) as Record<string, unknown>;
+  (map.layers as Record<string, unknown>[]).find((layer) => layer.name === name) as Record<string, unknown>;
 
 const valid: TestMapOptions = {
   zones: [
@@ -43,7 +43,7 @@ describe('compileMap: mapas válidos', () => {
     expect(zoneAt(map, 1, 1)).toMatchObject({ key: 'produto', type: 'open', name: 'Product team' });
     expect(zoneAt(map, 6, 2)).toMatchObject({ key: 'sala-1', type: 'meeting' });
     expect(zoneAt(map, 6, 5).key).toBe('__open');
-    expect(map.zones.find((z) => z.key === 'sala-1')?.tiles).toBe(12);
+    expect(map.zones.find((zone) => zone.key === 'sala-1')?.tiles).toBe(12);
     // O mapa de teste referencia todos os tilesets do catálogo, na ordem dos gids.
     expect(map.tilesets).toEqual([...TILESET_IDS]);
   });
@@ -81,9 +81,9 @@ describe('compileMap: móveis de várias células', () => {
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     expect({
       size: [result.map.width, result.map.height],
-      walkable: result.map.walkable.reduce((sum, v) => sum + v, 0),
-      desks: result.map.desks.map((d) => d.key),
-      zones: result.map.zones.map((z) => [z.key, z.tiles]),
+      walkable: result.map.walkable.reduce((sum, cell) => sum + cell, 0),
+      desks: result.map.desks.map((desk) => desk.key),
+      zones: result.map.zones.map((zone) => [zone.key, zone.tiles]),
     }).toMatchSnapshot();
   });
 });
@@ -174,15 +174,15 @@ describe('compileMap: custo limitado', () => {
 
 describe('compileMap: um erro por código', () => {
   const cases: [string, TestMapOptions, Mutate | undefined, MapError][] = [
-    ['não ortogonal', {}, (m) => (m.orientation = 'isometric'), { code: 'not_orthogonal' }],
-    ['infinito', {}, (m) => (m.infinite = true), { code: 'infinite' }],
-    ['tile de 32 px', {}, (m) => (m.tilewidth = 32), { code: 'wrong_tile_size' }],
-    ['maior que 100x100', {}, (m) => (m.width = 101), { code: 'too_large' }],
+    ['não ortogonal', {}, (mapJson) => (mapJson.orientation = 'isometric'), { code: 'not_orthogonal' }],
+    ['infinito', {}, (mapJson) => (mapJson.infinite = true), { code: 'infinite' }],
+    ['tile de 32 px', {}, (mapJson) => (mapJson.tilewidth = 32), { code: 'wrong_tile_size' }],
+    ['maior que 100x100', {}, (mapJson) => (mapJson.width = 101), { code: 'too_large' }],
     [
       'camada comprimida',
       {},
-      (m) => {
-        const floor = layerOf(m, 'floor');
+      (mapJson) => {
+        const floor = layerOf(mapJson, 'floor');
         floor.encoding = 'base64';
         floor.data = 'AAAA';
       },
@@ -191,33 +191,33 @@ describe('compileMap: um erro por código', () => {
     [
       'camada ausente',
       {},
-      (m) => (m.layers = (m.layers as { name: string }[]).filter((l) => l.name !== 'desks')),
+      (mapJson) => (mapJson.layers = (mapJson.layers as { name: string }[]).filter((layer) => layer.name !== 'desks')),
       { code: 'missing_layer', layer: 'desks' },
     ],
     [
       'camada com tipo errado',
       {},
-      (m) => (layerOf(m, 'zones').type = 'tilelayer'),
+      (mapJson) => (layerOf(mapJson, 'zones').type = 'tilelayer'),
       { code: 'wrong_layer_type', layer: 'zones' },
     ],
     [
       'tileset fora do catálogo',
       {},
-      (m) => (m.tilesets as unknown[]).push({ firstgid: 40, source: 'outro.tsj' }),
+      (mapJson) => (mapJson.tilesets as unknown[]).push({ firstgid: 40, source: 'outro.tsj' }),
       { code: 'unknown_tileset', source: 'outro.tsj' },
     ],
     [
       'tileset embutido',
       {},
-      (m) => (m.tilesets as unknown[]).push({ firstgid: 40, name: 'x', image: 'x.png' }),
+      (mapJson) => (mapJson.tilesets as unknown[]).push({ firstgid: 40, name: 'x', image: 'x.png' }),
       { code: 'unknown_tileset', source: '(embutido)' },
     ],
     [
       'tilesets que dividem gids',
       {},
-      (m) => {
-        const desk = (m.tilesets as { firstgid: number; source: string }[]).find((t) => t.source === 'desk-decor.tsj');
-        if (desk) desk.firstgid = FIRSTGID.furniture + 1;
+      (mapJson) => {
+        const deskDecorRef = (mapJson.tilesets as { firstgid: number; source: string }[]).find((tilesetRef) => tilesetRef.source === 'desk-decor.tsj');
+        if (deskDecorRef) deskDecorRef.firstgid = FIRSTGID.furniture + 1;
       },
       { code: 'tileset_overlap', a: 'furniture', b: 'desk-decor' },
     ],
@@ -252,8 +252,8 @@ describe('compileMap: um erro por código', () => {
     [
       'zona desalinhada',
       { zones: [{ key: 'a', type: 'open', x: 1, y: 1, w: 2, h: 2 }] },
-      (m) => {
-        const zone = (layerOf(m, 'zones').objects as Record<string, number>[])[0];
+      (mapJson) => {
+        const zone = (layerOf(mapJson, 'zones').objects as Record<string, number>[])[0];
         if (zone) zone.x = 20;
       },
       { code: 'zone_not_aligned', key: 'a' },
@@ -287,7 +287,7 @@ describe('compileMap: um erro por código', () => {
     [
       'camada com tamanho errado',
       {},
-      (m) => (layerOf(m, 'floor').data as number[]).pop(),
+      (mapJson) => (layerOf(mapJson, 'floor').data as number[]).pop(),
       { code: 'layer_size', layer: 'floor' },
     ],
     [
@@ -347,9 +347,9 @@ describe('relocate', () => {
 
   it('vai para o tile caminhável mais próximo na mesma zona', () => {
     const map = compiled({ walls: [[3, 3]] });
-    const to = relocate(map, 3, 3);
-    expect(Math.abs(to.x - 3) + Math.abs(to.y - 3)).toBe(1);
-    expect(isWalkable(map, to.x, to.y)).toBe(true);
+    const destination = relocate(map, 3, 3);
+    expect(Math.abs(destination.x - 3) + Math.abs(destination.y - 3)).toBe(1);
+    expect(isWalkable(map, destination.x, destination.y)).toBe(true);
   });
 
   it('não atravessa para outra zona mesmo que ela esteja mais perto', () => {

@@ -6,6 +6,7 @@ export class CommandStack {
   private redoStack: EditorCommand[] = [];
   private current: TiledDoc;
   private readonly listeners = new Set<() => void>();
+  /** Conta as mudanças, para a interface saber quando redesenhar (assinantes via `subscribe`). */
   version = 0;
 
   constructor(doc: TiledDoc) {

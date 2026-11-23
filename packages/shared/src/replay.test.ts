@@ -24,7 +24,7 @@ describe('replay', () => {
       recorder.push({ t, type: 'step', id: 'a', dir });
     });
     const frames: number[] = [];
-    const replayed = replay(map, recorder.current, (f) => frames.push(f.t));
+    const replayed = replay(map, recorder.current, (frame) => frames.push(frame.t));
     expect(replayed.players.get('a')).toMatchObject({ x: world.players.get('a')?.x, y: world.players.get('a')?.y });
     expect(frames).toHaveLength(6);
   });

@@ -20,6 +20,7 @@ export interface Recording {
   events: ReplayEvent[];
 }
 
+/** Posições de todos os jogadores depois de um evento da gravação. */
 export interface ReplayFrame {
   t: number;
   players: Map<string, { x: number; y: number; dir: Dir }>;
@@ -38,12 +39,12 @@ export function replay(
   let world: WorldState = { players: new Map() };
   const locks = new Map<string, { locked: boolean; allowed: Set<string> }>();
   const rules = {
-    canEnter: (id: string, x: number, y: number) => {
+    canEnter: (playerId: string, x: number, y: number) => {
       const zone = zoneAt(map, x, y);
       const lock = locks.get(zone.key);
       if (!lock?.locked) return true;
-      const p = world.players.get(id);
-      return lock.allowed.has(id) || (p !== undefined && zoneAt(map, p.x, p.y).key === zone.key);
+      const player = world.players.get(playerId);
+      return lock.allowed.has(playerId) || (player !== undefined && zoneAt(map, player.x, player.y).key === zone.key);
     },
   };
 
@@ -51,8 +52,8 @@ export function replay(
     switch (event.type) {
       case 'join': {
         const players = new Map(world.players);
-        const sim: SimPlayer = { x: event.x, y: event.y, dir: event.dir, lastStepAt: -Infinity };
-        players.set(event.id, sim);
+        const joined: SimPlayer = { x: event.x, y: event.y, dir: event.dir, lastStepAt: -Infinity };
+        players.set(event.id, joined);
         world = { players };
         break;
       }
@@ -71,7 +72,7 @@ export function replay(
     }
     if (onFrame) {
       const players = new Map<string, { x: number; y: number; dir: Dir }>();
-      for (const [id, p] of world.players) players.set(id, { x: p.x, y: p.y, dir: p.dir });
+      for (const [id, player] of world.players) players.set(id, { x: player.x, y: player.y, dir: player.dir });
       onFrame({ t: event.t, players });
     }
   }
@@ -105,7 +106,7 @@ export class Recorder {
     locks: ReadonlyMap<string, { locked: boolean; allowed: ReadonlySet<string> }>,
   ): void {
     const events: ReplayEvent[] = [];
-    for (const [id, p] of players) events.push({ t: now, type: 'join', id, x: p.x, y: p.y, dir: p.dir });
+    for (const [id, player] of players) events.push({ t: now, type: 'join', id, x: player.x, y: player.y, dir: player.dir });
     for (const [zoneKey, lock] of locks) {
       if (lock.locked) events.push({ t: now, type: 'lock', zoneKey, locked: true, allowed: [...lock.allowed] });
     }

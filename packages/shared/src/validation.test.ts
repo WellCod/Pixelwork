@@ -56,6 +56,6 @@ describe('mensagens do pingpong', () => {
   });
 
   it('game.bot, game.rematch e game.leave sem campos', () => {
-    for (const t of ['game.bot', 'game.rematch', 'game.leave']) expect(ClientMsg.safeParse({ t }).success).toBe(true);
+    for (const type of ['game.bot', 'game.rematch', 'game.leave']) expect(ClientMsg.safeParse({ t: type }).success).toBe(true);
   });
 });

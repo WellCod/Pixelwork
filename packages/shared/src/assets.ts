@@ -5,6 +5,7 @@ export function tilesetImageUrl(id: TilesetId): string {
   return `/tilesets/${id}.png`;
 }
 
+/** Camadas do personagem, desenhadas de baixo para cima nesta ordem. */
 export type CharacterLayer = 'body' | 'outfit' | 'hair' | 'accessory';
 
 export function characterImageUrl(layer: CharacterLayer, id: string): string {
@@ -20,7 +21,8 @@ export const KEY_RAMPS = {
 
 /** Frame do item `item` (o `item_id` do tile) no tileset; item fora do catálogo é erro. */
 export function frameOf(tileset: TilesetId, item: string): number {
-  const entry = Object.entries(TILESETS[tileset].items).find(([, id]) => id === item);
+  // `items` mapeia frame (chave numérica em string) -> item_id; aqui é a busca ao contrário.
+  const entry = Object.entries(TILESETS[tileset].items).find(([, itemId]) => itemId === item);
   if (!entry) throw new Error(`item ${item} não existe no tileset ${tileset}`);
   return Number(entry[0]);
 }
