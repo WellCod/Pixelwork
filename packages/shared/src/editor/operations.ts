@@ -2,6 +2,10 @@
 // há o que mudar, para não empilhar desfazer vazio.
 import { TILESETS, TILESET_IDS, type TilesetId } from '../catalog.generated.ts';
 import { TILE_PX } from '../constants.ts';
+import type { ZoneType } from '../map.ts';
+
+// Declarado no map.ts (uma fonte só); o editor reexporta porque o cliente importa daqui.
+export type { ZoneType };
 import type { Dir } from '../protocol.ts';
 import {
   objectLayer,
@@ -15,7 +19,6 @@ import {
   type TileLayerName,
 } from './commands.ts';
 
-export type ZoneType = 'open' | 'meeting';
 
 /**
  * Contadores guardados nas propriedades do mapa: uma chave apagada nunca volta para um objeto
