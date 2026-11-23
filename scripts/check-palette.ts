@@ -1,3 +1,5 @@
+// Confere que todo PNG em assets/ usa só cores opacas da paleta (palette.hex mais as cores-chave
+// da troca de paleta) ou transparência total. Sai com código 1 se algum arquivo violar.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { PNG } from 'pngjs';
@@ -18,21 +20,22 @@ const allowed = new Set([
   ...KEY_COLORS,
 ]);
 
-let failed = 0;
+let failedCount = 0;
 const files = listPngs(assetsDir);
 for (const file of files) {
   const violations = findViolations(PNG.sync.read(readFileSync(file)), allowed);
   if (violations.length === 0) continue;
-  failed++;
+  failedCount++;
+  // Só os cinco primeiros pixels, para a saída não explodir num PNG inteiro fora da paleta.
   const sample = violations
     .slice(0, 5)
-    .map((v) => `(${v.x},${v.y}) ${v.color} alfa ${v.alpha}`)
+    .map((violation) => `(${violation.x},${violation.y}) ${violation.color} alfa ${violation.alpha}`)
     .join(', ');
   console.error(`${relative(assetsDir, file)}: ${violations.length} pixels fora da paleta: ${sample}`);
 }
 
-if (failed > 0) {
-  console.error(`${failed} de ${files.length} PNGs fora da paleta`);
+if (failedCount > 0) {
+  console.error(`${failedCount} de ${files.length} PNGs fora da paleta`);
   process.exit(1);
 }
 console.log(`${files.length} PNGs dentro da paleta`);

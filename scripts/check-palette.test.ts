@@ -6,10 +6,11 @@ import { PNG } from 'pngjs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { KEY_COLORS, findViolations } from './lib/palette.ts';
 
-function png(pixels: [r: number, g: number, b: number, a: number][]): PNG {
+/** PNG de uma linha só, um pixel RGBA por item. */
+function png(pixels: [red: number, green: number, blue: number, alpha: number][]): PNG {
   const image = new PNG({ width: pixels.length, height: 1 });
-  pixels.forEach((p, i) => {
-    image.data.set(p, i * 4);
+  pixels.forEach((rgba, i) => {
+    image.data.set(rgba, i * 4);
   });
   return image;
 }
@@ -39,19 +40,19 @@ describe('findViolations', () => {
 });
 
 describe('check-palette', () => {
-  let dir: string | undefined;
+  let tempDir: string | undefined;
   afterEach(() => {
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   });
 
   function run(pixels: Parameters<typeof png>[0]): { code: number; output: string } {
-    dir = mkdtempSync(join(tmpdir(), 'palette-'));
-    writeFileSync(join(dir, 'palette.hex'), '181425\nffffff\n');
-    writeFileSync(join(dir, 'sprite.png'), PNG.sync.write(png(pixels)));
+    tempDir = mkdtempSync(join(tmpdir(), 'palette-'));
+    writeFileSync(join(tempDir, 'palette.hex'), '181425\nffffff\n');
+    writeFileSync(join(tempDir, 'sprite.png'), PNG.sync.write(png(pixels)));
     try {
       const output = execFileSync(
         process.execPath,
-        ['--import', 'tsx', join(import.meta.dirname, 'check-palette.ts'), dir],
+        ['--import', 'tsx', join(import.meta.dirname, 'check-palette.ts'), tempDir],
         { encoding: 'utf8', stdio: 'pipe' },
       );
       return { code: 0, output };

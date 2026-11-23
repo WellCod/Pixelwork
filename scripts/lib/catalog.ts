@@ -71,6 +71,7 @@ interface TilesetMeta {
   items: Record<number, string>;
 }
 
+/** Resume o `.tsj` no que o cliente precisa: tamanho da célula, tiles que colidem e `item_id` por índice de tile. */
 function tilesetMeta(tsj: z.infer<typeof Tsj>): TilesetMeta {
   const meta: TilesetMeta = {
     tileWidth: tsj.tilewidth,
@@ -81,9 +82,9 @@ function tilesetMeta(tsj: z.infer<typeof Tsj>): TilesetMeta {
     items: {},
   };
   for (const tile of tsj.tiles ?? []) {
-    for (const prop of tile.properties ?? []) {
-      if (prop.name === 'collides' && prop.value === true) meta.collides.push(tile.id);
-      if (prop.name === 'item_id' && typeof prop.value === 'string') meta.items[tile.id] = prop.value;
+    for (const property of tile.properties ?? []) {
+      if (property.name === 'collides' && property.value === true) meta.collides.push(tile.id);
+      if (property.name === 'item_id' && typeof property.value === 'string') meta.items[tile.id] = property.value;
     }
   }
   return meta;
@@ -91,7 +92,7 @@ function tilesetMeta(tsj: z.infer<typeof Tsj>): TilesetMeta {
 
 export class CatalogError extends Error {
   constructor(readonly problems: string[]) {
-    super(`catálogo inválido:\n${problems.map((p) => `- ${p}`).join('\n')}`);
+    super(`catálogo inválido:\n${problems.map((problem) => `- ${problem}`).join('\n')}`);
   }
 }
 
@@ -99,6 +100,7 @@ function zodProblems(prefix: string, error: z.ZodError): string[] {
   return error.issues.map((issue) => `${prefix}.${issue.path.join('.')}: ${issue.message}`);
 }
 
+/** Ids repetidos dentro de um mesmo grupo do manifesto. */
 function duplicates(prefix: string, assets: readonly Asset[]): string[] {
   const seen = new Set<string>();
   const problems: string[] = [];
@@ -109,6 +111,7 @@ function duplicates(prefix: string, assets: readonly Asset[]): string[] {
   return problems;
 }
 
+/** Linha `export const NOME = [...] as const;` com os ids entre aspas simples. */
 function list(name: string, ids: readonly string[]): string {
   return `export const ${name} = [${ids.map((id) => `'${id}'`).join(', ')}] as const;\n`;
 }
@@ -121,8 +124,9 @@ export function buildCatalog(input: CatalogInput): string {
   if (!manifest.success) problems.push(...zodProblems('manifest', manifest.error));
 
   const ramps: Record<string, Ramps> = {};
-  for (const [kind, raw] of Object.entries(input.ramps)) {
-    const parsed = Ramps.safeParse(raw);
+  // Rampas de troca de paleta: cada cor normalizada no próprio array e conferida contra a paleta.
+  for (const [kind, rawRamps] of Object.entries(input.ramps)) {
+    const parsed = Ramps.safeParse(rawRamps);
     if (!parsed.success) {
       problems.push(...zodProblems(`palettes/${kind}.json`, parsed.error));
       continue;
@@ -151,20 +155,20 @@ export function buildCatalog(input: CatalogInput): string {
 
   problems.push(...duplicates('tilesets', tilesets));
   const tilesetMetas: Record<string, TilesetMeta> = {};
-  for (const t of tilesets) {
-    const missing = [`tilesets/${t.id}.png`, `tilesets/${t.id}.tsj`].filter(
+  for (const tileset of tilesets) {
+    const missing = [`tilesets/${tileset.id}.png`, `tilesets/${tileset.id}.tsj`].filter(
       (file) => !input.fileExists(file),
     );
     for (const file of missing) problems.push(`tilesets: arquivo ausente ${file}`);
     if (missing.length > 0) continue;
-    const tsj = Tsj.safeParse(input.readTileset(t.id));
-    if (tsj.success) tilesetMetas[t.id] = tilesetMeta(tsj.data);
-    else problems.push(...zodProblems(`tilesets/${t.id}.tsj`, tsj.error));
+    const tsj = Tsj.safeParse(input.readTileset(tileset.id));
+    if (tsj.success) tilesetMetas[tileset.id] = tilesetMeta(tsj.data);
+    else problems.push(...zodProblems(`tilesets/${tileset.id}.tsj`, tsj.error));
   }
   for (const [layer, assets] of Object.entries(characters)) {
     problems.push(...duplicates(`characters.${layer}`, assets));
-    for (const a of assets) {
-      const file = `characters/${layer}/${a.id}.png`;
+    for (const asset of assets) {
+      const file = `characters/${layer}/${asset.id}.png`;
       if (!input.fileExists(file)) problems.push(`characters.${layer}: arquivo ausente ${file}`);
     }
   }
@@ -176,15 +180,16 @@ export function buildCatalog(input: CatalogInput): string {
 
   if (problems.length > 0) throw new CatalogError(problems);
 
-  const ids = (assets: readonly Asset[]) => assets.map((a) => a.id);
+  const ids = (assets: readonly Asset[]) => assets.map((asset) => asset.id);
   const rampIds = (kind: string) => Object.keys(ramps[kind] ?? {});
+  // Créditos de licença de todos os assets, na ordem do manifesto, com o tipo de cada um.
   const credits = [
-    ...tilesets.map((a) => ({ kind: 'tileset', ...a })),
+    ...tilesets.map((asset) => ({ kind: 'tileset', ...asset })),
     ...Object.entries(characters).flatMap(([layer, assets]) =>
-      assets.map((a) => ({ kind: `character/${layer}`, ...a })),
+      assets.map((asset) => ({ kind: `character/${layer}`, ...asset })),
     ),
     ...Object.entries(deskDecor).flatMap(([group, assets]) =>
-      assets.map((a) => ({ kind: `desk/${group}`, ...a })),
+      assets.map((asset) => ({ kind: `desk/${group}`, ...asset })),
     ),
   ];
 

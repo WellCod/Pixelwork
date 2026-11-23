@@ -28,7 +28,8 @@ export const officeChair: Pixels = sprite(
 
 /** Planta de vaso: folhagem em massa com luz de cima à esquerda, vaso branco. */
 export const pottedPlant: Pixels = (() => {
-  const c = new Canvas(16, 16);
+  const canvas = new Canvas(16, 16);
+  // Copa como união de quatro círculos (centro e raio em pixels).
   const circles = [
     { x: 8, y: 5.5, r: 4.6 },
     { x: 4.6, y: 7.5, r: 3.2 },
@@ -36,13 +37,13 @@ export const pottedPlant: Pixels = (() => {
     { x: 8, y: 2.4, r: 2.4 },
   ];
   const leaves = (x: number, y: number) =>
-    y < 11 && circles.some((k) => Math.hypot(x + 0.5 - k.x, y + 0.5 - k.y) <= k.r);
-  c.blob(leaves, RAMPS.leaf, { x: 7, y: 4, r: 6 });
-  c.outline(RAMPS.leaf.outline);
+    y < 11 && circles.some((circle) => Math.hypot(x + 0.5 - circle.x, y + 0.5 - circle.y) <= circle.r);
+  canvas.blob(leaves, RAMPS.leaf, { x: 7, y: 4, r: 6 });
+  canvas.outline(RAMPS.leaf.outline);
   // Vaso: boca mais larga, base mais estreita.
-  c.box(4, 10, 8, 2, RAMPS.potWhite);
-  c.box(5, 12, 6, 3, RAMPS.potWhite);
-  c.outline(RAMPS.potWhite.outline, (_x, y) => y >= 10);
-  c.hline(5, 11, 6, 'gray');
-  return c.toPixels();
+  canvas.box(4, 10, 8, 2, RAMPS.potWhite);
+  canvas.box(5, 12, 6, 3, RAMPS.potWhite);
+  canvas.outline(RAMPS.potWhite.outline, (_x, y) => y >= 10);
+  canvas.hline(5, 11, 6, 'gray');
+  return canvas.toPixels();
 })();

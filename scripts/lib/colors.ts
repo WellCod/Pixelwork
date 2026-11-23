@@ -25,20 +25,23 @@ export const PALETTE = { ...RESURRECT, ...EXTRAS } as const;
 
 export type ColorName = keyof typeof PALETTE;
 
-const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+/** Canais [vermelho, verde, azul] de um `#rrggbb`: cada par de dígitos começa nos offsets 1, 3 e 5. */
+const rgb = (hex: string) =>
+  [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)) as [number, number, number];
 
 /** Cor da Resurrect 64 mais próxima em RGB; usada para levar a arte antiga para a paleta nova. */
 export function nearest(hex: string): string {
-  const [r, g, b] = rgb(hex.toLowerCase());
-  let best: string = PALETTE.ink;
-  let bestDistance = Infinity;
+  const [red, green, blue] = rgb(hex.toLowerCase());
+  let closest: string = PALETTE.ink;
+  let closestDistance = Infinity;
   for (const candidate of Object.values(RESURRECT)) {
-    const [cr, cg, cb] = rgb(candidate);
-    const distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
-    if (distance < bestDistance) {
-      best = candidate;
-      bestDistance = distance;
+    const [candidateRed, candidateGreen, candidateBlue] = rgb(candidate);
+    // Distância euclidiana ao quadrado: só a ordem importa, então a raiz é dispensável.
+    const distance = (red - candidateRed) ** 2 + (green - candidateGreen) ** 2 + (blue - candidateBlue) ** 2;
+    if (distance < closestDistance) {
+      closest = candidate;
+      closestDistance = distance;
     }
   }
-  return best;
+  return closest;
 }

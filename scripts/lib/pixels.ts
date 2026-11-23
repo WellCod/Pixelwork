@@ -53,18 +53,23 @@ const ENDESGA: Record<string, string> = {
   F: KEY_RAMPS.outfit[3],
 };
 
+/**
+ * Letra do legado -> hex final. Cores-chave passam intactas (a troca de paleta depende do valor
+ * exato); as demais vão para a Resurrect 64 mais próxima.
+ */
 const KEY_HEX = new Set<string>(Object.values(KEY_RAMPS).flat());
 export const COLORS: Record<string, string> = Object.fromEntries(
-  Object.entries(ENDESGA).map(([ch, hex]) => [ch, KEY_HEX.has(hex) ? hex : nearest(hex)]),
+  Object.entries(ENDESGA).map(([pixelChar, hex]) => [pixelChar, KEY_HEX.has(hex) ? hex : nearest(hex)]),
 );
 
 /** Nomes das cores-chave da troca de paleta, para as legendas dos sprites de personagem. */
 export type KeyName = `${'skin' | 'hair' | 'outfit'}${1 | 2 | 3 | 4}`;
 
+/** `skin3` -> terceiro tom da rampa de pele: o prefixo é a rampa, o dígito final é o tom (1 a 4). */
 function keyHex(name: KeyName): string {
-  const kind = name.slice(0, -1) as keyof typeof KEY_RAMPS;
-  const index = Number(name.slice(-1)) - 1;
-  const hex = KEY_RAMPS[kind][index];
+  const rampName = name.slice(0, -1) as keyof typeof KEY_RAMPS;
+  const toneIndex = Number(name.slice(-1)) - 1;
+  const hex = KEY_RAMPS[rampName][toneIndex];
   if (!hex) throw new Error(`cor-chave inválida: ${name}`);
   return hex;
 }
@@ -77,11 +82,11 @@ export function sprite(rows: readonly string[], legend: Record<string, ColorName
   const width = rows[0]?.length ?? 0;
   return rows.map((row, y) => {
     if (row.length !== width) throw new Error(`${label}: linha ${y} tem ${row.length} colunas, esperado ${width}`);
-    return Array.from(row, (ch, x) => {
-      if (ch === '.') return '.';
-      const name = legend[ch];
-      if (!name) throw new Error(`${label}: caractere "${ch}" sem cor na legenda em (${x},${y})`);
-      return name in PALETTE ? PALETTE[name as ColorName] : keyHex(name as KeyName);
+    return Array.from(row, (pixelChar, x) => {
+      if (pixelChar === '.') return '.';
+      const colorName = legend[pixelChar];
+      if (!colorName) throw new Error(`${label}: caractere "${pixelChar}" sem cor na legenda em (${x},${y})`);
+      return colorName in PALETTE ? PALETTE[colorName as ColorName] : keyHex(colorName as KeyName);
     });
   });
 }
@@ -101,46 +106,48 @@ export function grid(rows: readonly string[], width: number, label: string): Pix
   });
 }
 
-/** Copia `src` sobre `dst` na posição dada; '.' não apaga o que está embaixo. */
-export function stamp(dst: Pixels, src: Pixels, x0: number, y0: number): void {
-  src.forEach((row, y) =>
-    row.forEach((ch, x) => {
-      const ty = y0 + y;
-      const tx = x0 + x;
-      if (ch === '.' || ty < 0 || ty >= dst.length) return;
-      const line = dst[ty];
-      if (!line || tx < 0 || tx >= line.length) return;
-      line[tx] = ch;
+/** Copia `source` sobre `target` na posição dada; '.' não apaga o que está embaixo e o que sai da borda é cortado. */
+export function stamp(target: Pixels, source: Pixels, x0: number, y0: number): void {
+  source.forEach((sourceRow, y) =>
+    sourceRow.forEach((pixel, x) => {
+      const targetY = y0 + y;
+      const targetX = x0 + x;
+      if (pixel === '.' || targetY < 0 || targetY >= target.length) return;
+      const targetRow = target[targetY];
+      if (!targetRow || targetX < 0 || targetX >= targetRow.length) return;
+      targetRow[targetX] = pixel;
     }),
   );
 }
 
-export function mirror(src: Pixels): Pixels {
-  return src.map((row) => [...row].reverse());
+/** Espelha na horizontal (vira o sprite para o outro lado). */
+export function mirror(source: Pixels): Pixels {
+  return source.map((row) => [...row].reverse());
 }
 
+/** Rasteriza a matriz num PNG RGBA; '.' fica com alfa 0 e o resto, opaco. */
 export function toPng(pixels: Pixels): PNG {
   const height = pixels.length;
   const width = pixels[0]?.length ?? 0;
   const png = new PNG({ width, height });
   png.data.fill(0);
   pixels.forEach((row, y) =>
-    row.forEach((ch, x) => {
-      if (ch === '.') return;
+    row.forEach((pixel, x) => {
+      if (pixel === '.') return;
       // Pixel de `sprite` já é hex; pixel de `grid` (legado) é uma letra de COLORS.
-      const hex = ch.startsWith('#') ? ch : COLORS[ch];
-      if (!hex) throw new Error(`cor desconhecida "${ch}" em (${x},${y})`);
-      const i = (y * width + x) * 4;
-      png.data[i] = parseInt(hex.slice(1, 3), 16);
-      png.data[i + 1] = parseInt(hex.slice(3, 5), 16);
-      png.data[i + 2] = parseInt(hex.slice(5, 7), 16);
-      png.data[i + 3] = 255;
+      const hex = pixel.startsWith('#') ? pixel : COLORS[pixel];
+      if (!hex) throw new Error(`cor desconhecida "${pixel}" em (${x},${y})`);
+      const offset = (y * width + x) * 4;
+      png.data[offset] = parseInt(hex.slice(1, 3), 16);
+      png.data[offset + 1] = parseInt(hex.slice(3, 5), 16);
+      png.data[offset + 2] = parseInt(hex.slice(5, 7), 16);
+      png.data[offset + 3] = 255;
     }),
   );
   return png;
 }
 
 /** Tile gerado por função (x, y) -> caractere, para texturas repetíveis como pisos. */
-export function pattern(size: number, fn: (x: number, y: number) => string): Pixels {
-  return Array.from({ length: size }, (_, y) => Array.from({ length: size }, (_, x) => fn(x, y)));
+export function pattern(size: number, pixelAt: (x: number, y: number) => string): Pixels {
+  return Array.from({ length: size }, (_, y) => Array.from({ length: size }, (_, x) => pixelAt(x, y)));
 }
