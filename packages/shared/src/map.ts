@@ -1,6 +1,7 @@
 import { TILESETS, TILESET_IDS, type TilesetId } from './catalog.generated.ts';
 import { TILE_PX } from './constants.ts';
 import { DIR_DELTA, DIRS, type Dir } from './protocol.ts';
+import { INTERACTIVE_ITEMS, type CompiledTable } from './tables.ts';
 
 export const MAX_MAP_TILES = 100;
 export const OPEN_ZONE_KEY = '__open';
@@ -44,6 +45,8 @@ export interface CompiledMap {
   zoneIndex: Uint16Array;
   zones: CompiledZone[];
   desks: CompiledDesk[];
+  /** Móveis com interação (mesa de pingpong), na ordem da camada `furniture`. */
+  tables: CompiledTable[];
   spawn: { x: number; y: number };
   tilesets: TilesetId[];
 }
@@ -192,13 +195,18 @@ export function compileMap(json: unknown): CompileResult {
   const isWalkable = (x: number, y: number) => inside(x, y) && walkable[y * width + x] === 1;
 
   // Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo.
+  const interactive: Omit<CompiledTable, 'sides'>[] = [];
   for (const object of objectsOf(layer('furniture') as Json)) {
     const resolved = resolveGid(num(object.gid), refs);
-    if (!resolved || !TILESETS[resolved.id].collides.includes(resolved.tile)) continue;
+    if (!resolved) continue;
     const x0 = Math.floor(num(object.x) / TILE_PX);
     const y1 = Math.ceil(num(object.y) / TILE_PX);
     const w = Math.max(1, Math.round(num(object.width) / TILE_PX) || 1);
     const h = Math.max(1, Math.round(num(object.height) / TILE_PX) || 1);
+    const item = TILESETS[resolved.id].items[resolved.tile];
+    const game = item === undefined ? undefined : INTERACTIVE_ITEMS[item];
+    if (item !== undefined && game !== undefined) interactive.push({ key: `${item}@${x0},${y1 - h}`, game, x: x0, y: y1 - h, w, h });
+    if (!TILESETS[resolved.id].collides.includes(resolved.tile)) continue;
     // Recortado ao mapa: um objeto com tamanho absurdo num JSON pequeno travaria o servidor.
     for (let y = Math.max(0, y1 - h); y < Math.min(height, y1); y++) {
       for (let x = Math.max(0, x0); x < Math.min(width, x0 + w); x++) block(x, y);
@@ -353,6 +361,10 @@ export function compileMap(json: unknown): CompileResult {
   }
 
   if (errors.length > 0) return { ok: false, errors };
+  // Lados calculados depois de tudo bloquear (móveis e mesas): só tiles onde dá para ficar.
+  const column = (x: number, t: Omit<CompiledTable, 'sides'>) =>
+    Array.from({ length: t.h }, (_, i): [number, number] => [x, t.y + i]).filter(([cx, cy]) => isWalkable(cx, cy));
+  const tables: CompiledTable[] = interactive.map((t) => ({ ...t, sides: { left: column(t.x - 1, t), right: column(t.x + t.w, t) } }));
   return {
     ok: true,
     map: {
@@ -362,6 +374,7 @@ export function compileMap(json: unknown): CompileResult {
       zoneIndex,
       zones,
       desks,
+      tables,
       spawn,
       tilesets: [...new Set(refs.map((r) => r.id))],
     },

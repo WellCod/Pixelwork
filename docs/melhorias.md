@@ -95,9 +95,13 @@ Decisões aprovadas nesta rodada: `@fastify/rate-limit` como dependência; erro 
 
 ## 8. Próximo: interações com objetos
 
-- [ ] Minigame de pingpong na mesa (solo contra bot ou 1x1), servidor com autoridade a 30 Hz.
+- [x] Minigame de pingpong na mesa (solo contra bot ou 1x1), servidor com autoridade a 30 Hz.
   Desenho aprovado em `docs/superpowers/specs/2026-11-22-pingpong-design.md`.
 - [ ] Pebolim pelo mesmo mecanismo (depois do pingpong).
+- [ ] Pingpong, pendências menores da revisão: partida (ou revanche) começando com o adversário
+  caído; quem está recebendo convite de chamada consegue entrar na mesa e ficar em chamada e jogo
+  ao mesmo tempo; passo já na fila pode andar depois de entrar na mesa; aviso de desistência
+  reaparece na próxima mesa; adversários deixam de se ouvir na tela de fim.
 
 ## Pendências conhecidas
 

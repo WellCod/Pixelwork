@@ -45,6 +45,11 @@ export class ManualClock implements Clock, Scheduler {
     this.current = target;
   }
 
+  /** Timers e intervalos ainda agendados. */
+  pending(): number {
+    return this.timers.length;
+  }
+
   private add(fn: () => void, ms: number, every: number | null): Timer {
     const timer: Scheduled = { id: this.nextId++, at: this.current + Math.max(1, ms), fn, every };
     this.timers.push(timer);

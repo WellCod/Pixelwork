@@ -32,11 +32,14 @@ export class ProximityController {
     if (!world.selfId) return;
     const self = { id: world.selfId, x: world.self.x, y: world.self.y };
     const others = [...world.players.values()].map((p) => ({ id: p.id, x: p.x, y: p.y }));
-    const audible = nextProximity(world.map, self, others, this.audible);
+    const opponent = opponentOf(world);
+    const forced = new Set(opponent ? [opponent] : []);
+    const audible = nextProximity(world.map, self, others, this.audible, forced);
 
     const volumes = new Map<string, number>();
     const near = others.filter((o) => audible.has(o.id));
-    for (const o of near) volumes.set(o.id, volumeAt(tileDistance(self, o)));
+    // O adversário da partida fica a 4 tiles: volume cheio, como quem está do lado.
+    for (const o of near) volumes.set(o.id, forced.has(o.id) ? volumeAt(1) : volumeAt(tileDistance(self, o)));
     const bubbles = selectBubbles(
       self,
       near.map((o) => ({ ...o, hasCamera: media.hasCamera(o.id) })),
@@ -57,4 +60,13 @@ export class ProximityController {
 
 function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return a.size === b.size && [...a].every((x) => b.has(x));
+}
+
+/** Adversário humano da partida em andamento do próprio jogador, ou null. */
+function opponentOf(world: ClientWorld): string | null {
+  const seat = world.seat;
+  const table = seat && world.tables.get(seat.tableKey);
+  if (!seat || table?.phase !== 'playing') return null;
+  const id = seat.side === 'left' ? table.right : table.left;
+  return id && id !== 'bot' ? id : null;
 }

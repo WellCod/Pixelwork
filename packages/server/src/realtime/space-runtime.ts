@@ -37,6 +37,7 @@ import {
 import type { Metrics } from '../metrics.ts';
 import type { PlayerProfile } from '../spaces/members.ts';
 import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
+import { GameRegistry } from './games.ts';
 import {
   PRIVATE_SOURCES,
   SPACE_SOURCES,
@@ -123,6 +124,7 @@ export class SpaceRuntime {
   private readonly calls = new Map<string, Call>();
   private readonly rules: StepRules;
   private readonly recorder: Recorder;
+  private readonly games: GameRegistry;
 
   constructor(
     readonly spaceId: string,
@@ -143,6 +145,17 @@ export class SpaceRuntime {
     }
     this.rules = { canEnter: (id, x, y) => this.canEnter(id, x, y) };
     this.recorder = new Recorder(MAX_REPLAY_EVENTS, mapVersion, deps.clock.now());
+    this.games = new GameRegistry(map.tables, {
+      clock: deps.clock,
+      scheduler: deps.scheduler,
+      send: (userId, msg) => {
+        const conn = this.members.get(userId)?.conn;
+        if (conn) this.send(conn, msg);
+      },
+      broadcast: (msg) => this.broadcast(msg),
+      activityChanged: (userId) => this.refresh(userId),
+      observeFrame: (seconds) => deps.metrics?.gameFrame.observe(seconds),
+    });
   }
 
   /** Gravação desde a última troca de mapa (ou desde que encheu), para o replay. */
@@ -168,6 +181,11 @@ export class SpaceRuntime {
   /** Membros no mapa, incluindo quem está na tolerância de reconexão. */
   memberCount(): number {
     return this.members.size;
+  }
+
+  /** Partidas de pingpong com o laço de 30 Hz rodando. */
+  activeGames(): number {
+    return this.games.activeMatches();
   }
 
   /** Mapa compilado em uso (o replay reproduz sobre ele). */
@@ -263,8 +281,11 @@ export class SpaceRuntime {
       players: [...this.members.keys()].map((id) => this.player(id)),
       zones: this.zoneStates(),
       desks: [...this.desks.values()],
+      tables: this.games.states(),
+      game: this.games.seatOf(profile.id),
     });
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
+    this.games.reconnected(profile.id);
     this.syncMedia(profile.id);
   }
 
@@ -285,6 +306,12 @@ export class SpaceRuntime {
     switch (msg.t) {
       case 'move': {
         member.lastReceived = msg.seq;
+        // Com a janela do jogo aberta as teclas são da raquete: o passo é confirmado sem andar.
+        if (this.games.seatOf(userId)) {
+          member.lastSeq = msg.seq;
+          member.ackDirty = true;
+          break;
+        }
         member.queued.push({ seq: msg.seq, dir: msg.dir });
         // Fila cheia: o mais antigo é descartado e confirmado; o cliente corrige pelo ack.
         while (member.queued.length > MAX_QUEUED_MOVES) {
@@ -322,6 +349,24 @@ export class SpaceRuntime {
         if (call) this.endCall(call, !call.active && call.to === userId ? 'declined' : 'left');
         break;
       }
+      case 'game.join': {
+        const pos = this.world.players.get(userId);
+        const error = pos ? this.games.join(userId, msg.tableKey, pos, Boolean(this.callOf(userId)?.active)) : 'table_not_at_side';
+        if (error) this.send(conn, { t: 'error', code: error });
+        break;
+      }
+      case 'game.bot':
+        this.games.bot(userId);
+        break;
+      case 'game.rematch':
+        this.games.rematch(userId);
+        break;
+      case 'game.leave':
+        this.games.leave(userId);
+        break;
+      case 'game.input':
+        this.games.input(userId, msg.seq, msg.dir);
+        break;
     }
   }
 
@@ -361,6 +406,7 @@ export class SpaceRuntime {
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
     if (call) this.endCall(call, 'left');
+    this.games.disconnected(userId);
     member.leaveTimer = this.deps.scheduler.setTimeout(() => this.leave(userId), RECONNECT_GRACE_MS);
   }
 
@@ -396,6 +442,7 @@ export class SpaceRuntime {
   close(): void {
     this.ticker?.cancel();
     this.ticker = null;
+    this.games.close();
     for (const knock of this.knocks.values()) knock.timer.cancel();
     for (const call of this.calls.values()) call.timer?.cancel();
     for (const member of this.members.values()) {
@@ -438,6 +485,8 @@ export class SpaceRuntime {
 
     this.map = map;
     this.mapVersion = version;
+    // Antes do refresh dos jogadores abaixo: quem jogava volta a 'idle'.
+    this.games.replaceTables(map.tables);
     const players = new Map(this.world.players);
     for (const [id, p] of players) {
       let to = relocate(map, p.x, p.y);
@@ -617,7 +666,7 @@ export class SpaceRuntime {
       return;
     }
     const id = randomUUID();
-    if (this.callOf(target) || this.activityOf(target) === 'meeting') {
+    if (this.callOf(target) || this.activityOf(target) === 'meeting' || this.games.seatOf(target)) {
       this.send(conn, { t: 'call.ended', callId: id, reason: 'busy' });
       return;
     }
@@ -658,6 +707,7 @@ export class SpaceRuntime {
 
   private activityOf(userId: string): Activity {
     if (this.callOf(userId)?.active) return 'call';
+    if (this.games.seatOf(userId)) return 'game';
     const p = this.world.players.get(userId);
     if (p && zoneAt(this.map, p.x, p.y).type === 'meeting') return 'meeting';
     return 'idle';
@@ -770,6 +820,8 @@ export class SpaceRuntime {
     for (const [requestId, knock] of this.knocks) {
       if (knock.from === userId) this.resolveKnock(requestId, false);
     }
+    // Saiu do mapa (fim da tolerância de reconexão): desistência na mesa em que estava.
+    this.games.leave(userId);
     if (member.mediaRoom) this.removeFromRoom(member.mediaRoom, userId);
     this.members.delete(userId);
     const players = new Map(this.world.players);

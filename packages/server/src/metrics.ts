@@ -25,6 +25,7 @@ export interface Gauges {
   connections: number;
   runtimes: number;
   players: number;
+  games: number;
 }
 
 /**
@@ -33,6 +34,8 @@ export interface Gauges {
  */
 export class Metrics {
   readonly tick = new Histogram(TICK_BUCKETS);
+  /** Quadro de uma partida de pingpong (30 Hz); mesmos limites do tick. */
+  readonly gameFrame = new Histogram(TICK_BUCKETS);
   messagesIn = 0;
   messagesOut = 0;
   bytesOut = 0;
@@ -73,6 +76,20 @@ export class Metrics {
       `pixelwork_tick_duration_seconds_bucket{le="+Inf"} ${this.tick.count}`,
       `pixelwork_tick_duration_seconds_sum ${this.tick.sum}`,
       `pixelwork_tick_duration_seconds_count ${this.tick.count}`,
+    );
+
+    metric('pixelwork_games_active', 'gauge', 'Partidas de pingpong em andamento.', gauges.games);
+    lines.push(
+      '# HELP pixelwork_game_frame_seconds Duração de um quadro de partida de pingpong.',
+      '# TYPE pixelwork_game_frame_seconds histogram',
+    );
+    this.gameFrame.buckets.forEach((limit, i) => {
+      lines.push(`pixelwork_game_frame_seconds_bucket{le="${limit}"} ${this.gameFrame.counts[i] ?? 0}`);
+    });
+    lines.push(
+      `pixelwork_game_frame_seconds_bucket{le="+Inf"} ${this.gameFrame.count}`,
+      `pixelwork_game_frame_seconds_sum ${this.gameFrame.sum}`,
+      `pixelwork_game_frame_seconds_count ${this.gameFrame.count}`,
     );
 
     const memory = process.memoryUsage();

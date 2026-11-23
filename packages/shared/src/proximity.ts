@@ -15,18 +15,25 @@ export function tileDistance(a: { x: number; y: number }, b: { x: number; y: num
 /**
  * Quem o cliente deve ouvir e ver na sala `space:`. Na zona aberta, entra a até
  * PROXIMITY_ENTER_TILES na mesma zona e só sai acima de PROXIMITY_EXIT_TILES (histerese) ou
- * ao trocar de zona. Numa sala de reunião, todos os ocupantes da mesma sala.
+ * ao trocar de zona. Numa sala de reunião, todos os ocupantes da mesma sala. `forced`: quem conta
+ * como perto em qualquer distância (o adversário de uma partida de pingpong).
  */
 export function nextProximity(
   map: CompiledMap,
   self: Positioned,
   others: readonly Positioned[],
   current: ReadonlySet<string>,
+  forced: ReadonlySet<string> = new Set(),
 ): Set<string> {
   const zone = zoneAt(map, self.x, self.y);
   const result = new Set<string>();
   for (const other of others) {
-    if (other.id === self.id || zoneAt(map, other.x, other.y) !== zone) continue;
+    if (other.id === self.id) continue;
+    if (forced.has(other.id)) {
+      result.add(other.id);
+      continue;
+    }
+    if (zoneAt(map, other.x, other.y) !== zone) continue;
     if (zone.type === 'meeting') {
       result.add(other.id);
       continue;

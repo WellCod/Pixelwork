@@ -1,4 +1,18 @@
-import { zoneAt, type ClientMsg, type CompiledMap, type DeskState, type Dir, type Player, type ServerMsg, type ZoneState } from '@pixelwork/shared';
+import {
+  zoneAt,
+  type ClientMsg,
+  type CompiledMap,
+  type DeskState,
+  type Dir,
+  type GameSeat,
+  type Player,
+  type PongDir,
+  type PongEvent,
+  type ServerMsg,
+  type TableState,
+  type ZoneState,
+} from '@pixelwork/shared';
+import type { PendingGameInput } from './pong-predict.ts';
 import { predictStep, reconcile, type CanEnter, type PendingMove, type Pos } from './reconcile.ts';
 
 export type WorldEvent =
@@ -18,7 +32,11 @@ export type WorldEvent =
   | { type: 'remoteMove'; id: string; x: number; y: number; dir: Dir }
   /** A predição divergiu do servidor: o avatar próprio vai direto para `pos`. */
   | { type: 'selfCorrected'; pos: Pos }
-  | { type: 'selfStep'; pos: Pos };
+  | { type: 'selfStep'; pos: Pos }
+  | { type: 'table'; table: TableState }
+  /** Chegou um estado novo da própria partida (`lastGame`). */
+  | { type: 'game' }
+  | { type: 'gameEvents'; events: PongEvent[] };
 
 /** Estado do coworking no cliente: jogadores conhecidos e predição do próprio avatar. */
 export class ClientWorld {
@@ -28,6 +46,15 @@ export class ClientWorld {
   private readonly shortIds = new Map<number, string>();
   readonly desks = new Map<string, DeskState>();
   readonly zones = new Map<string, ZoneState>();
+  readonly tables = new Map<string, TableState>();
+  /** Mesa em que o próprio jogador está; a janela do jogo fica aberta enquanto existir. */
+  seat: GameSeat | null = null;
+  /** Último estado da própria partida e a hora local em que chegou. */
+  lastGame: (Extract<ServerMsg, { t: 'game.state' }> & { receivedAt: number }) | null = null;
+  /** Inputs da raquete ainda sem ack, e a direção que o servidor já aplica. */
+  gamePending: PendingGameInput[] = [];
+  gameAckedDir: PongDir = 0;
+  private gameSeq = 0;
   /** Muda a cada evento; a UI em React usa como snapshot. */
   version = 0;
   self: Pos = { x: 0, y: 0, dir: 'down' };
@@ -68,6 +95,14 @@ export class ClientWorld {
         for (const d of msg.desks) this.desks.set(d.deskKey, d);
         this.zones.clear();
         for (const z of msg.zones) this.zones.set(z.zoneKey, z);
+        this.tables.clear();
+        for (const t of msg.tables) this.tables.set(t.tableKey, t);
+        this.seat = msg.game;
+        this.lastGame = null;
+        // Como o seq do movimento, o do jogo recomeça a cada welcome (o servidor zera o ack).
+        this.gameSeq = 0;
+        this.gamePending = [];
+        this.gameAckedDir = 0;
         const me = this.players.get(msg.selfId);
         this.self = me ? { x: me.x, y: me.y, dir: me.dir } : this.self;
         this.authoritative = this.self;
@@ -143,9 +178,50 @@ export class ClientWorld {
       case 'call.ended':
         this.emit({ type: 'callEnded', callId: msg.callId, reason: msg.reason });
         break;
+      case 'table.state': {
+        const table = msg.table;
+        this.tables.set(table.tableKey, table);
+        const side = table.left === this.selfId ? 'left' : table.right === this.selfId ? 'right' : null;
+        if (side) {
+          if (this.seat?.tableKey !== table.tableKey) this.resetGameInput();
+          this.seat = { tableKey: table.tableKey, side };
+        } else if (this.seat?.tableKey === table.tableKey) {
+          this.seat = null;
+          this.lastGame = null;
+        }
+        this.emit({ type: 'table', table });
+        break;
+      }
+      case 'game.state': {
+        if (this.seat?.tableKey !== msg.tableKey) break;
+        const acked = this.gamePending.filter((p) => p.seq <= msg.ack).at(-1);
+        if (acked) this.gameAckedDir = acked.dir;
+        this.gamePending = this.gamePending.filter((p) => p.seq > msg.ack);
+        this.lastGame = { ...msg, receivedAt: Date.now() };
+        this.emit({ type: 'game' });
+        break;
+      }
+      case 'game.events':
+        if (this.seat?.tableKey === msg.tableKey) this.emit({ type: 'gameEvents', events: msg.events });
+        break;
       default:
         break;
     }
+  }
+
+  /** Intenção nova da raquete: guarda para a previsão e devolve a mensagem a enviar. */
+  gameInput(dir: PongDir): ClientMsg {
+    this.gameSeq++;
+    this.gamePending.push({ seq: this.gameSeq, dir, at: Date.now() });
+    return { t: 'game.input', seq: this.gameSeq, dir };
+  }
+
+  /** O servidor zera o ack de quem entra numa mesa: a contagem recomeça. */
+  private resetGameInput(): void {
+    this.gameSeq = 0;
+    this.gamePending = [];
+    this.gameAckedDir = 0;
+    this.lastGame = null;
   }
 
   /** Aplica a predição e devolve a mensagem a enviar. */
@@ -179,7 +255,8 @@ export class ClientWorld {
   };
 
   private emit(event: WorldEvent): void {
-    this.version++;
+    // O estado da partida chega a 30 Hz e é lido direto pelo desenho do jogo: não re-renderiza a UI.
+    if (event.type !== 'game') this.version++;
     for (const listener of this.listeners) listener(event);
   }
 }

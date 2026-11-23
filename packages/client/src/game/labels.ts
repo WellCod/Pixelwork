@@ -128,3 +128,18 @@ export function deskPlaque(scene: Phaser.Scene, cx: number, y: number, value: st
   label.setPosition(4, Math.round((h - label.height) / 2));
   return scene.add.container(Math.round(cx - w / 2), y, [bg, label]);
 }
+
+/** Placar sobre a mesa de jogo: pílula clara com borda, centrada em x com a base em y. */
+export function tablePlaque(scene: Phaser.Scene, cx: number, y: number, value: string): Phaser.GameObjects.Container {
+  const label = text(scene, value, '#2e222f', 7, true);
+  const w = Math.ceil(label.width) + 10;
+  const h = 11;
+  const bg = scene.add
+    .graphics()
+    .fillStyle(0xe6ddd2, 1)
+    .fillRoundedRect(-1, -1, w + 2, h + 2, (h + 2) / 2)
+    .fillStyle(0xffffff, 0.95)
+    .fillRoundedRect(0, 0, w, h, h / 2);
+  label.setPosition(5, Math.round((h - label.height) / 2));
+  return scene.add.container(Math.round(cx - w / 2), y - h, [bg, label]);
+}
