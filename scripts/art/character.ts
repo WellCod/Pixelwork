@@ -167,7 +167,7 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
     if (style === 'hoodie') {
       if (facing !== 'up' && facing !== 'left' && y === 4 && x >= 4 && x <= 7) return 'A'; // bolso
       if (facing === 'down' && y >= 1 && y <= 3 && (x === 5 || x === 6)) return 'F'; // cordão
-      return sleeve ? 'A' : x >= 8 && facing !== 'left' ? 'C' : 'C';
+      return sleeve ? 'A' : x >= 8 && facing !== 'left' ? 'A' : 'C';
     }
     const facingFront = facing === 'down';
     if (style === 'shirt') {
