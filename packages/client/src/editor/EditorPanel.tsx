@@ -23,6 +23,7 @@ const TOOLS: { tool: Tool; label: string; hint: string }[] = [
 
 const DIR_LABEL: Record<Dir, string> = { up: 'cima', down: 'baixo', left: 'esquerda', right: 'direita' };
 
+/** Re-renderiza o componente a cada mudança do controlador (versão como snapshot). */
 export function useEditor(controller: EditorController): EditorController {
   useSyncExternalStore(
     (onChange) => controller.subscribe(onChange),
@@ -49,19 +50,20 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
   const layer = controller.selection?.layer;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    // Atalhos do editor: Ctrl/Cmd+Z desfaz, Ctrl/Cmd+Y ou Ctrl/Cmd+Shift+Z refaz, Delete remove e R gira.
+    const onKey = (event: KeyboardEvent) => {
       const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement;
       if (typing) return;
-      const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        e.preventDefault();
+      const modifier = event.ctrlKey || event.metaKey;
+      if (modifier && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        event.preventDefault();
         controller.undo();
-      } else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
-        e.preventDefault();
+      } else if (modifier && (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey))) {
+        event.preventDefault();
         controller.redo();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if (event.key === 'Delete' || event.key === 'Backspace') {
         controller.removeSelected();
-      } else if (e.key.toLowerCase() === 'r') {
+      } else if (event.key.toLowerCase() === 'r') {
         controller.rotateSelected();
       }
     };
@@ -69,18 +71,19 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
     return () => window.removeEventListener('keydown', onKey);
   }, [controller]);
 
+  /** Valida no servidor, confirma a liberação de mesas ocupadas que somem e salva com a versão base. */
   const save = async () => {
     setSaving(true);
     setStatus(null);
     try {
-      const check = await mapApi.validate(spaceId, controller.doc);
-      if (check.errors.length > 0) {
+      const validation = await mapApi.validate(spaceId, controller.doc);
+      if (validation.errors.length > 0) {
         setStatus({ kind: 'error', text: 'O servidor recusou o mapa: corrija os erros abaixo.' });
         return;
       }
       if (
-        check.orphanDesks.length > 0 &&
-        !confirm(`Estas mesas ocupadas deixam de existir e serão liberadas: ${check.orphanDesks.join(', ')}. Salvar mesmo assim?`)
+        validation.orphanDesks.length > 0 &&
+        !confirm(`Estas mesas ocupadas deixam de existir e serão liberadas: ${validation.orphanDesks.join(', ')}. Salvar mesmo assim?`)
       ) {
         return;
       }
@@ -118,8 +121,8 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
 
   // Fechar a aba com edição pendente pede confirmação ao navegador.
   useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (controller.dirty) e.preventDefault();
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (controller.dirty) event.preventDefault();
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
@@ -135,28 +138,28 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
       <section>
         <h3>Editar mapa</h3>
         <div className="tool-grid">
-          {TOOLS.map((t) => (
+          {TOOLS.map((entry) => (
             <button
-              key={t.tool}
+              key={entry.tool}
               type="button"
-              className={controller.tool === t.tool ? 'primary' : ''}
-              aria-pressed={controller.tool === t.tool}
-              title={t.hint}
-              onClick={() => controller.setTool(t.tool)}
+              className={controller.tool === entry.tool ? 'primary' : ''}
+              aria-pressed={controller.tool === entry.tool}
+              title={entry.hint}
+              onClick={() => controller.setTool(entry.tool)}
             >
-              {t.label}
+              {entry.label}
             </button>
           ))}
         </div>
-        <p className="muted">{TOOLS.find((t) => t.tool === controller.tool)?.hint} Setas movem a câmera.</p>
+        <p className="muted">{TOOLS.find((entry) => entry.tool === controller.tool)?.hint} Setas movem a câmera.</p>
 
         {controller.tool === 'floor' && (
           <label className="fields">
             Tipo de piso
-            <select value={controller.floorFrame} onChange={(e) => controller.setOption({ floorFrame: Number(e.target.value) })}>
-              {FLOOR_OPTIONS.map((o) => (
-                <option key={o.frame} value={o.frame}>
-                  {o.label}
+            <select value={controller.floorFrame} onChange={(event) => controller.setOption({ floorFrame: Number(event.target.value) })}>
+              {FLOOR_OPTIONS.map((floor) => (
+                <option key={floor.frame} value={floor.frame}>
+                  {floor.label}
                 </option>
               ))}
             </select>
@@ -165,10 +168,10 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
         {controller.tool === 'wall' && (
           <label className="fields">
             Tipo de parede
-            <select value={controller.wallFrame} onChange={(e) => controller.setOption({ wallFrame: Number(e.target.value) })}>
-              {WALL_OPTIONS.map((o) => (
-                <option key={o.frame} value={o.frame}>
-                  {o.label}
+            <select value={controller.wallFrame} onChange={(event) => controller.setOption({ wallFrame: Number(event.target.value) })}>
+              {WALL_OPTIONS.map((wall) => (
+                <option key={wall.frame} value={wall.frame}>
+                  {wall.label}
                 </option>
               ))}
             </select>
@@ -177,10 +180,10 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
         {controller.tool === 'rug' && (
           <label className="fields">
             Tapete
-            <select value={controller.rug} onChange={(e) => controller.setOption({ rug: e.target.value as RugId })}>
-              {RUG_OPTIONS.map((o) => (
-                <option key={o.rug} value={o.rug}>
-                  {o.label}
+            <select value={controller.rug} onChange={(event) => controller.setOption({ rug: event.target.value as RugId })}>
+              {RUG_OPTIONS.map((rug) => (
+                <option key={rug.rug} value={rug.rug}>
+                  {rug.label}
                 </option>
               ))}
             </select>
@@ -191,7 +194,7 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
             Apagar
             <select
               value={controller.eraseLayer}
-              onChange={(e) => controller.setOption({ eraseLayer: e.target.value as 'walls' | 'floor' })}
+              onChange={(event) => controller.setOption({ eraseLayer: event.target.value as 'walls' | 'floor' })}
             >
               <option value="walls">paredes</option>
               <option value="floor">piso</option>
@@ -204,21 +207,21 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
               <fieldset key={group.label} className="picker">
                 <legend>{group.label}</legend>
                 <div role="radiogroup" aria-label={group.label} className="furniture-grid">
-                  {group.items.map((o) => {
-                    const selected = controller.furniture.tileset === o.tileset && controller.furniture.frame === o.frame;
-                    const name = label(o.item, 'furniture');
+                  {group.items.map((furniture) => {
+                    const selected = controller.furniture.tileset === furniture.tileset && controller.furniture.frame === furniture.frame;
+                    const name = label(furniture.item, 'furniture');
                     return (
                       <button
-                        key={`${o.tileset}:${o.frame}`}
+                        key={`${furniture.tileset}:${furniture.frame}`}
                         type="button"
                         role="radio"
                         aria-checked={selected}
                         aria-label={name}
                         title={name}
                         className={selected ? 'furniture-option selected' : 'furniture-option'}
-                        onClick={() => controller.setOption({ furniture: { tileset: o.tileset, frame: o.frame } })}
+                        onClick={() => controller.setOption({ furniture: { tileset: furniture.tileset, frame: furniture.frame } })}
                       >
-                        <TileThumb tileset={o.tileset} frame={o.frame} />
+                        <TileThumb tileset={furniture.tileset} frame={furniture.frame} />
                       </button>
                     );
                   })}
@@ -232,11 +235,11 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
             Cadeira para
             <select
               value={controller.deskOrientation}
-              onChange={(e) => controller.setOption({ deskOrientation: e.target.value as Dir })}
+              onChange={(event) => controller.setOption({ deskOrientation: event.target.value as Dir })}
             >
-              {DIRS.map((d) => (
-                <option key={d} value={d}>
-                  {DIR_LABEL[d]}
+              {DIRS.map((dir) => (
+                <option key={dir} value={dir}>
+                  {DIR_LABEL[dir]}
                 </option>
               ))}
             </select>
@@ -255,9 +258,9 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
                 <input
                   key={selected.id}
                   defaultValue={textProp(selected, 'name')}
-                  onBlur={(e) => controller.setZone({ name: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.currentTarget.blur();
+                  onBlur={(event) => controller.setZone({ name: event.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
                   }}
                 />
               </label>
@@ -265,7 +268,7 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
                 Tipo
                 <select
                   value={textProp(selected, 'type', 'open')}
-                  onChange={(e) => controller.setZone({ type: e.target.value as ZoneType })}
+                  onChange={(event) => controller.setZone({ type: event.target.value as ZoneType })}
                 >
                   <option value="open">aberta</option>
                   <option value="meeting">sala de reunião</option>

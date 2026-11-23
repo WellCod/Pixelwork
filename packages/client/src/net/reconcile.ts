@@ -25,7 +25,8 @@ export function predictStep(pos: Pos, dir: Dir, map: CompiledMap, canEnter?: Can
 
 /**
  * Parte da posição autoritativa e reaplica os passos que o servidor ainda não confirmou.
- * Os passos com `seq <= ack` saem da fila.
+ * Os passos com `seq <= ack` saem da fila. Se o resultado bate com a predição, o avatar não se
+ * mexe; se diverge (outro jogador no caminho, sala trancada), quem chama corrige a posição.
  */
 export function reconcile(
   authoritative: Pos,
@@ -34,7 +35,7 @@ export function reconcile(
   map: CompiledMap,
   canEnter?: CanEnter,
 ): { pos: Pos; pending: PendingMove[] } {
-  const remaining = pending.filter((p) => p.seq > ack);
+  const remaining = pending.filter((move) => move.seq > ack);
   const pos = remaining.reduce((current, move) => predictStep(current, move.dir, map, canEnter), authoritative);
   return { pos, pending: remaining };
 }

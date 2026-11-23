@@ -9,10 +9,12 @@ import type { EditorController } from './editor-controller.ts';
 const sheetKey = (id: string) => `sheet:${id}`;
 const tilesKey = (id: string) => `tiles:${id}`;
 const DESK_TILESET = 'desk-decor';
+/** Frame da variação `basic` no desk-decor: o editor desenha toda mesa com ele. */
 const DESK_FRAME = Number(
   Object.entries(TILESETS[DESK_TILESET].items).find(([, item]) => item === 'basic')?.[0] ?? 0,
 );
 const ARROW: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+/** Velocidade da câmera pelas setas, em pixels do mundo por ms. */
 const PAN_SPEED = 0.4;
 
 /**
@@ -49,12 +51,12 @@ export class EditorScene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     if (!keyboard) throw new Error('teclado indisponível');
     keyboard.disableGlobalCapture();
-    const k = Phaser.Input.Keyboard.KeyCodes;
+    const keyCodes = Phaser.Input.Keyboard.KeyCodes;
     this.keys = {
-      up: keyboard.addKey(k.UP),
-      down: keyboard.addKey(k.DOWN),
-      left: keyboard.addKey(k.LEFT),
-      right: keyboard.addKey(k.RIGHT),
+      up: keyboard.addKey(keyCodes.UP),
+      down: keyboard.addKey(keyCodes.DOWN),
+      left: keyboard.addKey(keyCodes.LEFT),
+      right: keyboard.addKey(keyCodes.RIGHT),
     };
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -93,6 +95,10 @@ export class EditorScene extends Phaser.Scene {
     return { x: Math.floor(pointer.worldX / TILE_PX), y: Math.floor(pointer.worldY / TILE_PX) };
   }
 
+  /**
+   * Começo do gesto, conforme a ferramenta: pincel e borracha abrem um traço, zona e tapete
+   * guardam o canto do retângulo, seleção clica e prepara o arraste, o resto é clique simples.
+   */
   private onDown(pointer: Phaser.Input.Pointer): void {
     const tile = this.tileAt(pointer);
     const { tool } = this.controller;
@@ -112,11 +118,12 @@ export class EditorScene extends Phaser.Scene {
     const tile = this.tileAt(pointer);
     this.hover = tile;
     if (pointer.isDown && this.stroke.length > 0) {
-      const last = this.stroke.at(-1);
-      if (last?.[0] !== tile.x || last[1] !== tile.y) this.stroke.push([tile.x, tile.y]);
+      const lastTile = this.stroke.at(-1);
+      if (lastTile?.[0] !== tile.x || lastTile[1] !== tile.y) this.stroke.push([tile.x, tile.y]);
     }
   }
 
+  /** Fim do gesto: fecha o traço num comando ou transforma o arraste em zona, tapete ou movimento. */
   private onUp(pointer: Phaser.Input.Pointer): void {
     const tile = this.tileAt(pointer);
     if (this.stroke.length > 0) {
@@ -178,82 +185,87 @@ export class EditorScene extends Phaser.Scene {
     this.content.push(grid);
     this.cameras.main.setBounds(-TILE_PX * 4, -TILE_PX * 4, width + TILE_PX * 8, height + TILE_PX * 8);
 
+    // Profundidades fixas: piso 0, paredes 1, grade 2, zonas 3, móveis e mesas 4, cadeira 5,
+    // rótulos 6, spawn 7 e contorno da seleção 8; a prévia do overlay fica em 1000.
     const selection = this.controller.selection;
-    const isSelected = (layer: string, o: TiledObject) => selection?.layer === layer && selection.id === o.id;
+    const isSelected = (layer: string, object: TiledObject) => selection?.layer === layer && selection.id === object.id;
     for (const layer of doc.layers) {
       if (layer.type !== 'objectgroup') continue;
-      for (const o of layer.objects) {
-        if (layer.name === 'zones') this.drawZone(o, isSelected('zones', o));
-        else if (layer.name === 'furniture') this.drawFurniture(o, isSelected('furniture', o));
-        else if (layer.name === 'desks') this.drawDesk(o, isSelected('desks', o));
-        else if (layer.name === 'spawn') this.drawSpawn(o, isSelected('spawn', o));
+      for (const object of layer.objects) {
+        if (layer.name === 'zones') this.drawZone(object, isSelected('zones', object));
+        else if (layer.name === 'furniture') this.drawFurniture(object, isSelected('furniture', object));
+        else if (layer.name === 'desks') this.drawDesk(object, isSelected('desks', object));
+        else if (layer.name === 'spawn') this.drawSpawn(object, isSelected('spawn', object));
       }
     }
   }
 
-  private drawZone(o: TiledObject, selected: boolean): void {
-    const meeting = prop(o, 'type') === 'meeting';
+  private drawZone(zone: TiledObject, selected: boolean): void {
+    const meeting = prop(zone, 'type') === 'meeting';
     const color = meeting ? 0xb55088 : 0x0099db;
     const rect = this.add
-      .rectangle(o.x, o.y, o.width, o.height, color, 0.15)
+      .rectangle(zone.x, zone.y, zone.width, zone.height, color, 0.15)
       .setOrigin(0)
       .setStrokeStyle(selected ? 2 : 1, selected ? 0xfee761 : color, 0.9)
       .setDepth(3);
-    const label = this.text(o.x + 2, o.y + 2, `${textProp(o, 'name')} · ${textProp(o, 'zone_key')}`).setDepth(6);
+    const label = this.text(zone.x + 2, zone.y + 2, `${textProp(zone, 'name')} · ${textProp(zone, 'zone_key')}`).setDepth(6);
     this.content.push(rect, label);
   }
 
-  private drawFurniture(o: TiledObject, selected: boolean): void {
-    const tile = o.gid ? resolveGid(this.controller.doc, o.gid) : null;
+  /** Móvel do Tiled tem a origem no canto inferior esquerdo, por isso o contorno sobe a altura. */
+  private drawFurniture(furniture: TiledObject, selected: boolean): void {
+    const tile = furniture.gid ? resolveGid(this.controller.doc, furniture.gid) : null;
     if (!tile) return;
-    const image = this.add.image(o.x, o.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(4);
+    const image = this.add.image(furniture.x, furniture.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(4);
     this.content.push(image);
-    const w = o.width || TILE_PX;
-    const h = o.height || TILE_PX;
-    if (selected) this.content.push(this.outline(o.x, o.y - h, w, h));
+    const width = furniture.width || TILE_PX;
+    const height = furniture.height || TILE_PX;
+    if (selected) this.content.push(this.outline(furniture.x, furniture.y - height, width, height));
   }
 
-  private drawDesk(o: TiledObject, selected: boolean): void {
-    const w = o.width || TILE_PX;
-    const h = o.height || TILE_PX;
-    const image = this.add.image(o.x, o.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4);
-    if (w > TILE_PX) this.content.push(this.add.image(o.x + TILE_PX, o.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
-    if (h > TILE_PX) this.content.push(this.add.image(o.x, o.y + TILE_PX, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
-    const orientation = textProp(o, 'orientation', 'down');
+  /** Mesa de 1 ou 2 tiles (repete o frame básico no segundo tile), marca da cadeira e chave. */
+  private drawDesk(desk: TiledObject, selected: boolean): void {
+    const width = desk.width || TILE_PX;
+    const height = desk.height || TILE_PX;
+    const image = this.add.image(desk.x, desk.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4);
+    if (width > TILE_PX) this.content.push(this.add.image(desk.x + TILE_PX, desk.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    if (height > TILE_PX) this.content.push(this.add.image(desk.x, desk.y + TILE_PX, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    const orientation = textProp(desk, 'orientation', 'down');
     const [dx, dy] = ARROW[orientation] ?? [0, 1];
     // Marca da cadeira na frente do tile de âncora, encostada na borda da pegada.
-    const cx = o.x + TILE_PX / 2 + (dx > 0 ? w : dx * TILE_PX);
-    const cy = o.y + TILE_PX / 2 + (dy > 0 ? h : dy * TILE_PX);
-    const chair = this.add.circle(cx, cy, 3, 0xfee761, 0.8).setDepth(5);
-    const label = this.text(o.x, o.y - 8, textProp(o, 'desk_key')).setDepth(6);
+    const chairX = desk.x + TILE_PX / 2 + (dx > 0 ? width : dx * TILE_PX);
+    const chairY = desk.y + TILE_PX / 2 + (dy > 0 ? height : dy * TILE_PX);
+    const chair = this.add.circle(chairX, chairY, 3, 0xfee761, 0.8).setDepth(5);
+    const label = this.text(desk.x, desk.y - 8, textProp(desk, 'desk_key')).setDepth(6);
     this.content.push(image, chair, label);
-    if (selected) this.content.push(this.outline(o.x, o.y, w, h));
+    if (selected) this.content.push(this.outline(desk.x, desk.y, width, height));
   }
 
-  private drawSpawn(o: TiledObject, selected: boolean): void {
-    const marker = this.add.star(o.x, o.y, 5, 3, 7, 0xfeae34).setDepth(7);
+  /** O spawn é um ponto no centro do tile; o contorno cerca o tile inteiro. */
+  private drawSpawn(spawn: TiledObject, selected: boolean): void {
+    const marker = this.add.star(spawn.x, spawn.y, 5, 3, 7, 0xfeae34).setDepth(7);
     this.content.push(marker);
-    if (selected) this.content.push(this.outline(o.x - TILE_PX / 2, o.y - TILE_PX / 2, TILE_PX, TILE_PX));
+    if (selected) this.content.push(this.outline(spawn.x - TILE_PX / 2, spawn.y - TILE_PX / 2, TILE_PX, TILE_PX));
   }
 
-  private outline(x: number, y: number, w: number, h: number): Phaser.GameObjects.Rectangle {
-    return this.add.rectangle(x, y, w, h).setOrigin(0).setStrokeStyle(2, 0xfee761).setDepth(8);
+  private outline(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {
+    return this.add.rectangle(x, y, width, height).setOrigin(0).setStrokeStyle(2, 0xfee761).setDepth(8);
   }
 
   /** Prévia do traço, do retângulo da zona e do tile sob o mouse. */
   private drawOverlay(): void {
-    const g = this.overlay;
-    g.clear();
+    const graphics = this.overlay;
+    graphics.clear();
     if (this.hover) {
-      g.lineStyle(1, 0xffffff, 0.6).strokeRect(this.hover.x * TILE_PX, this.hover.y * TILE_PX, TILE_PX, TILE_PX);
+      graphics.lineStyle(1, 0xffffff, 0.6).strokeRect(this.hover.x * TILE_PX, this.hover.y * TILE_PX, TILE_PX, TILE_PX);
     }
-    for (const [x, y] of this.stroke) g.fillStyle(0xfee761, 0.35).fillRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
+    for (const [x, y] of this.stroke) graphics.fillStyle(0xfee761, 0.35).fillRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
     if (this.dragStart && this.hover && (this.controller.tool === 'zone' || this.controller.tool === 'rug')) {
       const x = Math.min(this.dragStart.x, this.hover.x);
       const y = Math.min(this.dragStart.y, this.hover.y);
-      const w = Math.abs(this.hover.x - this.dragStart.x) + 1;
-      const h = Math.abs(this.hover.y - this.dragStart.y) + 1;
-      g.lineStyle(1, 0xfee761, 1).strokeRect(x * TILE_PX, y * TILE_PX, w * TILE_PX, h * TILE_PX);
+      const width = Math.abs(this.hover.x - this.dragStart.x) + 1;
+      const height = Math.abs(this.hover.y - this.dragStart.y) + 1;
+      graphics.lineStyle(1, 0xfee761, 1).strokeRect(x * TILE_PX, y * TILE_PX, width * TILE_PX, height * TILE_PX);
     }
   }
 

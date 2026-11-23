@@ -44,14 +44,15 @@ export class MediaManager {
     return () => this.listeners.delete(listener);
   }
 
-  /**
-   * Troca de sala. Um `media.join` pode chegar enquanto a conexão anterior ainda está sendo
-   * estabelecida: a geração descarta a conexão que terminar depois de ter sido substituída.
-   */
+  /** Sala de reunião ou chamada (todos com todos), em vez da sala do espaço por proximidade. */
   get isPrivate(): boolean {
     return this.roomName !== null && !this.roomName.startsWith('space:');
   }
 
+  /**
+   * Troca de sala. Um `media.join` pode chegar enquanto a conexão anterior ainda está sendo
+   * estabelecida: a geração descarta a conexão que terminar depois de ter sido substituída.
+   */
   async join(url: string, token: string, roomName: string): Promise<void> {
     const generation = ++this.generation;
     this.roomName = roomName;
@@ -109,36 +110,37 @@ export class MediaManager {
   async setMic(on: boolean): Promise<void> {
     this.micOn = on;
     this.changed();
-    await this.room?.localParticipant.setMicrophoneEnabled(on).catch((e: unknown) => {
+    await this.room?.localParticipant.setMicrophoneEnabled(on).catch((error: unknown) => {
       this.micOn = false;
-      this.fail(e, 'microfone');
+      this.fail(error, 'microfone');
     });
   }
 
   async setCamera(on: boolean): Promise<void> {
     this.camOn = on;
     this.changed();
-    await this.room?.localParticipant.setCameraEnabled(on).catch((e: unknown) => {
+    await this.room?.localParticipant.setCameraEnabled(on).catch((error: unknown) => {
       this.camOn = false;
-      this.fail(e, 'câmera');
+      this.fail(error, 'câmera');
     });
   }
 
+  /** Compartilhar tela só vale em reunião e chamada; na sala do espaço o pedido é ignorado. */
   async setScreenShare(on: boolean): Promise<void> {
     if (on && (!this.isPrivate || !this.room)) return;
     this.screenOn = on;
     this.changed();
-    await this.room?.localParticipant.setScreenShareEnabled(on, { audio: true }).catch((e: unknown) => {
+    await this.room?.localParticipant.setScreenShareEnabled(on, { audio: true }).catch((error: unknown) => {
       this.screenOn = false;
-      this.fail(e, 'tela');
+      this.fail(error, 'tela');
     });
   }
 
   /** Telas compartilhadas pelos outros na sala atual (só existem em reunião e chamada). */
   remoteScreens(): { identity: string; track: RemoteVideoTrack }[] {
     const screens: { identity: string; track: RemoteVideoTrack }[] = [];
-    for (const [identity, p] of this.room?.remoteParticipants ?? []) {
-      const track = p.getTrackPublication(Track.Source.ScreenShare)?.track;
+    for (const [identity, participant] of this.room?.remoteParticipants ?? []) {
+      const track = participant.getTrackPublication(Track.Source.ScreenShare)?.track;
       if (track instanceof RemoteVideoTrack) screens.push({ identity, track });
     }
     return screens;
@@ -156,6 +158,7 @@ export class MediaManager {
     this.changed();
   }
 
+  /** A pessoa publica câmera ligada (mesmo sem estar assinada aqui), para decidir os balões. */
   hasCamera(id: string): boolean {
     const publication = this.room?.remoteParticipants.get(id)?.getTrackPublication(Track.Source.Camera);
     return publication !== undefined && !publication.isMuted;
@@ -174,10 +177,10 @@ export class MediaManager {
   /** Estado de assinatura, exposto só para depuração e para o E2E da fase 8. */
   debugState(): Record<string, { audio: boolean; video: boolean }> {
     const state: Record<string, { audio: boolean; video: boolean }> = {};
-    for (const [id, p] of this.room?.remoteParticipants ?? []) {
+    for (const [id, participant] of this.room?.remoteParticipants ?? []) {
       state[id] = {
-        audio: p.getTrackPublication(Track.Source.Microphone)?.isSubscribed ?? false,
-        video: p.getTrackPublication(Track.Source.Camera)?.isSubscribed ?? false,
+        audio: participant.getTrackPublication(Track.Source.Microphone)?.isSubscribed ?? false,
+        video: participant.getTrackPublication(Track.Source.Camera)?.isSubscribed ?? false,
       };
     }
     return state;
@@ -207,6 +210,10 @@ export class MediaManager {
     this.changed();
   }
 
+  /**
+   * Regras de assinatura de uma pessoa. Na sala do espaço: microfone só de quem está ao alcance,
+   * câmera só de quem, além disso, tem balão; balão expandido em qualidade alta.
+   */
   private applyTo(id: string, participant: RemoteParticipant): void {
     if (this.isPrivate) {
       // Reunião e chamada: o servidor já decidiu quem está na sala, então todos com todos.
@@ -223,6 +230,7 @@ export class MediaManager {
     if (hearing) participant.setVolume(this.volumes.get(id) ?? 1);
   }
 
+  /** Eventos da sala: mudança de participante ou de track reaplica as regras de assinatura. */
   private listen(room: Room): void {
     const reapply = () => this.apply();
     room
@@ -239,10 +247,11 @@ export class MediaManager {
         this.changed();
       })
       .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-        this.speaking = new Set(speakers.map((p) => p.identity));
+        this.speaking = new Set(speakers.map((speaker) => speaker.identity));
         this.changed();
       })
-      .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+      .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _publication, participant: RemoteParticipant) => {
+        // Áudio remoto precisa de um elemento <audio> no documento para tocar; vídeo é anexado pela UI.
         if (track.kind === Track.Kind.Audio) {
           const element = track.attach();
           element.hidden = true;
@@ -306,15 +315,15 @@ const DEVICES: Record<string, { the: string; none: string }> = {
 /** Erros do navegador e do LiveKit em português, com o que a pessoa pode fazer. */
 export function describeMediaError(error: unknown, device = 'microfone'): string {
   const name = error instanceof Error ? error.name : '';
-  const d = DEVICES[device] ?? { the: device, none: `${device}: não encontrado.` };
+  const deviceText = DEVICES[device] ?? { the: device, none: `${device}: não encontrado.` };
   switch (name) {
     case 'NotAllowedError':
-      return `Sem permissão para usar ${d.the}. Libere no cadeado da barra de endereço.`;
+      return `Sem permissão para usar ${deviceText.the}. Libere no cadeado da barra de endereço.`;
     case 'NotFoundError':
     case 'OverconstrainedError':
-      return d.none;
+      return deviceText.none;
     case 'NotReadableError':
-      return `Não deu para abrir ${d.the}: outro programa está usando.`;
+      return `Não deu para abrir ${deviceText.the}: outro programa está usando.`;
     default:
       return 'Não deu para conectar o áudio e o vídeo agora.';
   }

@@ -13,14 +13,18 @@ export function layersOf(spec: AvatarSpec): [CharacterLayer, string][] {
     ['hair', spec.hair],
     ['accessory', spec.accessory],
   ];
-  return layers.filter((l): l is [CharacterLayer, string] => l[1] !== null);
+  return layers.filter((entry): entry is [CharacterLayer, string] => entry[1] !== null);
 }
 
+/** `#rrggbb` -> [r, g, b]. */
 function rgb(hex: string): [number, number, number] {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
 }
 
-/** Cor-chave (inteiro 0xRRGGBB) -> cor final da rampa escolhida. */
+/**
+ * Cor-chave (inteiro 0xRRGGBB) -> cor final da rampa escolhida. As camadas são desenhadas com
+ * rampas-chave fixas; a posição na rampa-chave diz qual tom da rampa escolhida entra no lugar.
+ */
 export function swapTable(spec: AvatarSpec): Map<number, [number, number, number]> {
   const table = new Map<number, [number, number, number]>();
   const pairs: [readonly string[], readonly string[]][] = [
@@ -43,26 +47,27 @@ export function swapTable(spec: AvatarSpec): Map<number, [number, number, number
  */
 export function composeAvatar(
   spec: AvatarSpec,
-  layer: (layer: CharacterLayer, id: string) => CanvasImageSource,
+  layerImage: (layer: CharacterLayer, id: string) => CanvasImageSource,
 ): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = FRAME_W * COLS;
   canvas.height = FRAME_H * ROWS;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) throw new Error('canvas 2d indisponível');
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('canvas 2d indisponível');
 
-  for (const [name, id] of layersOf(spec)) ctx.drawImage(layer(name, id), 0, 0);
+  for (const [layer, id] of layersOf(spec)) context.drawImage(layerImage(layer, id), 0, 0);
 
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  // Varre os pixels em RGBA (4 bytes cada): pula os transparentes e troca as cores-chave.
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
   const table = swapTable(spec);
-  const data = image.data;
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] === 0) continue;
-    const color = ((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0);
-    const swap = table.get(color);
-    if (swap) [data[i], data[i + 1], data[i + 2]] = swap;
+  const rgba = image.data;
+  for (let i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] === 0) continue;
+    const color = ((rgba[i] ?? 0) << 16) | ((rgba[i + 1] ?? 0) << 8) | (rgba[i + 2] ?? 0);
+    const replacement = table.get(color);
+    if (replacement) [rgba[i], rgba[i + 1], rgba[i + 2]] = replacement;
   }
-  ctx.putImageData(image, 0, 0);
+  context.putImageData(image, 0, 0);
   return canvas;
 }
 
@@ -79,6 +84,7 @@ export function seatedFrame(dir: FrameDir): number {
   return 4 * COLS + DIR_ROW[dir];
 }
 
+/** Os quatro frames da caminhada numa direção (a linha inteira). */
 export function walkFrames(dir: FrameDir): number[] {
   return [0, 1, 2, 3].map((col) => DIR_ROW[dir] * COLS + col);
 }

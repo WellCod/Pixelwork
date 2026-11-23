@@ -5,6 +5,7 @@ import type { PongDir } from '@pixelwork/shared';
 const UP = new Set(['ArrowUp', 'w', 'W', 'touch-up']);
 const DOWN = new Set(['ArrowDown', 's', 'S', 'touch-down']);
 
+/** Teclas seguradas da raquete e a última direção mandada ao servidor. */
 export class PaddleKeys {
   private readonly held = new Set<string>();
   private sent: PongDir = 0;
@@ -16,10 +17,11 @@ export class PaddleKeys {
     if (!active || (!UP.has(key) && !DOWN.has(key))) return false;
     if (down) this.held.add(key);
     else this.held.delete(key);
-    const keys = [...this.held];
-    const up = keys.some((k) => UP.has(k));
-    const dn = keys.some((k) => DOWN.has(k));
-    const dir: PongDir = up === dn ? 0 : up ? -1 : 1;
+    const heldKeys = [...this.held];
+    const upHeld = heldKeys.some((heldKey) => UP.has(heldKey));
+    const downHeld = heldKeys.some((heldKey) => DOWN.has(heldKey));
+    // Cima e baixo juntos (ou nenhum) param a raquete.
+    const dir: PongDir = upHeld === downHeld ? 0 : upHeld ? -1 : 1;
     if (dir !== this.sent) {
       this.sent = dir;
       this.send(dir);

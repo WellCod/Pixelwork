@@ -27,6 +27,7 @@ export function preloadCharacterLayers(scene: Phaser.Scene): void {
   }
 }
 
+/** Chave da animação de andar de uma textura de avatar numa direção. */
 export const walkAnim = (textureKey: string, dir: string) => `${textureKey}:walk-${dir}`;
 
 /** Textura com frames e animações; avatares iguais compartilham a mesma (cache pela chave do spec). */
@@ -40,6 +41,7 @@ export function ensureAvatarTexture(scene: Phaser.Scene, spec: AvatarSpec): stri
   );
   const texture = scene.textures.addCanvas(key, canvas);
   if (!texture) throw new Error(`falha ao registrar a textura ${key}`);
+  // Frames numerados linha a linha na folha (COLS por linha), como o `idleFrame` e o `walkFrames` esperam.
   for (let frame = 0; frame < COLS * ROWS; frame++) {
     texture.add(frame, 0, (frame % COLS) * FRAME_W, Math.floor(frame / COLS) * FRAME_H, FRAME_W, FRAME_H);
   }

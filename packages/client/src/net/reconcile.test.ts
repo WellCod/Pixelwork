@@ -25,7 +25,7 @@ describe('reconcile', () => {
       map,
     );
     expect(result.pos).toEqual({ x: 1, y: 3, dir: 'down' });
-    expect(result.pending.map((p) => p.seq)).toEqual([3, 4]);
+    expect(result.pending.map((move) => move.seq)).toEqual([3, 4]);
   });
 
   it('sem passos pendentes fica na posição autoritativa', () => {

@@ -46,11 +46,12 @@ export class Mover {
 
   /** Alvo a mais de um tile do último conhecido é teleporte: vai direto. */
   push(x: number, y: number): void {
-    const last = this.queue.at(-1) ?? { x: this.x, y: this.y };
-    if (Math.abs(x - last.x) + Math.abs(y - last.y) > 1) this.snap(x, y);
-    else if (x !== last.x || y !== last.y) this.queue.push({ x, y });
+    const lastTarget = this.queue.at(-1) ?? { x: this.x, y: this.y };
+    if (Math.abs(x - lastTarget.x) + Math.abs(y - lastTarget.y) > 1) this.snap(x, y);
+    else if (x !== lastTarget.x || y !== lastTarget.y) this.queue.push({ x, y });
   }
 
+  /** Vai direto para o tile, sem animação, e esquece a fila. */
   snap(x: number, y: number): void {
     this.queue = [];
     this.idleMs = Infinity;
@@ -58,29 +59,34 @@ export class Mover {
     this.y = y;
   }
 
+  /**
+   * Avança `dtMs` de animação. O tempo que sobra ao chegar num alvo segue para o próximo da fila,
+   * então um frame longo pode consumir vários passos. A velocidade (tiles por ms) é a de um passo
+   * por STEP_MS multiplicada pelo excesso de fila além do segundo passo.
+   */
   update(dtMs: number): void {
     if (this.queue.length === 0) {
       this.idleMs += dtMs;
       return;
     }
     this.idleMs = 0;
-    let budget = dtMs;
-    while (budget > 0) {
+    let remainingMs = dtMs;
+    while (remainingMs > 0) {
       const target = this.queue[0];
       if (!target) return;
       const speed = Math.max(1, this.queue.length - 1) / STEP_MS;
       const dx = target.x - this.x;
       const dy = target.y - this.y;
       const distance = Math.abs(dx) + Math.abs(dy);
-      const reach = speed * budget;
-      if (reach >= distance) {
+      const reachable = speed * remainingMs;
+      if (reachable >= distance) {
         this.x = target.x;
         this.y = target.y;
         this.queue.shift();
-        budget -= distance / speed;
+        remainingMs -= distance / speed;
       } else {
-        this.x += Math.sign(dx) * reach;
-        this.y += Math.sign(dy) * reach;
+        this.x += Math.sign(dx) * reachable;
+        this.y += Math.sign(dy) * reachable;
         return;
       }
     }

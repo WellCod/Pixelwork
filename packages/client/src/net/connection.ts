@@ -38,7 +38,7 @@ export interface NetStats {
  * dada como morta (Wi-Fi caiu sem `close`) e refeita.
  */
 export class Connection {
-  private ws: WebSocket | null = null;
+  private socket: WebSocket | null = null;
   private attempt = 0;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -52,7 +52,7 @@ export class Connection {
 
   constructor(
     private readonly spaceId: string,
-    private readonly onMessage: (msg: ServerMsg) => void,
+    private readonly onMessage: (message: ServerMsg) => void,
     private readonly onStatus: (status: ConnectionStatus) => void,
     /** Atraso artificial de envio e recebimento (overlay de netcode em desenvolvimento). */
     private readonly lag: () => number = () => 0,
@@ -69,46 +69,49 @@ export class Connection {
   private connect(): void {
     const url = new URL(`/ws?space=${encodeURIComponent(this.spaceId)}`, location.href);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(url);
-    ws.binaryType = 'arraybuffer';
-    this.ws = ws;
+    const socket = new WebSocket(url);
+    socket.binaryType = 'arraybuffer';
+    this.socket = socket;
     this.lastMessageAt = performance.now();
     this.setStatus(this.attempt === 0 ? 'connecting' : 'reconnecting');
 
-    ws.onopen = () => {
-      if (this.ws === ws) this.startHeartbeat();
+    // Cada handler confere se o socket ainda é o atual: um socket substituído pode seguir emitindo
+    // eventos até fechar de vez.
+    socket.onopen = () => {
+      if (this.socket === socket) this.startHeartbeat();
     };
-    ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
-      if (this.ws !== ws) return;
+    socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
+      if (this.socket !== socket) return;
       this.lastMessageAt = performance.now();
-      const data = event.data;
-      if (data instanceof ArrayBuffer) {
+      const payload = event.data;
+      if (payload instanceof ArrayBuffer) {
         // O id curto é resolvido na entrega, depois do atraso simulado, com o mapa de ids daquele momento.
         this.delay(() => {
-          const msg = this.tickFrom(data);
-          if (msg) this.receive(msg);
+          const message = this.tickFrom(payload);
+          if (message) this.receive(message);
         }, 'in');
         return;
       }
-      let msg: ServerMsg;
+      let message: ServerMsg;
       try {
-        msg = JSON.parse(data) as ServerMsg;
+        message = JSON.parse(payload) as ServerMsg;
       } catch {
         return;
       }
-      this.delay(() => this.receive(msg), 'in');
+      this.delay(() => this.receive(message), 'in');
     };
-    ws.onclose = (event) => {
-      if (this.ws !== ws) return;
-      this.ws = null;
+    socket.onclose = (event) => {
+      if (this.socket !== socket) return;
+      this.socket = null;
       this.stopHeartbeat();
       if (this.stopped) return;
-      const final = FINAL_CLOSE[event.code];
-      if (final) this.setStatus(final);
+      const finalStatus = FINAL_CLOSE[event.code];
+      if (finalStatus) this.setStatus(finalStatus);
       else this.scheduleRetry();
     };
   }
 
+  /** Tick binário -> mensagem `tick` com os ids completos; movimento de id desconhecido é descartado. */
   private tickFrom(data: ArrayBuffer): ServerMsg | null {
     const tick = decodeTick(data);
     if (!tick) return null;
@@ -120,18 +123,19 @@ export class Connection {
     return { t: 'tick', ack: tick.ack, ts: tick.ts, moves };
   }
 
-  private receive(msg: ServerMsg): void {
-    if (msg.t === 'pong') {
-      this.onPong(msg.id, msg.ts);
+  private receive(message: ServerMsg): void {
+    if (message.t === 'pong') {
+      this.onPong(message.id, message.ts);
       return;
     }
-    if (msg.t === 'welcome') {
+    if (message.t === 'welcome') {
       this.attempt = 0;
       this.setStatus('online');
     }
-    this.onMessage(msg);
+    this.onMessage(message);
   }
 
+  /** Backoff exponencial a partir de 500 ms, com teto em MAX_BACKOFF_MS. */
   private scheduleRetry(): void {
     const delay = Math.min(MAX_BACKOFF_MS, 500 * 2 ** this.attempt);
     this.attempt++;
@@ -144,7 +148,7 @@ export class Connection {
 
   /** A rede voltou: tenta já, sem esperar o backoff. */
   private readonly onOnline = () => {
-    if (this.stopped || this.ws) return;
+    if (this.stopped || this.socket) return;
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.connect();
@@ -153,10 +157,10 @@ export class Connection {
   /** Derruba e reconecta na hora; o servidor manda `welcome` e um `media.join` novo. */
   reconnect(): void {
     if (this.stopped) return;
-    const ws = this.ws;
-    this.ws = null;
+    const socket = this.socket;
+    this.socket = null;
     this.stopHeartbeat();
-    ws?.close();
+    socket?.close();
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.connect();
@@ -167,10 +171,10 @@ export class Connection {
     this.heartbeat = setInterval(() => {
       if (performance.now() - this.lastMessageAt > CONNECTION_TIMEOUT_MS) {
         // Conexão meio aberta: o navegador ainda acha que está aberta.
-        const ws = this.ws;
-        this.ws = null;
+        const socket = this.socket;
+        this.socket = null;
         this.stopHeartbeat();
-        ws?.close();
+        socket?.close();
         this.scheduleRetry();
         return;
       }
@@ -186,6 +190,7 @@ export class Connection {
     this.pings.clear();
   }
 
+  /** Fecha a medição do ping: atualiza RTT, média, jitter e a estimativa de diferença de relógio. */
   private onPong(id: number, serverTs: number): void {
     const sentAt = this.pings.get(id);
     if (sentAt === undefined) return;
@@ -194,13 +199,13 @@ export class Connection {
     const rtt = now - sentAt;
     this.samples.push(rtt);
     if (this.samples.length > RTT_SAMPLES) this.samples.shift();
-    const avg = this.samples.reduce((a, b) => a + b, 0) / this.samples.length;
+    const average = this.samples.reduce((sum, sample) => sum + sample, 0) / this.samples.length;
     let jitter = 0;
     for (let i = 1; i < this.samples.length; i++) {
       jitter += Math.abs((this.samples[i] ?? 0) - (this.samples[i - 1] ?? 0));
     }
     this.stats.rtt = rtt;
-    this.stats.rttAvg = avg;
+    this.stats.rttAvg = average;
     this.stats.jitter = this.samples.length > 1 ? jitter / (this.samples.length - 1) : 0;
     // Hora do servidor no meio da ida e volta.
     this.stats.clockOffset = serverTs - (Date.now() - rtt / 2);
@@ -213,12 +218,13 @@ export class Connection {
     this.send({ t: 'ping', id });
   }
 
-  send(msg: ClientMsg): void {
-    const ws = this.ws;
-    if (ws?.readyState !== WebSocket.OPEN) return;
-    const data = JSON.stringify(msg);
+  /** Envia se a conexão estiver aberta; fora do ar a mensagem é descartada. */
+  send(message: ClientMsg): void {
+    const socket = this.socket;
+    if (socket?.readyState !== WebSocket.OPEN) return;
+    const serialized = JSON.stringify(message);
     this.delay(() => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      if (socket.readyState === WebSocket.OPEN) socket.send(serialized);
     }, 'out');
   }
 
@@ -226,18 +232,19 @@ export class Connection {
     return this.status === 'online';
   }
 
+  /** Hora da última entrega agendada em cada direção, para o atraso simulado não inverter a ordem. */
   private readonly lastAt = { in: 0, out: 0 };
 
   /** Atraso simulado que preserva a ordem, como o TCP: nada é entregue antes do anterior. */
-  private delay(fn: () => void, direction: 'in' | 'out'): void {
-    const ms = this.lag();
-    if (ms <= 0 && this.lastAt[direction] <= performance.now()) {
-      fn();
+  private delay(deliver: () => void, direction: 'in' | 'out'): void {
+    const lagMs = this.lag();
+    if (lagMs <= 0 && this.lastAt[direction] <= performance.now()) {
+      deliver();
       return;
     }
-    const at = Math.max(performance.now() + ms, this.lastAt[direction]);
-    this.lastAt[direction] = at;
-    setTimeout(fn, at - performance.now());
+    const deliverAt = Math.max(performance.now() + lagMs, this.lastAt[direction]);
+    this.lastAt[direction] = deliverAt;
+    setTimeout(deliver, deliverAt - performance.now());
   }
 
   private setStatus(status: ConnectionStatus): void {
@@ -251,7 +258,7 @@ export class Connection {
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.stopHeartbeat();
-    this.ws?.close();
-    this.ws = null;
+    this.socket?.close();
+    this.socket = null;
   }
 }

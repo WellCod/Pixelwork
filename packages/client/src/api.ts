@@ -35,6 +35,10 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Chamada JSON à API com o cookie de sessão. Resposta fora de 2xx vira `ApiError` com o código
+ * do campo `error`; 204 devolve undefined.
+ */
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method,
@@ -43,10 +47,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? null : JSON.stringify(body),
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    const errorBody = (await response.json().catch(() => null)) as { error?: unknown } | null;
     // O limite de taxa responde com o texto do HTTP no campo error; vira um código próprio.
     if (response.status === 429) throw new ApiError(429, 'rate_limited');
-    throw new ApiError(response.status, typeof body?.error === 'string' ? body.error : null);
+    throw new ApiError(response.status, typeof errorBody?.error === 'string' ? errorBody.error : null);
   }
   return (response.status === 204 ? undefined : await response.json()) as T;
 }
@@ -65,18 +69,18 @@ export interface StatusInput {
   emoji: string | null;
 }
 
-const space = (id: string, path: string) => `/spaces/${encodeURIComponent(id)}${path}`;
-const desk = (spaceId: string, deskKey: string) => space(spaceId, `/desks/${encodeURIComponent(deskKey)}`);
+const spacePath = (id: string, path: string) => `/spaces/${encodeURIComponent(id)}${path}`;
+const deskPath = (spaceId: string, deskKey: string) => spacePath(spaceId, `/desks/${encodeURIComponent(deskKey)}`);
 
 export const profileApi = {
   setAvatar: (avatar: AvatarSpec) => request<unknown>('PUT', '/me/avatar', avatar),
   setName: (name: string) => request<unknown>('PUT', '/me/name', { name }),
-  setStatus: (spaceId: string, input: StatusInput) => request<unknown>('PUT', space(spaceId, '/me/status'), input),
-  setTitle: (spaceId: string, title: string | null) => request<unknown>('PUT', space(spaceId, '/me/title'), { title }),
-  claimDesk: (spaceId: string, deskKey: string) => request<unknown>('POST', `${desk(spaceId, deskKey)}/claim`, {}),
+  setStatus: (spaceId: string, input: StatusInput) => request<unknown>('PUT', spacePath(spaceId, '/me/status'), input),
+  setTitle: (spaceId: string, title: string | null) => request<unknown>('PUT', spacePath(spaceId, '/me/title'), { title }),
+  claimDesk: (spaceId: string, deskKey: string) => request<unknown>('POST', `${deskPath(spaceId, deskKey)}/claim`, {}),
   setDecor: (spaceId: string, deskKey: string, decor: DeskDecor) =>
-    request<unknown>('PUT', `${desk(spaceId, deskKey)}/decor`, decor),
-  releaseDesk: (spaceId: string, deskKey: string) => request<unknown>('DELETE', desk(spaceId, deskKey), {}),
+    request<unknown>('PUT', `${deskPath(spaceId, deskKey)}/decor`, decor),
+  releaseDesk: (spaceId: string, deskKey: string) => request<unknown>('DELETE', deskPath(spaceId, deskKey), {}),
 };
 
 export interface InvitePreview {
@@ -94,18 +98,18 @@ export const orgApi = {
   createSpace: (orgId: string, name: string, slug: string, template: string) =>
     request<{ id: string }>('POST', `/orgs/${encodeURIComponent(orgId)}/spaces`, { name, slug, template }),
   createInvite: (spaceId: string, role: 'admin' | 'member', maxUses: number | null) =>
-    request<{ url: string; expiresAt: string }>('POST', space(spaceId, '/invites'), { role, maxUses }),
+    request<{ url: string; expiresAt: string }>('POST', spacePath(spaceId, '/invites'), { role, maxUses }),
   invite: (token: string) => request<InvitePreview>('GET', `/invites/${encodeURIComponent(token)}`),
   acceptInvite: (token: string) =>
     request<{ spaceId: string }>('POST', `/invites/${encodeURIComponent(token)}/accept`, {}),
   removeMember: (spaceId: string, userId: string) =>
-    request<undefined>('DELETE', space(spaceId, `/members/${encodeURIComponent(userId)}`), {}),
+    request<undefined>('DELETE', spacePath(spaceId, `/members/${encodeURIComponent(userId)}`), {}),
 };
 
 export const mapApi = {
   validate: (spaceId: string, map: unknown) =>
-    request<{ errors: MapError[]; orphanDesks: string[] }>('POST', space(spaceId, '/map/validate'), { map }),
+    request<{ errors: MapError[]; orphanDesks: string[] }>('POST', spacePath(spaceId, '/map/validate'), { map }),
   save: (spaceId: string, map: unknown, baseVersion: number) =>
-    request<{ version: number; orphanDesks: string[] }>('PUT', space(spaceId, '/map'), { map, baseVersion }),
-  replay: (spaceId: string) => request<{ recording: Recording | null }>('GET', space(spaceId, '/replay')),
+    request<{ version: number; orphanDesks: string[] }>('PUT', spacePath(spaceId, '/map'), { map, baseVersion }),
+  replay: (spaceId: string) => request<{ recording: Recording | null }>('GET', spacePath(spaceId, '/replay')),
 };

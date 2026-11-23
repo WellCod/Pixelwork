@@ -35,8 +35,8 @@ describe('extrapolateBall', () => {
   });
 
   it('reflete na parede de cima', () => {
-    const p = extrapolateBall({ x: 80, y: 5, vx: 0, vy: -100 }, 0, 100);
-    expect(p.y).toBeCloseTo(8, 5);
+    const ball = extrapolateBall({ x: 80, y: 5, vx: 0, vy: -100 }, 0, 100);
+    expect(ball.y).toBeCloseTo(8, 5);
   });
 
   it('para na linha de fundo: o ponto quem decide é o servidor', () => {
