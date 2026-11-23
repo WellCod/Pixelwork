@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Db } from '../db.ts';
 import { isUuid } from '../ids.ts';
 
-export type PlayerProfile = Omit<Player, 'n' | 'x' | 'y' | 'dir' | 'activity'>;
+export type PlayerProfile = Omit<Player, 'shortId' | 'x' | 'y' | 'dir' | 'activity'>;
 
 export interface Membership {
   /** Id do coworking já validado; rotas e conexões usam este, não o parâmetro cru. */

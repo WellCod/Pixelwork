@@ -90,7 +90,7 @@ export class ClientWorld {
         this.shortIds.clear();
         for (const player of message.players) {
           this.players.set(player.id, player);
-          this.shortIds.set(player.n, player.id);
+          this.shortIds.set(player.shortId, player.id);
         }
         this.desks.clear();
         for (const desk of message.desks) this.desks.set(desk.deskKey, desk);
@@ -134,12 +134,12 @@ export class ClientWorld {
       }
       case 'player.join':
         this.players.set(message.player.id, message.player);
-        this.shortIds.set(message.player.n, message.player.id);
+        this.shortIds.set(message.player.shortId, message.player.id);
         this.emit({ type: 'join', player: message.player });
         break;
       case 'player.leave': {
         // O id curto pode já ter sido reaproveitado por quem entrou depois: só apaga se ainda for dele.
-        const shortId = this.players.get(message.id)?.n;
+        const shortId = this.players.get(message.id)?.shortId;
         if (shortId !== undefined && this.shortIds.get(shortId) === message.id) this.shortIds.delete(shortId);
         this.players.delete(message.id);
         this.emit({ type: 'leave', id: message.id });
@@ -240,8 +240,8 @@ export class ClientWorld {
   }
 
   /** Id completo a partir do id curto do tick binário. */
-  idOf(short: number): string | undefined {
-    return this.shortIds.get(short);
+  idOf(shortId: number): string | undefined {
+    return this.shortIds.get(shortId);
   }
 
   /** Passos enviados e ainda não confirmados pelo servidor. */

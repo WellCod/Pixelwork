@@ -16,8 +16,8 @@ export interface CompiledTable {
   /** Pegada em tiles; (x, y) é o canto superior esquerdo. */
   x: number;
   y: number;
-  w: number;
-  h: number;
+  width: number;
+  height: number;
   /** Tiles caminháveis logo à esquerda e logo à direita da pegada, onde os jogadores ficam. */
   sides: { left: [x: number, y: number][]; right: [x: number, y: number][] };
 }

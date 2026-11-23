@@ -27,8 +27,8 @@ export interface CompiledDesk {
   x: number;
   y: number;
   /** Pegada em tiles: 1x1, 2x1 (de frente para cima ou baixo) ou 1x2 (para os lados). */
-  w: number;
-  h: number;
+  width: number;
+  height: number;
   orientation: Dir;
   chairX: number;
   chairY: number;
@@ -59,13 +59,13 @@ export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
   | { code: 'missing_layer' | 'wrong_layer_type' | 'layer_size'; layer: string }
   | { code: 'unknown_tileset'; source: string }
-  | { code: 'tileset_overlap'; a: string; b: string }
+  | { code: 'tileset_overlap'; first: string; second: string }
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
-  | { code: 'zone_overlap'; a: string; b: string }
+  | { code: 'zone_overlap'; first: string; second: string }
   | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
   | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
-  | { code: 'chair_shared'; a: string; b: string }
+  | { code: 'chair_shared'; first: string; second: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'furniture_position'; objectId: number }
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };
@@ -180,7 +180,7 @@ export function compileMap(json: unknown): CompileResult {
   refsByFirstgid.forEach((tilesetRef, i) => {
     const nextRef = refsByFirstgid[i + 1];
     if (nextRef && tilesetRef.firstgid + TILESETS[tilesetRef.id].tilecount > nextRef.firstgid) {
-      errors.push({ code: 'tileset_overlap', a: tilesetRef.id, b: nextRef.id });
+      errors.push({ code: 'tileset_overlap', first: tilesetRef.id, second: nextRef.id });
     }
   });
 
@@ -232,8 +232,8 @@ export function compileMap(json: unknown): CompileResult {
         game,
         x: left,
         y: bottom - footprintHeight,
-        w: footprintWidth,
-        h: footprintHeight,
+        width: footprintWidth,
+        height: footprintHeight,
       });
     }
     if (!TILESETS[resolved.id].collides.includes(resolved.tile)) continue;
@@ -309,7 +309,7 @@ export function compileMap(json: unknown): CompileResult {
           const pairKey = [otherKey, key].sort().join('\0');
           if (!reportedOverlaps.has(pairKey)) {
             reportedOverlaps.add(pairKey);
-            errors.push({ code: 'zone_overlap', a: otherKey, b: key });
+            errors.push({ code: 'zone_overlap', first: otherKey, second: key });
           }
           continue;
         }
@@ -384,8 +384,8 @@ export function compileMap(json: unknown): CompileResult {
       key,
       x,
       y,
-      w: footprintWidth,
-      h: footprintHeight,
+      width: footprintWidth,
+      height: footprintHeight,
       orientation: dir,
       chairX: chairTile[0] ?? x,
       chairY: chairTile[1] ?? y,
@@ -400,7 +400,7 @@ export function compileMap(json: unknown): CompileResult {
     // Duas mesas com a mesma cadeira: sentar ali contaria como estar nas duas.
     const chairIndex = desk.chairY * width + desk.chairX;
     const otherDeskKey = chairOwners.get(chairIndex);
-    if (otherDeskKey !== undefined) errors.push({ code: 'chair_shared', a: otherDeskKey, b: desk.key });
+    if (otherDeskKey !== undefined) errors.push({ code: 'chair_shared', first: otherDeskKey, second: desk.key });
     else chairOwners.set(chairIndex, desk.key);
   }
 
@@ -423,12 +423,12 @@ export function compileMap(json: unknown): CompileResult {
   if (errors.length > 0) return { ok: false, errors };
   // Lados calculados depois de tudo bloquear (móveis e mesas): só tiles onde dá para ficar.
   const walkableColumn = (columnX: number, table: Omit<CompiledTable, 'sides'>) =>
-    Array.from({ length: table.h }, (_, i): [number, number] => [columnX, table.y + i]).filter(([cellX, cellY]) =>
+    Array.from({ length: table.height }, (_, i): [number, number] => [columnX, table.y + i]).filter(([cellX, cellY]) =>
       walkableAt(cellX, cellY),
     );
   const tables: CompiledTable[] = interactiveTables.map((table) => ({
     ...table,
-    sides: { left: walkableColumn(table.x - 1, table), right: walkableColumn(table.x + table.w, table) },
+    sides: { left: walkableColumn(table.x - 1, table), right: walkableColumn(table.x + table.width, table) },
   }));
   return {
     ok: true,

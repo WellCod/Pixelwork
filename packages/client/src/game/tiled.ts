@@ -46,7 +46,7 @@ export function objectLayer(map: Json, name: string): TiledObject[] {
 }
 
 /** Valor da propriedade customizada do objeto, ou undefined. */
-export function prop(object: TiledObject, name: string): unknown {
+export function propertyValue(object: TiledObject, name: string): unknown {
   return object.properties?.find((property) => property.name === name)?.value;
 }
 

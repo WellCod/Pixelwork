@@ -95,13 +95,13 @@ function withLayer(doc: TiledDoc, layer: TileLayer | ObjectLayer): TiledDoc {
 }
 
 /** Valor da propriedade do Tiled `name`, ou undefined. */
-export function prop(object: { properties?: TiledProperty[] }, name: string): unknown {
+export function propertyValue(object: { properties?: TiledProperty[] }, name: string): unknown {
   return object.properties?.find((property) => property.name === name)?.value;
 }
 
 /** Propriedade como texto (vazio se faltar ou não for string). */
 export function textProp(object: { properties?: TiledProperty[] }, name: string, fallback = ''): string {
-  const value = prop(object, name);
+  const value = propertyValue(object, name);
   return typeof value === 'string' ? value : fallback;
 }
 

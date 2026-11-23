@@ -3,7 +3,7 @@ import { compileMap, type MapError } from '../map.ts';
 import { TILESETS } from '../catalog.generated.ts';
 import { DIRS } from '../protocol.ts';
 import { FIRSTGID, FURNITURE, buildTestMap } from '../testing.ts';
-import { apply, objectLayer, prop, type EditorCommand, type ObjectLayerName, type TiledDoc } from './commands.ts';
+import { apply, objectLayer, propertyValue, type EditorCommand, type ObjectLayerName, type TiledDoc } from './commands.ts';
 import { CommandStack } from './history.ts';
 import {
   addDesk,
@@ -67,8 +67,8 @@ describe('ida e volta de cada comando', () => {
     ['pintar parede', (currentDoc) => paint(currentDoc, 'walls', [[3, 6], [4, 6], [3, 6]], FIRSTGID.walls)],
     ['apagar piso', (currentDoc) => paint(currentDoc, 'floor', [[5, 7]], 0)],
     ['pôr móvel', (currentDoc) => placeFurniture(currentDoc, 'furniture', FURNITURE.plant, 6, 7)],
-    ['criar zona', (currentDoc) => addZone(currentDoc, { x: 1, y: 6, w: 3, h: 2 }, 'open', 'Copa')],
-    ['redimensionar zona', (currentDoc) => resizeZone(currentDoc, objectId(currentDoc, 'zones'), { x: 1, y: 1, w: 5, h: 3 })],
+    ['criar zona', (currentDoc) => addZone(currentDoc, { x: 1, y: 6, width: 3, height: 2 }, 'open', 'Copa')],
+    ['redimensionar zona', (currentDoc) => resizeZone(currentDoc, objectId(currentDoc, 'zones'), { x: 1, y: 1, width: 5, height: 3 })],
     ['renomear e mudar o tipo da zona', (currentDoc) => setZoneProps(currentDoc, objectId(currentDoc, 'zones'), { name: 'Squad', type: 'meeting' })],
     ['criar mesa', (currentDoc) => addDesk(currentDoc, 6, 2, 'down')],
     ['girar mesa', (currentDoc) => rotateDesk(currentDoc, objectId(currentDoc, 'desks'))],
@@ -92,7 +92,7 @@ describe('ida e volta de cada comando', () => {
 
   it('o documento recebido não é alterado', () => {
     const before = json(doc);
-    const command = addZone(doc, { x: 1, y: 6, w: 2, h: 2 }, 'open', 'x');
+    const command = addZone(doc, { x: 1, y: 6, width: 2, height: 2 }, 'open', 'x');
     if (command) apply(doc, command);
     expect(json(doc)).toBe(before);
   });
@@ -111,7 +111,7 @@ describe('pilha de comandos', () => {
     const stack = new CommandStack(original);
     stack.execute(addDesk(stack.doc, 6, 2, 'down'));
     stack.execute(paint(stack.doc, 'walls', [[3, 7]], FIRSTGID.walls));
-    stack.execute(addZone(stack.doc, { x: 1, y: 6, w: 2, h: 2 }, 'open', 'Copa'));
+    stack.execute(addZone(stack.doc, { x: 1, y: 6, width: 2, height: 2 }, 'open', 'Copa'));
     const final = json(stack.doc);
     while (stack.canUndo) stack.undo();
     expect(json(stack.doc)).toBe(json(original));
@@ -139,25 +139,25 @@ describe('chaves estáveis', () => {
     stack.execute(moveObject(stack.doc, 'zones', zoneId, 1, 5));
     const desk = objectLayer(stack.doc, 'desks').objects.find((object) => object.id === deskId);
     const zone = objectLayer(stack.doc, 'zones').objects.find((object) => object.id === zoneId);
-    expect(desk && prop(desk, 'desk_key')).toBe('mesa-1');
-    expect(zone && prop(zone, 'zone_key')).toBe('produto');
+    expect(desk && propertyValue(desk, 'desk_key')).toBe('mesa-1');
+    expect(zone && propertyValue(zone, 'zone_key')).toBe('produto');
   });
 
   it('chave nova nunca repete uma apagada', () => {
     const stack = new CommandStack(baseDoc());
     stack.execute(addDesk(stack.doc, 6, 2, 'down'));
     const created = objectLayer(stack.doc, 'desks').objects.at(-1);
-    expect(created && prop(created, 'desk_key')).toBe('mesa-3');
+    expect(created && propertyValue(created, 'desk_key')).toBe('mesa-3');
     stack.execute(removeObject(stack.doc, 'desks', created?.id ?? -1));
     stack.execute(addDesk(stack.doc, 6, 2, 'down'));
     const again = objectLayer(stack.doc, 'desks').objects.at(-1);
-    expect(again && prop(again, 'desk_key')).toBe('mesa-4');
+    expect(again && propertyValue(again, 'desk_key')).toBe('mesa-4');
   });
 
   it('o mapa editado continua no contrato e a chave gerada é aceita pelo compileMap', () => {
     const stack = new CommandStack(baseDoc());
     stack.execute(addDesk(stack.doc, 6, 2, 'left'));
-    stack.execute(addZone(stack.doc, { x: 1, y: 6, w: 3, h: 2 }, 'meeting', 'Foco'));
+    stack.execute(addZone(stack.doc, { x: 1, y: 6, width: 3, height: 2 }, 'meeting', 'Foco'));
     const result = compileMap(stack.doc);
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     expect(result.map.desks.map((desk) => desk.key)).toContain('mesa-3');
@@ -182,7 +182,7 @@ describe('sequências aleatórias', () => {
       case 2:
         return placeFurniture(doc, 'furniture', pick([FURNITURE.plant, FURNITURE.chair]) ?? 0, x, y);
       case 3:
-        return addZone(doc, { x, y, w: 1 + Math.floor(random() * 4), h: 1 + Math.floor(random() * 3) }, random() < 0.5 ? 'open' : 'meeting', 'Z');
+        return addZone(doc, { x, y, width: 1 + Math.floor(random() * 4), height: 1 + Math.floor(random() * 3) }, random() < 0.5 ? 'open' : 'meeting', 'Z');
       case 4:
         return addDesk(doc, x, y, pick(DIRS) ?? 'down');
       case 5: {
@@ -207,7 +207,7 @@ describe('sequências aleatórias', () => {
       }
       default: {
         const id = someId('zones');
-        return id === undefined ? null : resizeZone(doc, id, { x, y, w: 2, h: 2 });
+        return id === undefined ? null : resizeZone(doc, id, { x, y, width: 2, height: 2 });
       }
     }
   }
@@ -254,16 +254,16 @@ describe('adoptDocument', () => {
   it('modelo com chave já usada no mapa atual ganha chave nova, e o contador segue o maior', () => {
     const stack = new CommandStack(baseDoc());
     stack.execute(addDesk(stack.doc, 6, 2, 'down'));
-    const used = prop(stack.doc, 'pixelwork_next_desk');
+    const used = propertyValue(stack.doc, 'pixelwork_next_desk');
     const template = baseDoc();
     const adopted = adoptDocument(stack.doc, template);
-    const keys = objectLayer(adopted, 'desks').objects.map((object) => prop(object, 'desk_key'));
-    const old = objectLayer(stack.doc, 'desks').objects.map((object) => prop(object, 'desk_key'));
+    const keys = objectLayer(adopted, 'desks').objects.map((object) => propertyValue(object, 'desk_key'));
+    const old = objectLayer(stack.doc, 'desks').objects.map((object) => propertyValue(object, 'desk_key'));
     for (const key of keys) expect(old).not.toContain(key);
-    expect(Number(prop(adopted, 'pixelwork_next_desk'))).toBeGreaterThan(Number(used));
+    expect(Number(propertyValue(adopted, 'pixelwork_next_desk'))).toBeGreaterThan(Number(used));
     expect(compileMap(adopted).ok).toBe(true);
     // O modelo original não é alterado.
-    expect(objectLayer(template, 'desks').objects.map((object) => prop(object, 'desk_key'))).not.toEqual(keys);
+    expect(objectLayer(template, 'desks').objects.map((object) => propertyValue(object, 'desk_key'))).not.toEqual(keys);
   });
 });
 
@@ -369,7 +369,7 @@ describe('mesa de 2 tiles no editor', () => {
     const id = lastDesk(stack.doc)?.id ?? -1;
     stack.execute(rotateDesk(stack.doc, id));
     expect(lastDesk(stack.doc)).toMatchObject({ width: 16, height: 32 });
-    expect(prop(lastDesk(stack.doc) ?? {}, 'orientation')).toBe('left');
+    expect(propertyValue(lastDesk(stack.doc) ?? {}, 'orientation')).toBe('left');
     const result = compileMap(stack.doc);
     expect(result.ok ? [] : result.errors.filter((error) => error.code === 'desk_size')).toEqual([]);
   });
@@ -383,7 +383,7 @@ describe('mesa de 2 tiles no editor', () => {
     stack.execute(rotateDesk(stack.doc, id)); // right -> down
     stack.execute(rotateDesk(stack.doc, id)); // down -> left
     const result = compileMap(stack.doc);
-    const key = prop(lastDesk(stack.doc) ?? {}, 'desk_key');
+    const key = propertyValue(lastDesk(stack.doc) ?? {}, 'desk_key');
     expect(result.ok ? [] : result.errors).toContainEqual({ code: 'chair_blocked', deskKey: key });
   });
 });

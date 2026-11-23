@@ -10,7 +10,7 @@ const floorAt = (doc: TiledDoc, x: number, y: number) => {
   const layer = doc.layers.find((candidate) => candidate.name === 'floor');
   return layer?.type === 'tilelayer' ? layer.data[y * doc.width + x] : undefined;
 };
-const rugGid = (mask: number) => FIRSTGID.floors + RUGS.lavender.first + mask;
+const rugGid = (mask: number) => FIRSTGID.floors + RUGS.lavender.firstFrame + mask;
 
 describe('rugMask', () => {
   it('marca as bordas de fora do retângulo: N=1, S=2, O=4, L=8', () => {

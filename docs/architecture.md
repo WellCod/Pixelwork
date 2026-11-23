@@ -268,8 +268,8 @@ Restrições (o servidor rejeita com código de erro):
   objeto na camada `desks`. Aceitas: 16x16 (mesa de 1 tile, a dos mapas antigos), 32x16 virada
   para cima ou para baixo, 16x32 virada para a esquerda ou a direita; o resto é `desk_size`. O
   objeto é ancorado no canto de cima à esquerda, a pegada inteira bloqueia, e a cadeira fica na
-  frente do tile de âncora, encostada na borda da pegada (para baixo `(x, y+h)`, para cima
-  `(x, y-1)`, à esquerda `(x-1, y)`, à direita `(x+w, y)`). `CompiledDesk` ganhou `w` e `h`. O
+  frente do tile de âncora, encostada na borda da pegada (para baixo `(x, y+height)`, para cima
+  `(x, y-1)`, à esquerda `(x-1, y)`, à direita `(x+width, y)`). `CompiledDesk` ganhou `width` e `height`. O
   editor cria mesas de 2 tiles e, ao girar, troca largura e altura. A pegada inteira tem que estar
   no mapa (senão `desk_outside`); o editor não cria, move nem gira mesa para fora.
 - `CompiledDesk.wallBehind`: todos os tiles logo atrás da pegada (do lado oposto à cadeira) têm
@@ -300,7 +300,7 @@ export interface CompiledMap {
   walkable: Uint8Array;          // 1 = caminhável, índice y * width + x
   zoneIndex: Uint16Array;        // índice em zones para cada tile
   zones: { key: string; type: 'open' | 'meeting'; name: string; tiles: number }[];
-  desks: { key: string; x: number; y: number; w: number; h: number; orientation: Dir; chairX: number; chairY: number; wallBehind: boolean }[];
+  desks: { key: string; x: number; y: number; width: number; height: number; orientation: Dir; chairX: number; chairY: number; wallBehind: boolean }[];
   spawn: { x: number; y: number };
   tilesets: string[];            // catalogIds referenciados
 }
@@ -309,13 +309,13 @@ export type MapError =
   | { code: 'not_orthogonal' | 'infinite' | 'wrong_tile_size' | 'too_large' | 'compressed_layer' }
   | { code: 'missing_layer' | 'wrong_layer_type' | 'layer_size'; layer: string }
   | { code: 'unknown_tileset'; source: string }
-  | { code: 'tileset_overlap'; a: string; b: string }   // firstgid + tilecount invade o seguinte
+  | { code: 'tileset_overlap'; first: string; second: string }   // firstgid + tilecount invade o seguinte
   | { code: 'duplicate_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
-  | { code: 'zone_overlap'; a: string; b: string }
+  | { code: 'zone_overlap'; first: string; second: string }
   | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
   | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
-  | { code: 'chair_shared'; a: string; b: string }
+  | { code: 'chair_shared'; first: string; second: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'furniture_position'; objectId: number }    // móvel sem x/y numérico
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };
@@ -378,7 +378,7 @@ Interface pura da simulação:
 ```ts
 export function step(
   state: WorldState,
-  inputs: readonly Input[],
+  inputs: readonly StepInput[],
   now: number,
   map: CompiledMap,
 ): { state: WorldState; events: WorldEvent[] };
@@ -394,7 +394,7 @@ export function step(
 - Desconexão: o jogador permanece por `RECONNECT_GRACE_MS` antes de `player.leave`. O cliente
   reconecta com backoff exponencial, e na hora quando o navegador avisa que a rede voltou.
 - Tick binário (aprovado em 2026-11, `shared/src/binary.ts`): cada jogador ganha um id curto
-  (u16, o menor livre no runtime) que vai no `Player.n` do `welcome` e do `player.join`. O tick
+  (u16, o menor livre no runtime) que vai no `Player.shortId` do `welcome` e do `player.join`. O tick
   vai como quadro binário: tipo (u8), `ack` (u32), `ts` (f64), quantidade (u16) e 5 bytes por
   movimento (id curto, x, y, direção), little-endian. O servidor monta o quadro uma vez e troca só
   o `ack` numa cópia por destinatário. O cliente decodifica para o mesmo `{ t: 'tick' }` de antes,

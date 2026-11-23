@@ -11,9 +11,9 @@ describe('frameOf', () => {
   });
 
   it('o primeiro tile de cada tapete é o do item rug-<cor>', () => {
-    expect(RUGS.lavender.first).toBe(frameOf('floors', 'rug-lavender'));
-    expect(RUGS.sage.first).toBe(frameOf('floors', 'rug-sage'));
-    expect(RUGS.cream.first).toBe(frameOf('floors', 'rug-cream'));
+    expect(RUGS.lavender.firstFrame).toBe(frameOf('floors', 'rug-lavender'));
+    expect(RUGS.sage.firstFrame).toBe(frameOf('floors', 'rug-sage'));
+    expect(RUGS.cream.firstFrame).toBe(frameOf('floors', 'rug-cream'));
   });
 
   it('item fora do catálogo é erro, não frame 0', () => {

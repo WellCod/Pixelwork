@@ -80,7 +80,7 @@ const RUG_HEIGHT = 3;
 for (let y = RUG_TOP; y < RUG_TOP + RUG_HEIGHT; y++) {
   for (let x = RUG_LEFT; x < RUG_LEFT + RUG_WIDTH; x++) {
     const edges = rugMask(x - RUG_LEFT, y - RUG_TOP, RUG_WIDTH, RUG_HEIGHT);
-    frame('floors', RUGS.lavender.first + edges, x * TILE, y * TILE);
+    frame('floors', RUGS.lavender.firstFrame + edges, x * TILE, y * TILE);
   }
 }
 // Parede: topo e face, com duas janelas.

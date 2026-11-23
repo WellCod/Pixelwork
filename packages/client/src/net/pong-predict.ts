@@ -3,8 +3,8 @@
 import { PONG, type PongDir, type PongState } from '@pixelwork/shared';
 
 const MIN_Y = PONG.PADDLE_H / 2;
-const MAX_Y = PONG.H - PONG.PADDLE_H / 2;
-const HALF_BALL = PONG.BALL / 2;
+const MAX_Y = PONG.FIELD_HEIGHT - PONG.PADDLE_H / 2;
+const HALF_BALL = PONG.BALL_SIZE / 2;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export interface PendingGameInput {
@@ -43,9 +43,9 @@ export function predictPaddle(
 /** Bola andando pela velocidade, refletindo nas paredes; para nas linhas de fundo. */
 export function extrapolateBall(ball: PongState['ball'], receivedAt: number, now: number): { x: number; y: number } {
   const elapsedSeconds = Math.max(0, now - receivedAt) / 1000;
-  const x = clamp(ball.x + ball.vx * elapsedSeconds, 0, PONG.W);
+  const x = clamp(ball.x + ball.vx * elapsedSeconds, 0, PONG.FIELD_WIDTH);
   let y = ball.y + ball.vy * elapsedSeconds;
-  const span = PONG.H - 2 * HALF_BALL;
+  const span = PONG.FIELD_HEIGHT - 2 * HALF_BALL;
   // Reflete quantas vezes for preciso: dobra a posição no intervalo [HALF_BALL, H - HALF_BALL].
   // Num período de 2 * span a bola desce o vão inteiro e volta; a segunda metade é o espelho.
   let offset = (y - HALF_BALL) % (2 * span);

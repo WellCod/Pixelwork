@@ -57,7 +57,7 @@ export class Connection {
     /** Atraso artificial de envio e recebimento (overlay de netcode em desenvolvimento). */
     private readonly lag: () => number = () => 0,
     /** Id curto -> id completo, para o tick binário. */
-    private readonly idOf: (short: number) => string | undefined = () => undefined,
+    private readonly idOf: (shortId: number) => string | undefined = () => undefined,
   ) {}
 
   open(): void {
@@ -116,8 +116,8 @@ export class Connection {
     const tick = decodeTick(data);
     if (!tick) return null;
     const moves: [string, number, number, (typeof tick.moves)[number][3]][] = [];
-    for (const [short, x, y, dir] of tick.moves) {
-      const id = this.idOf(short);
+    for (const [shortId, x, y, dir] of tick.moves) {
+      const id = this.idOf(shortId);
       if (id) moves.push([id, x, y, dir]);
     }
     return { t: 'tick', ack: tick.ack, ts: tick.ts, moves };

@@ -29,18 +29,19 @@ export type PongEvent =
   | { type: 'end'; winner: PongSide };
 
 /**
- * Medidas e ritmo da partida. Distâncias em unidades do campo (W x H, y cresce para baixo),
- * velocidades por segundo. `LEFT_X`/`RIGHT_X` são as bordas esquerdas das raquetes, `BALL` o lado
- * da bola, `SPEEDUP` o fator a cada rebatida (até `BALL_MAX`) e `WIN` os pontos para vencer.
+ * Medidas e ritmo da partida. Distâncias em unidades do campo (`FIELD_WIDTH` x `FIELD_HEIGHT`,
+ * y cresce para baixo), velocidades por segundo. `LEFT_X`/`RIGHT_X` são as bordas esquerdas das
+ * raquetes, `BALL_SIZE` o lado da bola, `SPEEDUP` o fator a cada rebatida (até `BALL_MAX`) e `WIN`
+ * os pontos para vencer.
  */
 export const PONG = {
-  W: 160,
-  H: 90,
+  FIELD_WIDTH: 160,
+  FIELD_HEIGHT: 90,
   PADDLE_H: 18,
   PADDLE_W: 3,
   LEFT_X: 6,
   RIGHT_X: 151,
-  BALL: 3,
+  BALL_SIZE: 3,
   PADDLE_SPEED: 120,
   BALL_SPEED: 80,
   BALL_MAX: 200,
@@ -51,7 +52,7 @@ export const PONG = {
   WIN: 7,
 } as const;
 
-const HALF_BALL = PONG.BALL / 2;
+const HALF_BALL = PONG.BALL_SIZE / 2;
 const HALF_PADDLE = PONG.PADDLE_H / 2;
 /** Faces das raquetes: a da esquerda olha para a direita e vice-versa. */
 const LEFT_FACE = PONG.LEFT_X + PONG.PADDLE_W;
@@ -66,7 +67,7 @@ const BOT_DEAD_ZONE = 6;
 const opponentOf = (side: PongSide): PongSide => (side === 'left' ? 'right' : 'left');
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 /** Bola parada no centro do campo. */
-const centeredBall = () => ({ x: PONG.W / 2, y: PONG.H / 2, vx: 0, vy: 0 });
+const centeredBall = () => ({ x: PONG.FIELD_WIDTH / 2, y: PONG.FIELD_HEIGHT / 2, vx: 0, vy: 0 });
 
 /** Partida nova: placar zerado, raquetes no meio e contagem antes do primeiro saque (da esquerda). */
 export function newPong(now: number): PongState {
@@ -75,7 +76,7 @@ export function newPong(now: number): PongState {
     at: now,
     serveAt: now + PONG.COUNTDOWN_MS,
     ball: centeredBall(),
-    paddles: { left: PONG.H / 2, right: PONG.H / 2 },
+    paddles: { left: PONG.FIELD_HEIGHT / 2, right: PONG.FIELD_HEIGHT / 2 },
     score: { left: 0, right: 0 },
     servingSide: 'left',
     firstLoser: null,
@@ -107,7 +108,7 @@ export function stepPong(
   if (next.phase === 'ended' || next.phase === 'paused') return { state: next, events };
 
   const movePaddle = (paddleY: number, dir: PongDir) =>
-    clamp(paddleY + dir * PONG.PADDLE_SPEED * dt, HALF_PADDLE, PONG.H - HALF_PADDLE);
+    clamp(paddleY + dir * PONG.PADDLE_SPEED * dt, HALF_PADDLE, PONG.FIELD_HEIGHT - HALF_PADDLE);
   next.paddles.left = movePaddle(next.paddles.left, inputs.left);
   next.paddles.right = movePaddle(next.paddles.right, inputs.right);
 
@@ -136,8 +137,8 @@ export function stepPong(
     y = 2 * HALF_BALL - y;
     vy = -vy;
     events.push({ type: 'wall' });
-  } else if (y > PONG.H - HALF_BALL) {
-    y = 2 * (PONG.H - HALF_BALL) - y;
+  } else if (y > PONG.FIELD_HEIGHT - HALF_BALL) {
+    y = 2 * (PONG.FIELD_HEIGHT - HALF_BALL) - y;
     vy = -vy;
     events.push({ type: 'wall' });
   }
@@ -153,7 +154,7 @@ export function stepPong(
     if (!crossed) return false;
     // Fração do quadro em que a borda cruzou a face, para achar o y da bola nesse instante.
     const crossFraction = (edgeBefore - face) / (edgeBefore - edgeAfter);
-    const yCross = clamp(previousBall.y + (y - previousBall.y) * crossFraction, HALF_BALL, PONG.H - HALF_BALL);
+    const yCross = clamp(previousBall.y + (y - previousBall.y) * crossFraction, HALF_BALL, PONG.FIELD_HEIGHT - HALF_BALL);
     const paddleY = next.paddles[side];
     if (Math.abs(yCross - paddleY) > HALF_PADDLE + HALF_BALL) return false;
     // Onde bateu na raquete, de -1 (ponta de cima) a 1 (ponta de baixo), vira o ângulo de saída.
@@ -173,7 +174,7 @@ export function stepPong(
   next.ball = { x, y, vx, vy };
 
   // Centro da bola fora do campo: ponto de quem está do outro lado.
-  const scorer: PongSide | null = x < 0 ? 'right' : x > PONG.W ? 'left' : null;
+  const scorer: PongSide | null = x < 0 ? 'right' : x > PONG.FIELD_WIDTH ? 'left' : null;
   if (scorer) {
     next.score[scorer] += 1;
     events.push({ type: 'point', side: scorer });
@@ -197,7 +198,7 @@ export function stepPong(
 /** Bot do modo solo: segue a bola quando ela vem na direção dele, senão volta ao meio. */
 export function botInput(state: PongState, side: PongSide): PongDir {
   const ballComing = side === 'right' ? state.ball.vx > 0 : state.ball.vx < 0;
-  const targetY = ballComing ? state.ball.y : PONG.H / 2;
+  const targetY = ballComing ? state.ball.y : PONG.FIELD_HEIGHT / 2;
   const offset = targetY - state.paddles[side];
   if (Math.abs(offset) <= BOT_DEAD_ZONE) return 0;
   return offset > 0 ? 1 : -1;
