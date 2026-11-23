@@ -13,6 +13,10 @@ export interface Ramp {
   shine?: ColorName;
 }
 
+/**
+ * Tela de desenho por nome de cor (null = transparente). Os métodos encadeiam, e `toPixels`
+ * converte para a matriz de hex usada no resto dos geradores.
+ */
 export class Canvas {
   private readonly cells: (ColorName | null)[][];
 
@@ -27,34 +31,37 @@ export class Canvas {
     return this.cells[y]?.[x] ?? null;
   }
 
+  /** Pinta um pixel; fora da tela é ignorado, para as formas poderem passar da borda. */
   px(x: number, y: number, color: ColorName): this {
     const row = this.cells[y];
     if (row && x >= 0 && x < this.width) row[x] = color;
     return this;
   }
 
-  rect(x: number, y: number, w: number, h: number, color: ColorName): this {
-    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) this.px(xx, yy, color);
+  rect(x: number, y: number, rectWidth: number, rectHeight: number, color: ColorName): this {
+    for (let rowY = y; rowY < y + rectHeight; rowY++) {
+      for (let columnX = x; columnX < x + rectWidth; columnX++) this.px(columnX, rowY, color);
+    }
     return this;
   }
 
-  hline(x: number, y: number, w: number, color: ColorName): this {
-    return this.rect(x, y, w, 1, color);
+  hline(x: number, y: number, lineWidth: number, color: ColorName): this {
+    return this.rect(x, y, lineWidth, 1, color);
   }
 
-  vline(x: number, y: number, h: number, color: ColorName): this {
-    return this.rect(x, y, 1, h, color);
+  vline(x: number, y: number, lineHeight: number, color: ColorName): this {
+    return this.rect(x, y, 1, lineHeight, color);
   }
 
   /**
    * Caixa sombreada de um material: topo claro (luz de cima), lado direito e base escuros, um
    * brilho no canto de cima à esquerda. O contorno vem depois, em `outline`.
    */
-  box(x: number, y: number, w: number, h: number, ramp: Ramp): this {
-    this.rect(x, y, w, h, ramp.base);
-    this.hline(x, y, w, ramp.light);
-    this.vline(x + w - 1, y + 1, h - 1, ramp.dark);
-    this.hline(x, y + h - 1, w, ramp.dark);
+  box(x: number, y: number, boxWidth: number, boxHeight: number, ramp: Ramp): this {
+    this.rect(x, y, boxWidth, boxHeight, ramp.base);
+    this.hline(x, y, boxWidth, ramp.light);
+    this.vline(x + boxWidth - 1, y + 1, boxHeight - 1, ramp.dark);
+    this.hline(x, y + boxHeight - 1, boxWidth, ramp.dark);
     this.px(x, y, ramp.shine ?? ramp.light);
     return this;
   }
@@ -68,9 +75,11 @@ export class Canvas {
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         if (!inside(x, y)) continue;
-        const lx = (x - center.x) / center.r;
-        const ly = (y - center.y) / center.r;
-        const light = -(lx * 0.7 + ly * 0.9);
+        // Posição relativa ao centro, normalizada pelo raio; a luz cresce para cima e para a esquerda.
+        const relativeX = (x - center.x) / center.r;
+        const relativeY = (y - center.y) / center.r;
+        const light = -(relativeX * 0.7 + relativeY * 0.9);
+        // Hash espacial com dois primos grandes: o mesmo pixel sempre dá o mesmo ruído.
         const noise = ((x * 73856093) ^ (y * 19349663)) % 7;
         let tone: ColorName = ramp.base;
         if (light > 0.55) tone = ramp.shine ?? ramp.light;
@@ -86,25 +95,26 @@ export class Canvas {
 
   /** Pinta de `color` cada pixel preenchido que encosta num transparente (contorno interno). */
   outline(color: ColorName, only?: (x: number, y: number) => boolean): this {
-    const edge: [number, number][] = [];
+    // Coleta as bordas antes de pintar, para a borda ser sempre a da forma original.
+    const edgePixels: [number, number][] = [];
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         if (this.get(x, y) === null || (only && !only(x, y))) continue;
-        const open = [
+        const touchesTransparent = [
           [1, 0],
           [-1, 0],
           [0, 1],
           [0, -1],
         ].some(([dx = 0, dy = 0]) => this.get(x + dx, y + dy) === null);
-        if (open) edge.push([x, y]);
+        if (touchesTransparent) edgePixels.push([x, y]);
       }
     }
-    for (const [x, y] of edge) this.px(x, y, color);
+    for (const [x, y] of edgePixels) this.px(x, y, color);
     return this;
   }
 
   toPixels(): Pixels {
-    return this.cells.map((row) => row.map((c) => (c === null ? '.' : PALETTE[c])));
+    return this.cells.map((row) => row.map((colorName) => (colorName === null ? '.' : PALETTE[colorName])));
   }
 }
 

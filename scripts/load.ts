@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 import { DIRS, STEP_MS, decodeTick, type Dir, type ServerMsg } from '@pixelwork/shared';
 import WebSocket from 'ws';
 
-const { values } = parseArgs({
+const { values: cliArgs } = parseArgs({
   options: {
     bots: { type: 'string', default: '10' },
     seconds: { type: 'string', default: '30' },
@@ -16,19 +16,24 @@ const { values } = parseArgs({
     port: { type: 'string', default: '3100' },
   },
 });
-const BOTS = Number(values.bots);
-const SECONDS = Number(values.seconds);
-const WARMUP = Number(values.warmup);
-const PORT = Number(values.port);
-const BASE = `http://127.0.0.1:${PORT}`;
+const BOT_COUNT = Number(cliArgs.bots);
+const MEASURE_SECONDS = Number(cliArgs.seconds);
+const WARMUP_SECONDS = Number(cliArgs.warmup);
+const PORT = Number(cliArgs.port);
+const BASE_URL = `http://127.0.0.1:${PORT}`;
+// O servidor confere o Origin contra o PUBLIC_URL, então os bots se apresentam com o mesmo valor.
 const ORIGIN = `http://localhost:${PORT}`;
 const root = join(import.meta.dirname, '..');
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (durationMs: number) => new Promise((resolve) => setTimeout(resolve, durationMs));
 
-function percentile(sorted: number[], p: number): number {
+/**
+ * Percentil pelo método do posto mais próximo: o valor na posição `percent`% da lista ordenada,
+ * limitado ao último elemento (p100 e listas curtas). NaN quando não há amostra.
+ */
+function percentile(sorted: number[], percent: number): number {
   if (sorted.length === 0) return NaN;
-  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] ?? NaN;
+  return sorted[Math.min(sorted.length - 1, Math.floor((percent / 100) * sorted.length))] ?? NaN;
 }
 
 const server = spawn(process.execPath, ['--import', 'tsx', '--env-file=.env', 'packages/server/src/index.ts'], {
@@ -37,10 +42,11 @@ const server = spawn(process.execPath, ['--import', 'tsx', '--env-file=.env', 'p
   stdio: ['ignore', 'ignore', 'inherit'],
 });
 
+/** Espera o /health responder, tentando a cada 200 ms por até 20 s. */
 async function waitForServer(): Promise<void> {
-  for (let i = 0; i < 100; i++) {
+  for (let attempt = 0; attempt < 100; attempt++) {
     try {
-      if ((await fetch(`${BASE}/health`)).ok) return;
+      if ((await fetch(`${BASE_URL}/health`)).ok) return;
     } catch {
       // ainda subindo
     }
@@ -55,95 +61,103 @@ interface CpuSample {
   uptimeMs: number;
 }
 
-const stats = async (): Promise<CpuSample> => (await (await fetch(`${BASE}/internal/stats`)).json()) as CpuSample;
+const fetchStats = async (): Promise<CpuSample> =>
+  (await (await fetch(`${BASE_URL}/internal/stats`)).json()) as CpuSample;
 
+// Acumuladores da janela de medição; só contam enquanto `measuring` está ligado (fora do aquecimento).
 let measuring = false;
-const latencies: number[] = [];
+const latenciesMs: number[] = [];
 let tickBytes = 0;
 let tickCount = 0;
 let totalBytes = 0;
 let totalMessages = 0;
 
+/** Entra um convidado, conecta no WebSocket do primeiro coworking e começa a andar após o `welcome`. */
 async function startBot(index: number): Promise<WebSocket> {
-  const login = await fetch(`${BASE}/auth/guest`, {
+  const login = await fetch(`${BASE_URL}/auth/guest`, {
     method: 'POST',
     headers: { origin: ORIGIN, 'content-type': 'application/json' },
     body: '{}',
   });
   if (login.status !== 201) throw new Error(`login do bot ${index} falhou: ${login.status}`);
+  // Só o par nome=valor do cookie de sessão, sem os atributos.
   const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
-  const spaces = (await (await fetch(`${BASE}/spaces`, { headers: { cookie } })).json()) as { id: string }[];
+  const spaces = (await (await fetch(`${BASE_URL}/spaces`, { headers: { cookie } })).json()) as { id: string }[];
   const spaceId = spaces[0]?.id;
   if (!spaceId) throw new Error('bot sem coworking');
 
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws?space=${spaceId}`, { headers: { cookie, origin: ORIGIN } });
-  let seq = 0;
-  let dir: Dir = 'down';
-  let timer: NodeJS.Timeout | null = null;
-  ws.on('message', (data: Buffer, isBinary: boolean) => {
-    const received = Date.now();
+  const socket = new WebSocket(`ws://127.0.0.1:${PORT}/ws?space=${spaceId}`, { headers: { cookie, origin: ORIGIN } });
+  let moveSeq = 0;
+  let direction: Dir = 'down';
+  let moveTimer: NodeJS.Timeout | null = null;
+  socket.on('message', (payload: Buffer, isBinary: boolean) => {
+    const receivedAt = Date.now();
     // O tick vem em binário; o resto em JSON.
-    const tick = isBinary ? decodeTick(data) : null;
-    const msg = tick
+    const tick = isBinary ? decodeTick(payload) : null;
+    const message = tick
       ? ({ t: 'tick', ack: tick.ack, ts: tick.ts, moves: [] } satisfies ServerMsg)
-      : (JSON.parse(data.toString('utf8')) as ServerMsg);
-    if (msg.t === 'welcome' && !timer) {
+      : (JSON.parse(payload.toString('utf8')) as ServerMsg);
+    if (message.t === 'welcome' && !moveTimer) {
       // Passo a cada STEP_MS com um pouco de variação; troca de direção de vez em quando.
-      timer = setInterval(() => {
-        if (Math.random() < 0.25) dir = DIRS[Math.floor(Math.random() * DIRS.length)] ?? 'down';
-        ws.send(JSON.stringify({ t: 'move', seq: ++seq, dir }));
+      moveTimer = setInterval(() => {
+        if (Math.random() < 0.25) direction = DIRS[Math.floor(Math.random() * DIRS.length)] ?? 'down';
+        socket.send(JSON.stringify({ t: 'move', seq: ++moveSeq, dir: direction }));
       }, STEP_MS + Math.floor(Math.random() * 40));
     }
     if (!measuring) return;
-    totalBytes += data.length;
+    totalBytes += payload.length;
     totalMessages++;
-    if (msg.t === 'tick') {
-      tickBytes += data.length;
+    if (message.t === 'tick') {
+      tickBytes += payload.length;
       tickCount++;
-      if (msg.ts !== undefined) latencies.push(received - msg.ts);
+      // Latência do envio do tick pelo servidor até a chegada aqui; vale porque os dois rodam na
+      // mesma máquina e leem o mesmo relógio.
+      if (message.ts !== undefined) latenciesMs.push(receivedAt - message.ts);
     }
   });
-  ws.on('close', () => {
-    if (timer) clearInterval(timer);
+  socket.on('close', () => {
+    if (moveTimer) clearInterval(moveTimer);
   });
   await new Promise<void>((resolve, reject) => {
-    ws.once('open', () => resolve());
-    ws.once('error', reject);
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
   });
-  return ws;
+  return socket;
 }
 
 try {
   await waitForServer();
   const sockets: WebSocket[] = [];
-  for (let i = 0; i < BOTS; i++) sockets.push(await startBot(i));
-  console.log(`${BOTS} bots conectados; aquecendo ${WARMUP}s, medindo ${SECONDS}s`);
-  await sleep(WARMUP * 1000);
+  for (let i = 0; i < BOT_COUNT; i++) sockets.push(await startBot(i));
+  console.log(`${BOT_COUNT} bots conectados; aquecendo ${WARMUP_SECONDS}s, medindo ${MEASURE_SECONDS}s`);
+  await sleep(WARMUP_SECONDS * 1000);
 
-  const before = await stats();
+  const statsBefore = await fetchStats();
   measuring = true;
-  await sleep(SECONDS * 1000);
+  await sleep(MEASURE_SECONDS * 1000);
   measuring = false;
-  const after = await stats();
+  const statsAfter = await fetchStats();
 
-  const cpuMicros = after.cpu.user + after.cpu.system - (before.cpu.user + before.cpu.system);
-  const wallMs = after.uptimeMs - before.uptimeMs;
-  const sorted = [...latencies].sort((a, b) => a - b);
+  // CPU do servidor na janela: tempo de CPU gasto (µs, user + system) sobre o tempo de parede (ms)
+  // da mesma janela. Passa de 100% se o processo usar mais de um núcleo.
+  const cpuMicros = statsAfter.cpu.user + statsAfter.cpu.system - (statsBefore.cpu.user + statsBefore.cpu.system);
+  const wallMs = statsAfter.uptimeMs - statsBefore.uptimeMs;
+  const sortedLatencies = [...latenciesMs].sort((latencyA, latencyB) => latencyA - latencyB);
   const result = {
-    bots: BOTS,
-    segundos: SECONDS,
+    bots: BOT_COUNT,
+    segundos: MEASURE_SECONDS,
     ticksRecebidos: tickCount,
-    latenciaP50ms: percentile(sorted, 50),
-    latenciaP95ms: percentile(sorted, 95),
-    latenciaP99ms: percentile(sorted, 99),
+    latenciaP50ms: percentile(sortedLatencies, 50),
+    latenciaP95ms: percentile(sortedLatencies, 95),
+    latenciaP99ms: percentile(sortedLatencies, 99),
     tickMedioBytes: Math.round(tickBytes / Math.max(1, tickCount)),
     mensagemMediaBytes: Math.round(totalBytes / Math.max(1, totalMessages)),
-    mensagensPorBotPorSegundo: Number((totalMessages / BOTS / SECONDS).toFixed(1)),
+    mensagensPorBotPorSegundo: Number((totalMessages / BOT_COUNT / MEASURE_SECONDS).toFixed(1)),
     cpuServidorPercent: Number(((cpuMicros / 1000 / wallMs) * 100).toFixed(1)),
-    rssServidorMB: Math.round(after.memory.rss / 1024 / 1024),
+    rssServidorMB: Math.round(statsAfter.memory.rss / 1024 / 1024),
   };
   console.log(JSON.stringify(result, null, 2));
-  for (const ws of sockets) ws.close();
+  for (const socket of sockets) socket.close();
 } finally {
   server.kill();
 }

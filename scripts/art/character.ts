@@ -3,9 +3,11 @@
 // Cores do corpo e do cabelo usam as rampas-chave (troca de paleta no cliente).
 import { blank, grid, mirror, stamp, type Pixels } from '../lib/pixels.ts';
 
-const FRAME_W = 16;
-const FRAME_H = 32;
-const PART_W = 12;
+// Cada parte (cabeça, tronco, pernas) tem 12 px de largura e entra na coluna X0 do frame de 16 px;
+// HEAD_Y, TORSO_Y e LEGS_Y são as linhas onde cada parte começa no personagem em pé.
+const FRAME_WIDTH = 16;
+const FRAME_HEIGHT = 32;
+const PART_WIDTH = 12;
 const X0 = 2;
 const HEAD_Y = 8;
 const TORSO_Y = 18;
@@ -13,7 +15,7 @@ const LEGS_Y = 25;
 
 type Facing = 'down' | 'up' | 'left';
 type Dir = Facing | 'right';
-const part = (label: string, rows: string[]) => grid(rows, PART_W, label);
+const part = (label: string, rows: string[]) => grid(rows, PART_WIDTH, label);
 
 const HEAD: Record<Facing, Pixels> = {
   down: part('cabeça de frente', [
@@ -76,29 +78,29 @@ const TORSO: Record<'front' | 'side', Pixels> = {
 };
 
 /** Uma perna de 4 colunas; `lift` sobe o pé um pixel (passo da caminhada). */
-function leg(target: Pixels, col: number, lift: number, skin = '3'): void {
+function leg(target: Pixels, column: number, lift: number, skin = '3'): void {
   const skinRows = 4 - lift;
-  for (let r = 0; r < skinRows; r++) stamp(target, [['K', skin, skin, 'K']], col, r);
-  stamp(target, [['K', 'k', 'k', 'K']], col, skinRows);
-  stamp(target, [['K', 'K', 'K', 'K']], col, skinRows + 1);
+  for (let row = 0; row < skinRows; row++) stamp(target, [['K', skin, skin, 'K']], column, row);
+  stamp(target, [['K', 'k', 'k', 'K']], column, skinRows);
+  stamp(target, [['K', 'K', 'K', 'K']], column, skinRows + 1);
 }
 
 /** Pernas por fase da caminhada: 0 e 2 parado, 1 e 3 um pé de cada vez. */
 function legs(facing: Facing, phase: number): Pixels {
-  const p = blank(PART_W, 6);
+  const legPixels = blank(PART_WIDTH, 6);
   if (facing === 'left') {
     // De lado as pernas se cruzam: a de trás é mais escura e fica por baixo.
     if (phase === 1 || phase === 3) {
-      leg(p, phase === 1 ? 6 : 2, 1, '2');
-      leg(p, phase === 1 ? 2 : 6, 0);
+      leg(legPixels, phase === 1 ? 6 : 2, 1, '2');
+      leg(legPixels, phase === 1 ? 2 : 6, 0);
     } else {
-      leg(p, 4, 0);
+      leg(legPixels, 4, 0);
     }
-    return p;
+    return legPixels;
   }
-  leg(p, 2, phase === 1 ? 1 : 0);
-  leg(p, 6, phase === 3 ? 1 : 0);
-  return p;
+  leg(legPixels, 2, phase === 1 ? 1 : 0);
+  leg(legPixels, 6, phase === 3 ? 1 : 0);
+  return legPixels;
 }
 
 /** Sentado: pernas dobradas, escondidas pela cadeira quando de costas. */
@@ -118,27 +120,30 @@ interface Pose {
 
 /** Corpo: cabeça, tronco e pernas, com a pele nas cores-chave. */
 function body({ facing, phase, seated }: Pose): Pixels {
-  const frame = blank(FRAME_W, FRAME_H);
-  const dy = seated ? 2 : 0;
+  const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
+  const dy = seated ? 2 : 0; // sentado, o corpo desce 2 px para encaixar na cadeira
   stamp(frame, seated ? seatedLegs(facing) : legs(facing, phase), X0, LEGS_Y + dy);
   stamp(frame, TORSO[facing === 'left' ? 'side' : 'front'], X0, TORSO_Y + dy);
   stamp(frame, HEAD[facing], X0, HEAD_Y + dy);
   return frame;
 }
 
-/** Aplica `fn` em cada pixel da silhueta de uma parte; o que voltar não-nulo vira a camada. */
+/**
+ * Percorre cada pixel preenchido da silhueta `source` (posta em x0, y0) e pinta na camada o que
+ * `mapPixel` devolver; null deixa o pixel de fora. É assim que roupa e cabelo seguem o corpo.
+ */
 function overPart(
   frame: Pixels,
   source: Pixels,
   x0: number,
   y0: number,
-  fn: (ch: string, x: number, y: number) => string | null,
+  mapPixel: (pixelChar: string, x: number, y: number) => string | null,
 ): void {
   source.forEach((row, y) =>
-    row.forEach((ch, x) => {
-      if (ch === '.') return;
-      const out = fn(ch, x, y);
-      if (out !== null) stamp(frame, [[out]], x0 + x, y0 + y);
+    row.forEach((pixelChar, x) => {
+      if (pixelChar === '.') return;
+      const layerPixel = mapPixel(pixelChar, x, y);
+      if (layerPixel !== null) stamp(frame, [[layerPixel]], x0 + x, y0 + y);
     }),
   );
 }
@@ -147,38 +152,41 @@ function overPart(
 
 type OutfitStyle = 'basic' | 'hoodie' | 'shirt' | 'dress' | 'jacket' | 'sweater';
 
+/** Camada de roupa: pinta tronco e pernas da silhueta com as cores-chave de roupa (A C D F). */
 function outfit(style: OutfitStyle, pose: Pose): Pixels {
   const { facing, phase, seated } = pose;
-  const frame = blank(FRAME_W, FRAME_H);
+  const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
   const dy = seated ? 2 : 0;
   const torso = TORSO[facing === 'left' ? 'side' : 'front'];
-  overPart(frame, torso, X0, TORSO_Y + dy, (ch, x, y) => {
-    if (ch === 'K') return 'K';
-    if (ch === '4') return null; // mãos ficam de fora
+  overPart(frame, torso, X0, TORSO_Y + dy, (pixelChar, x, y) => {
+    if (pixelChar === 'K') return 'K';
+    if (pixelChar === '4') return null; // mãos ficam de fora
+    // Manga: a coluna do braço de lado, as colunas das bordas de frente e de costas. Fora dela, a
+    // metade direita (x >= 8) fica no tom mais escuro, porque a luz vem da esquerda.
     const sleeve = facing === 'left' ? x === 5 && y >= 2 : x === 1 || x === 10;
     if (style === 'hoodie') {
       if (facing !== 'up' && facing !== 'left' && y === 4 && x >= 4 && x <= 7) return 'A'; // bolso
       if (facing === 'down' && y >= 1 && y <= 3 && (x === 5 || x === 6)) return 'F'; // cordão
       return sleeve ? 'A' : x >= 8 && facing !== 'left' ? 'C' : 'C';
     }
-    const front = facing === 'down';
+    const facingFront = facing === 'down';
     if (style === 'shirt') {
-      if (front && y === 1 && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'F' : 'D'; // gola
-      if (front && (x === 5 || x === 6) && y >= 2 && y <= 4) return x === 5 ? 'A' : 'D'; // abotoamento
+      if (facingFront && y === 1 && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'F' : 'D'; // gola
+      if (facingFront && (x === 5 || x === 6) && y >= 2 && y <= 4) return x === 5 ? 'A' : 'D'; // abotoamento
       return sleeve ? 'C' : x >= 8 && facing !== 'left' ? 'C' : 'D';
     }
     if (style === 'jacket') {
       // Jaqueta aberta: laterais na cor da roupa, camiseta clara por dentro.
-      if (front && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'A' : 'F';
+      if (facingFront && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'A' : 'F';
       return sleeve ? 'A' : 'C';
     }
     if (style === 'sweater') {
       if (y === 3) return 'F'; // listra
-      if (front && y === 1 && x >= 4 && x <= 7) return 'C';
+      if (facingFront && y === 1 && x >= 4 && x <= 7) return 'C';
       return sleeve ? 'C' : 'D';
     }
     if (style === 'dress') {
-      if (front && y === 1 && x >= 4 && x <= 7) return 'F';
+      if (facingFront && y === 1 && x >= 4 && x <= 7) return 'F';
       return sleeve ? 'D' : x >= 8 && facing !== 'left' ? 'C' : 'D';
     }
     if (facing === 'down' && y === 1 && (x === 5 || x === 6)) return 'F'; // gola
@@ -188,7 +196,7 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
   if (style === 'hoodie') {
     // Capuz caído atrás do pescoço, um pixel mais largo que os ombros.
     const hood = facing === 'left' ? '....KCCCK...' : facing === 'up' ? '.KCCCCCCCCK.' : '.KC......CK.';
-    overPart(frame, part('capuz', [hood]), X0, TORSO_Y - 1 + dy, (ch) => ch);
+    overPart(frame, part('capuz', [hood]), X0, TORSO_Y - 1 + dy, (pixelChar) => pixelChar);
   }
   if (style === 'dress') {
     // Saia em trapézio por cima do alto das pernas; daí para baixo a pele aparece.
@@ -198,8 +206,8 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
   }
   // Calça escura sobre a pele das pernas; o sapato do corpo continua aparecendo.
   const legPart = seated ? seatedLegs(facing) : legs(facing, phase);
-  overPart(frame, legPart, X0, LEGS_Y + dy, (ch, x) => {
-    if (ch === '3' || ch === '2') return ch === '2' ? 'k' : x % 4 === 1 ? 'g' : 'n';
+  overPart(frame, legPart, X0, LEGS_Y + dy, (pixelChar, x) => {
+    if (pixelChar === '3' || pixelChar === '2') return pixelChar === '2' ? 'k' : x % 4 === 1 ? 'g' : 'n';
     return null;
   });
   return frame;
@@ -209,6 +217,7 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
 
 type HairStyle = 'short' | 'long' | 'spiky' | 'curly' | 'bun' | 'afro';
 
+/** Tom do cabelo pela posição na cabeça: brilho no alto à esquerda, sombra nas laterais e embaixo. */
 function hairShade(x: number, y: number, facing: Facing): string {
   if (y <= 1 && x >= 3 && x <= 5 && facing !== 'up') return '8';
   if (x <= 1 || x >= 10 || y >= 6) return '6';
@@ -307,33 +316,35 @@ const FRONT_HAIR: Partial<Record<HairStyle, { rows: string[]; top: number; dx: n
   },
 };
 
+/** Cabelo de `FRONT_HAIR`; null para os estilos que não estão lá. */
 function frontHair(style: HairStyle, facing: Facing, dy: number): Pixels | null {
   const spec = FRONT_HAIR[style];
   if (!spec) return null;
-  const frame = blank(FRAME_W, FRAME_H);
-  const width = spec.rows[0]?.length ?? PART_W;
-  const grid0 = grid(spec.rows, width, `cabelo ${style}`);
+  const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
+  const width = spec.rows[0]?.length ?? PART_WIDTH;
+  const hairPixels = grid(spec.rows, width, `cabelo ${style}`);
   if (facing === 'down') {
-    stamp(frame, grid0, X0 + spec.dx, HEAD_Y - spec.top + dy);
+    stamp(frame, hairPixels, X0 + spec.dx, HEAD_Y - spec.top + dy);
     return frame;
   }
   // Volume acima da cabeça igual ao de frente; a cabeça coberta até `back` linhas.
-  stamp(frame, grid0.slice(0, spec.top), X0 + spec.dx, HEAD_Y - spec.top + dy);
-  overPart(frame, HEAD[facing], X0, HEAD_Y + dy, (ch, x, y) => {
+  stamp(frame, hairPixels.slice(0, spec.top), X0 + spec.dx, HEAD_Y - spec.top + dy);
+  overPart(frame, HEAD[facing], X0, HEAD_Y + dy, (pixelChar, x, y) => {
     const covered = facing === 'up' ? y <= spec.back : y <= 2 || (x >= 6 && y <= spec.back) || (y === 3 && x >= 3);
     if (!covered) return null;
-    return ch === 'K' ? 'K' : hairShade(x, y, facing);
+    return pixelChar === 'K' ? 'K' : hairShade(x, y, facing);
   });
   if (style === 'afro') {
     // Volume lateral do black power, que passa da cabeça.
     const side = facing === 'up' ? ['K7K......K7K'] : ['.......K777K'];
-    for (let r = 0; r < 5; r++) stamp(frame, part('volume', side), X0, HEAD_Y + 1 + r + dy);
+    for (let row = 0; row < 5; row++) stamp(frame, part('volume', side), X0, HEAD_Y + 1 + row + dy);
   }
   return frame;
 }
 
+/** Camada de cabelo: curto e os de `FRONT_HAIR` desenhados à mão, os demais cobrindo a silhueta da cabeça. */
 function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
-  const frame = blank(FRAME_W, FRAME_H);
+  const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
   const dy = seated ? 2 : 0;
   if (style === 'short') {
     stamp(frame, SHORT_HAIR[facing], X0, HEAD_Y - 1 + dy);
@@ -347,9 +358,9 @@ function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
     if (facing === 'left') return y <= 2 || (x >= 7 && y <= (long ? 9 : 6)) || (y === 3 && x >= 3);
     return y <= 2 || (y === 3 && (x <= 2 || x >= 9)) || (long && (x <= 1 || x >= 10) && y <= 8);
   };
-  overPart(frame, HEAD[facing], X0, HEAD_Y + dy, (ch, x, y) => {
+  overPart(frame, HEAD[facing], X0, HEAD_Y + dy, (pixelChar, x, y) => {
     if (!covers(x, y)) return null;
-    return ch === 'K' ? 'K' : hairShade(x, y, facing);
+    return pixelChar === 'K' ? 'K' : hairShade(x, y, facing);
   });
   if (style === 'long' && facing !== 'down') {
     // Cabelo comprido cai sobre as costas, por cima da roupa.
@@ -366,8 +377,9 @@ function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
 
 type AccessoryStyle = 'glasses' | 'cap' | 'headphones' | 'beanie' | 'bow';
 
+/** Camada de acessório, presa à cabeça. */
 function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
-  const frame = blank(FRAME_W, FRAME_H);
+  const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
   const y0 = HEAD_Y + (seated ? 2 : 0);
   if (style === 'headphones') {
     // Arco por cima da cabeça e conchas nas orelhas.
@@ -383,9 +395,9 @@ function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
   }
   if (style === 'beanie') {
     // Gorro de lã com barra dobrada e pompom.
-    overPart(frame, HEAD[facing], X0, y0, (ch, x, y) => {
+    overPart(frame, HEAD[facing], X0, y0, (pixelChar, x, y) => {
       if (y > 3) return null;
-      if (ch === 'K' && y < 3) return 'K';
+      if (pixelChar === 'K' && y < 3) return 'K';
       return y === 3 ? (x % 2 === 0 ? 'U' : 'c') : y === 1 && x >= 3 && x <= 5 ? 'c' : 'U';
     });
     stamp(frame, [['K', 'K', 'K'], ['K', 'W', 'K']], X0 + 4, y0 - 2);
@@ -403,9 +415,9 @@ function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
     return frame;
   }
   // Boné: copa sobre o alto da cabeça e aba para a frente.
-  overPart(frame, HEAD[facing], X0, y0, (ch, x, y) => {
+  overPart(frame, HEAD[facing], X0, y0, (pixelChar, x, y) => {
     if (y > 2) return null;
-    if (ch === 'K') return 'K';
+    if (pixelChar === 'K') return 'K';
     if (y === 1 && x >= 3 && x <= 5) return 'p';
     return x >= 9 ? 'r' : 'R';
   });
@@ -421,18 +433,23 @@ type Layer = (pose: Pose) => Pixels;
 
 /** Monta a folha 64x160: linhas 0-3 caminhada por direção, linha 4 sentado (baixo, esquerda, direita, cima). */
 function sheet(layer: Layer): Pixels {
-  const out = blank(FRAME_W * 4, FRAME_H * 5);
-  const frame = (dir: Dir, phase: number, seated: boolean): Pixels => {
-    const facing: Facing = dir === 'right' ? 'left' : dir;
+  const sheetPixels = blank(FRAME_WIDTH * 4, FRAME_HEIGHT * 5);
+  // A direita é a esquerda espelhada: só três direções são desenhadas.
+  const poseFrame = (direction: Dir, phase: number, seated: boolean): Pixels => {
+    const facing: Facing = direction === 'right' ? 'left' : direction;
     const pixels = layer({ facing, phase, seated });
-    return dir === 'right' ? mirror(pixels) : pixels;
+    return direction === 'right' ? mirror(pixels) : pixels;
   };
-  const rows: Dir[] = ['down', 'left', 'right', 'up'];
-  rows.forEach((dir, row) => {
-    for (let col = 0; col < 4; col++) stamp(out, frame(dir, col, false), col * FRAME_W, row * FRAME_H);
+  const rowDirections: Dir[] = ['down', 'left', 'right', 'up'];
+  rowDirections.forEach((direction, row) => {
+    for (let column = 0; column < 4; column++) {
+      stamp(sheetPixels, poseFrame(direction, column, false), column * FRAME_WIDTH, row * FRAME_HEIGHT);
+    }
   });
-  rows.forEach((dir, col) => stamp(out, frame(dir, 0, true), col * FRAME_W, 4 * FRAME_H));
-  return out;
+  rowDirections.forEach((direction, column) =>
+    stamp(sheetPixels, poseFrame(direction, 0, true), column * FRAME_WIDTH, 4 * FRAME_HEIGHT),
+  );
+  return sheetPixels;
 }
 
 const OUTFITS: OutfitStyle[] = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater'];

@@ -9,51 +9,61 @@ import { DESK_DECOR, FLOORS, FURNITURE, WALLS, type TileArt } from './art/tiles.
 import { blank, stamp, toPng } from './lib/pixels.ts';
 
 const root = join(import.meta.dirname, '..');
-const assets = join(root, 'assets');
+const assetsDir = join(root, 'assets');
 const TILE = 16;
 // Largura fixa: os mapas referenciam tiles pela posição, então o número de colunas nunca muda.
 const COLUMNS = 8;
 
+/** Grava um arquivo relativo a `assets/`, criando a pasta, e registra o caminho no console. */
 function write(path: string, content: Buffer | string): void {
-  const full = join(assets, path);
-  mkdirSync(dirname(full), { recursive: true });
-  writeFileSync(full, content);
-  console.log(`gerado ${relative(root, full)}`);
+  const fullPath = join(assetsDir, path);
+  mkdirSync(dirname(fullPath), { recursive: true });
+  writeFileSync(fullPath, content);
+  console.log(`gerado ${relative(root, fullPath)}`);
 }
 
-/** Célula de 16 px por padrão; móveis de várias células usam um tileset próprio com célula maior. */
+/**
+ * Monta o PNG e o .tsj (formato do Tiled) de um tileset. Os tiles entram em ordem, da esquerda
+ * para a direita e de cima para baixo, em `COLUMNS` colunas; o índice no array é o id do tile no
+ * .tsj e a posição que os mapas salvam, por isso a lista só cresce no fim.
+ * Célula de 16 px por padrão; móveis de várias células usam um tileset próprio com célula maior.
+ */
 function tileset(id: string, tiles: TileArt[], cell: { w: number; h: number } = { w: TILE, h: TILE }): void {
-  const rows = Math.max(1, Math.ceil(tiles.length / COLUMNS));
-  const sheet = blank(COLUMNS * cell.w, rows * cell.h);
+  const rowCount = Math.max(1, Math.ceil(tiles.length / COLUMNS));
+  const sheet = blank(COLUMNS * cell.w, rowCount * cell.h);
   tiles.forEach((tile, i) => {
-    const h = tile.pixels.length;
-    const w = tile.pixels[0]?.length ?? 0;
-    if (w !== cell.w || h !== cell.h) throw new Error(`${id}[${i}]: ${w}x${h}, esperado ${cell.w}x${cell.h}`);
+    const tileHeight = tile.pixels.length;
+    const tileWidth = tile.pixels[0]?.length ?? 0;
+    if (tileWidth !== cell.w || tileHeight !== cell.h) {
+      throw new Error(`${id}[${i}]: ${tileWidth}x${tileHeight}, esperado ${cell.w}x${cell.h}`);
+    }
     stamp(sheet, tile.pixels, (i % COLUMNS) * cell.w, Math.floor(i / COLUMNS) * cell.h);
   });
   write(`tilesets/${id}.png`, PNG.sync.write(toPng(sheet)));
 
-  const properties = tiles.flatMap((tile, i) => {
-    const props = [
+  // O .tsj só lista os tiles que têm propriedade (colisão ou item da mesa); os demais ficam implícitos.
+  const tilesWithProperties = tiles.flatMap((tile, i) => {
+    const tileProperties = [
       ...(tile.collides ? [{ name: 'collides', type: 'bool', value: true }] : []),
       ...(tile.itemId ? [{ name: 'item_id', type: 'string', value: tile.itemId }] : []),
     ];
-    return props.length > 0 ? [{ id: i, properties: props }] : [];
+    return tileProperties.length > 0 ? [{ id: i, properties: tileProperties }] : [];
   });
+  // `tilecount` conta a grade inteira, inclusive as células vazias da última linha.
   const tsj = {
     type: 'tileset',
     version: '1.10',
     name: id,
     image: `${id}.png`,
     imagewidth: COLUMNS * cell.w,
-    imageheight: rows * cell.h,
+    imageheight: rowCount * cell.h,
     tilewidth: cell.w,
     tileheight: cell.h,
     columns: COLUMNS,
-    tilecount: COLUMNS * rows,
+    tilecount: COLUMNS * rowCount,
     margin: 0,
     spacing: 0,
-    tiles: properties,
+    tiles: tilesWithProperties,
   };
   write(`tilesets/${id}.tsj`, `${JSON.stringify(tsj, null, 2)}\n`);
 }

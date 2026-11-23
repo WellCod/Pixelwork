@@ -50,7 +50,7 @@ describe('buildCatalog', () => {
 
   it('recusa célula que não é 16, 32 ou 48', () => {
     const result = problems(input({ readTileset: () => ({ tilewidth: 20, tileheight: 16, columns: 8, tilecount: 8, tiles: [] }) }));
-    expect(result.some((p) => p.includes('tilewidth'))).toBe(true);
+    expect(result.some((problem) => problem.includes('tilewidth'))).toBe(true);
   });
 
   it('falha quando um asset do manifesto não tem licença', () => {
