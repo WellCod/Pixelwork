@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { PNG } from 'pngjs';
+import { RUGS, rugMask } from '@pixelwork/shared/editor';
 import { KEY_RAMPS } from './lib/palette.ts';
 
 const root = join(import.meta.dirname, '..');
@@ -71,13 +72,15 @@ function shadow(centerX: number, centerY: number, radiusX: number, radiusY: numb
 for (let y = 2; y < SCENE_HEIGHT; y++) {
   for (let x = 0; x < SCENE_WIDTH; x++) frame('floors', x < 6 ? 3 : x < 9 ? 0 : 4, x * TILE, y * TILE);
 }
-const RUG = 5; // primeiro dos 9 tiles do tapete lavanda
-// Tapete 4x3 numa grade 3x3 de tiles: canto, borda ou miolo conforme a posição de cada célula.
-for (let y = 4; y <= 6; y++) {
-  for (let x = 1; x <= 4; x++) {
-    const rugColumn = x === 1 ? 0 : x === 4 ? 2 : 1;
-    const rugRow = y === 4 ? 0 : y === 6 ? 2 : 1;
-    frame('floors', RUG + rugRow * 3 + rugColumn, x * TILE, y * TILE);
+// Tapete lavanda 4x3: cada tile escolhe o frame pela máscara das bordas de fora, como no editor.
+const RUG_LEFT = 1;
+const RUG_TOP = 4;
+const RUG_WIDTH = 4;
+const RUG_HEIGHT = 3;
+for (let y = RUG_TOP; y < RUG_TOP + RUG_HEIGHT; y++) {
+  for (let x = RUG_LEFT; x < RUG_LEFT + RUG_WIDTH; x++) {
+    const edges = rugMask(x - RUG_LEFT, y - RUG_TOP, RUG_WIDTH, RUG_HEIGHT);
+    frame('floors', RUGS.lavender.first + edges, x * TILE, y * TILE);
   }
 }
 // Parede: topo e face, com duas janelas.
