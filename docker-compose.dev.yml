@@ -11,7 +11,8 @@ services:
   livekit:
     image: livekit/livekit-server:v1.13.11
     # dentro do container, escutar só em 127.0.0.1 tornaria as portas inacessíveis pelo host
-    command: --dev --bind 0.0.0.0
+    # LIVEKIT_NODE_IP (no .env) é o IP da máquina na rede local, anunciado aos navegadores de fora.
+    command: --dev --bind 0.0.0.0 ${LIVEKIT_NODE_IP:+--node-ip=${LIVEKIT_NODE_IP}}
     ports:
       - "7880:7880"
       - "7881:7881"

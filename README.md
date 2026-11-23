@@ -70,6 +70,30 @@ perfil do navegador (o cookie é por perfil). O login pelo GitHub é opcional; o
 Outros comandos: `pnpm test` (unitários e integração, com o Postgres do compose), `pnpm e2e`,
 `pnpm load --bots 50`, `pnpm typecheck`, `pnpm lint`. A lista completa está no `CLAUDE.md`.
 
+### Testar com outra pessoa na rede
+
+Fora do `localhost` o navegador só libera câmera e microfone em https, e a outra máquina precisa
+achar o Vite e o LiveKit pelo IP desta. Com o IP desta máquina no lugar de `192.168.0.10`:
+
+1. Gerar um certificado próprio (o Git para Windows já traz o `openssl`):
+
+   ```
+   mkdir .certs
+   openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout .certs/dev.key -out .certs/dev.crt \
+     -subj "/CN=Pixelwork dev" -addext "subjectAltName=IP:192.168.0.10,DNS:localhost,IP:127.0.0.1"
+   ```
+
+2. Descomentar o bloco "Outra pessoa na mesma rede" do `.env` (está no `.env.example`) com o IP.
+3. Recriar o LiveKit para ele anunciar o IP (`docker compose -f docker-compose.dev.yml up -d livekit`)
+   e subir com `pnpm dev`.
+4. Todo mundo abre `https://192.168.0.10:5173`, inclusive nesta máquina: o servidor só aceita
+   escrita vinda do `PUBLIC_URL`. O navegador avisa que o certificado não é confiável; aceitar uma
+   vez.
+
+O firewall precisa deixar entrar TCP 5173 (Vite), TCP 7881 e UDP 7882 (mídia do LiveKit). Https em
+`localhost` ou IP privado continua sendo desenvolvimento: as checagens de produção do `env.ts` valem
+para https em endereço público.
+
 ## Arquitetura
 
 ```mermaid
