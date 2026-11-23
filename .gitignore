@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 .env
+.certs/
 *.tsbuildinfo
 test-results/
 playwright-report/

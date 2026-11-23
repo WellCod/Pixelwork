@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadEnv } from './env.ts';
+import { isLocalHost, loadEnv } from './env.ts';
 
 const devEnv = {
   DATABASE_URL: 'postgres://app:app@localhost:5432/coworking',
@@ -28,6 +28,28 @@ describe('loadEnv', () => {
 
   it('aceita produção configurada', () => {
     expect(loadEnv(prodEnv).PUBLIC_URL).toBe('https://pixelwork.example.com');
+  });
+
+  it('aceita os valores de desenvolvimento com https na rede local', () => {
+    const lanEnv = { ...devEnv, PUBLIC_URL: 'https://192.168.8.39:5173', LIVEKIT_URL: 'wss://192.168.8.39:5173' };
+    expect(loadEnv(lanEnv).LIVEKIT_API_KEY).toBe('devkey');
+  });
+
+  it.each([
+    ['localhost', true],
+    ['127.0.0.1', true],
+    ['meu-pc.local', true],
+    ['10.0.0.5', true],
+    ['172.16.0.1', true],
+    ['172.31.255.255', true],
+    ['192.168.8.39', true],
+    ['172.32.0.1', false],
+    ['8.8.8.8', false],
+    ['192.169.0.1', false],
+    ['pixelwork.example.com', false],
+    ['192.168.1', false],
+  ])('isLocalHost(%s) = %s', (hostname, expected) => {
+    expect(isLocalHost(hostname)).toBe(expected);
   });
 
   it.each([

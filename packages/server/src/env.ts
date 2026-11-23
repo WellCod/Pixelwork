@@ -30,9 +30,26 @@ const BaseEnv = z.object({
   LOAD_TEST: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
 });
 
-/** Com PUBLIC_URL em https é produção: valores de desenvolvimento não sobem. */
+/**
+ * Endereço que só existe dentro da máquina ou da rede local: localhost, IPv4 privado (10/8,
+ * 172.16/12, 192.168/16) e nomes `.local`. Https nele é o modo de rede local do desenvolvimento.
+ */
+export function isLocalHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname.endsWith('.local') || hostname === '127.0.0.1') return true;
+  const octets = hostname.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const [first = 0, second = 0] = octets;
+  return first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168);
+}
+
+/**
+ * Com PUBLIC_URL em https num endereço público é produção: valores de desenvolvimento não sobem.
+ * Https em localhost ou na rede local é desenvolvimento (câmera e microfone exigem https fora do
+ * localhost), então as chaves de dev continuam valendo.
+ */
 const Env = BaseEnv.superRefine((env, context) => {
   if (!env.PUBLIC_URL.startsWith('https://')) return;
+  if (isLocalHost(new URL(env.PUBLIC_URL).hostname)) return;
   const issue = (path: string, message: string) => context.addIssue({ code: 'custom', path: [path], message });
   if (env.LIVEKIT_API_KEY === DEV_LIVEKIT_KEY) issue('LIVEKIT_API_KEY', 'chave de desenvolvimento em produção');
   if (env.LIVEKIT_API_SECRET === DEV_LIVEKIT_SECRET || env.LIVEKIT_API_SECRET.length < 32) {
