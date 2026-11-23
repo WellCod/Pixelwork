@@ -145,9 +145,8 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Tudo que está no repositório pode ser redistribuído, então o export inclui todos os tilesets.
 - Prefira `own` e `CC0`. `CC-BY` só se não houver alternativa.
 - Desenhar inspirado em referências é ok. Copiar ou decalcar sprites de terceiros, não.
-- ~~Sem arte gerada por IA~~. Revisto em 2026-11-18 por decisão do dono do projeto: a arte pode ser
-  gerada pelo Claude, desenhada pixel a pixel em código (`scripts/gen-art.ts`), sempre na paleta e
-  nos layouts deste documento. Licença `own`. O risco que motivava a regra (consistência entre tiles
+- Revisto em 2026-11-18 por decisão do dono do projeto: a arte é desenhada pixel a pixel em
+  código (`scripts/gen-art.ts`), sempre na paleta e nos layouts deste documento. Licença `own`. O risco que motivava a regra (consistência entre tiles
   e frames) é tratado desenhando por código: as camadas do personagem compartilham as mesmas
   coordenadas e os frames de caminhada variam só as pernas.
 

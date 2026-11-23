@@ -52,14 +52,14 @@ capricho, muitos objetos para colocar e cores que combinem, suaves e bonitas**.
   tile ancorados no canto inferior esquerdo; colisão pela propriedade `collides`.
 - CSP do Caddy é `default-src 'self'`: fonte externa (Google Fonts) não carrega; fonte vai no
   próprio app.
-- Arte desenhada pelo Claude em código é permitida e tem licença `own` (art.md, seção 7).
+- Arte desenhada em código é permitida e tem licença `own` (art.md, seção 7).
 
 ## Abordagens consideradas (decididas na conversa)
 
 **Origem da arte.** Pesquisadas: CC0 de escritório quase não existe (um pacote pequeno no
 OpenGameArt); "LPC revised the office" é CC-BY-SA (proibido); o pacote pago mais próximo da
 referência (LimeZu Modern Interiors) não permite redistribuir os arquivos, então não pode ficar no
-repositório público. Escolhido pelo dono: **arte original feita pelo Claude**, priorizando
+repositório público. Escolhido pelo dono: **arte original desenhada em código**, priorizando
 capricho. Descartado comprar um pacote e mantê-lo fora do repo: quem clonasse não teria a arte e a
 regra 8 teria de mudar.
 
@@ -106,7 +106,7 @@ penosa e desenho que quebra quando uma peça sai do lugar.
     claras, rodapé, cantos, janelas e decoração de parede).
   - **Tapetes são tiles de piso**, não objetos: cada tapete é um conjunto de 9 tiles (4 cantos, 4
     bordas e miolo) pintados na camada `floor` em qualquer tamanho. Assim ficam sempre abaixo dos
-    avatares sem propriedade nova no contrato (decisão do Claude, depois da revisão).
+    avatares sem propriedade nova no contrato (decisão de implementação, depois da revisão).
   - **Quadros, relógio, pôster e janelas são variações de tile de parede** na camada `walls` (que
     já colide e já é desenhada atrás de tudo). Mesmo motivo.
   - **Portas continuam como móvel** no `furniture`, sem `collides`, como hoje: na camada `walls`
@@ -142,7 +142,7 @@ penosa e desenho que quebra quando uma peça sai do lugar.
   `desks`): 16x16 continua sendo a mesa de 1 tile, então mapas salvos antigos seguem válidos sem
   conversão e sem propriedade nova. O `compileMap` bloqueia todos os tiles da pegada.
 - A cadeira fica na frente do tile de âncora (o da esquerda, ou o de cima nas mesas laterais).
-  Decisão do Claude: mantém a cadeira no grid sem meio-tile. A mesa é desenhada para o assento
+  Decisão de implementação: mantém a cadeira no grid sem meio-tile. A mesa é desenhada para o assento
   parecer natural nessa posição.
 - Mudança de contrato do mapa: seção 6 do `docs/architecture.md` (pegada pelo tamanho do objeto,
   posição da cadeira, novo erro se a pegada não for 1x1, 2x1 ou 1x2 ou se sair do mapa). O editor
@@ -192,7 +192,7 @@ penosa e desenho que quebra quando uma peça sai do lugar.
   nova de camada no contrato (o problema era tapete grande ficar por cima de quem pisa nele).
 - Portas como móvel sem colisão, como hoje.
 - Mesa de 2 tiles com pegada pelo tamanho do objeto (dono do projeto); cadeira na frente do tile de
-  âncora (Claude).
+  âncora (decisão de implementação).
 - A categoria dos móveis no editor (escritório, sala, copa, plantas) fica numa tabela do cliente
   por `item_id`, não no `.tsj`: é só organização da paleta do editor, não contrato.
 
