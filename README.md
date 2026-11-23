@@ -30,9 +30,10 @@ proximidade e autorização de mídia feitas no servidor.
   servidor e simulador de latência para ver a predição e a reconciliação funcionando.
 - Replay da simulação para admins: a gravação das entradas do servidor reproduzida no navegador
   com o mesmo `step` puro.
-- Em andamento: minigame de pingpong na mesa de jogos, sozinho contra um bot ou contra outra
-  pessoa, com a partida simulada pelo servidor
-  ([desenho](docs/superpowers/specs/2026-11-22-pingpong-design.md)).
+- Pingpong na mesa de jogos: sozinho contra um bot ou 1x1 com quem chegar do outro lado. A
+  partida é simulada pelo servidor a 30 Hz (módulo puro em `shared`), o cliente prevê a própria
+  raquete e extrapola a bola, os dois adversários se ouvem e quem está perto vê o placar sobre a
+  mesa ([desenho](docs/superpowers/specs/2026-11-22-pingpong-design.md)).
 
 ## Telas
 
