@@ -862,7 +862,7 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Fica de fora o que não entra na simulação (chat, mídia, chamadas, mesas, partidas de
   pingpong): o replay é do movimento.
 
-## Interações com objetos: pingpong (aprovado em 2026-11-22, implementação pendente)
+## Interações com objetos: pingpong (aprovado e implementado em 2026-11-22)
 
 Desenho completo em `docs/superpowers/specs/2026-11-22-pingpong-design.md`. Decisões de contrato:
 
@@ -880,8 +880,16 @@ Desenho completo em `docs/superpowers/specs/2026-11-22-pingpong-design.md`. Deci
 - Regras de convivência: com a janela aberta o servidor ignora `move`; queda de conexão pausa a
   partida durante `RECONNECT_GRACE_MS`; quem está em chamada não entra na mesa e quem joga
   responde `busy` a convite de chamada.
-- Mídia: nenhuma sala nova; os adversários se ouvem pela exceção de proximidade (seção 10).
+- Mídia: nenhuma sala nova; os adversários se ouvem pela exceção de proximidade (seção 10), com
+  volume cheio.
 - Fica fora do replay determinístico.
+- Decisões da implementação: o `seq` do `game.input` recomeça a cada `welcome`, como o do
+  movimento, e a reconexão zera o `ack` no servidor (`GameRegistry.reconnected`). O cliente prevê
+  a raquete e extrapola a bola no próprio relógio, a partir da hora em que o `game.state` chegou
+  (`client/src/net/pong-predict.ts`), sem misturar o `serverTs`. O estado da partida não conta
+  como mudança para a UI em React (o canvas lê o último estado a cada quadro). Servidor em
+  `server/src/realtime/games.ts`; métricas `pixelwork_games_active` e
+  `pixelwork_game_frame_seconds`.
 
 ## Observabilidade
 
