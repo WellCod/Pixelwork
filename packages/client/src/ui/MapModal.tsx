@@ -46,6 +46,8 @@ export function describeMapError(error: MapError): string {
       return `A mesa ${error.deskKey} está fora do mapa.`;
     case 'chair_shared':
       return `As mesas ${error.a} e ${error.b} usam a mesma cadeira.`;
+    case 'furniture_position':
+      return `O móvel ${error.objectId} não tem posição numérica (x e y).`;
     case 'invalid_orientation':
       return `A mesa ${error.deskKey} precisa de orientation up, down, left ou right.`;
     case 'spawn_count':

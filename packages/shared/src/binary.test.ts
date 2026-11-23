@@ -18,6 +18,11 @@ describe('tick binário', () => {
     });
   });
 
+  it('direção fora da lista falha na codificação, sem gerar byte 255', () => {
+    const badMove = [1, 2, 3, 'diagonal'] as unknown as Parameters<typeof encodeTick>[2][number];
+    expect(() => encodeTick(1, 0, [badMove])).toThrow(/direção inválida/);
+  });
+
   it('withAck troca só o ack, numa cópia', () => {
     const frame = encodeTick(0, 5, [[3, 1, 2, 'down']]);
     const mine = withAck(frame, 7);

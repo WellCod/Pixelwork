@@ -317,6 +317,7 @@ export type MapError =
   | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
   | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
+  | { code: 'furniture_position'; objectId: number }    // móvel sem x/y numérico
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };
 
 export function compileMap(json: unknown): { ok: true; map: CompiledMap } | { ok: false; errors: MapError[] };

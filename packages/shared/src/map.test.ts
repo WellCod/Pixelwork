@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TILESET_IDS } from './catalog.generated.ts';
+import { TILESETS, TILESET_IDS } from './catalog.generated.ts';
 import { compileMap, isWalkable, relocate, zoneAt, type MapError } from './map.ts';
 import smallOfficeV1 from './fixtures/small-office-v1.json';
 import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testing.ts';
@@ -172,6 +172,13 @@ describe('compileMap: custo limitado', () => {
   });
 });
 
+describe('FIRSTGID dos mapas de teste', () => {
+  // Cada tileset tem um bloco fixo de 100 gids; um tileset maior invadiria o seguinte nos testes.
+  it('cada tileset do catálogo cabe nos 100 gids reservados', () => {
+    for (const id of TILESET_IDS) expect(TILESETS[id].tilecount, id).toBeLessThanOrEqual(100);
+  });
+});
+
 describe('compileMap: um erro por código', () => {
   const cases: [string, TestMapOptions, Mutate | undefined, MapError][] = [
     ['não ortogonal', {}, (mapJson) => (mapJson.orientation = 'isometric'), { code: 'not_orthogonal' }],
@@ -220,6 +227,15 @@ describe('compileMap: um erro por código', () => {
         if (deskDecorRef) deskDecorRef.firstgid = FIRSTGID.furniture + 1;
       },
       { code: 'tileset_overlap', a: 'furniture', b: 'desk-decor' },
+    ],
+    [
+      'móvel sem posição numérica',
+      { furniture: [{ x: 3, y: 3, tile: FURNITURE.plant }] },
+      (mapJson) => {
+        const [plant] = layerOf(mapJson, 'furniture').objects as { id: number; x: unknown }[];
+        if (plant) plant.x = 'esquerda';
+      },
+      { code: 'furniture_position', objectId: 1 },
     ],
     [
       'zone_key repetido',

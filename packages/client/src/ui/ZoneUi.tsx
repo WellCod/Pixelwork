@@ -1,5 +1,5 @@
 import { DIR_DELTA, KNOCK_TIMEOUT_MS, zoneAt, type ClientMsg } from '@pixelwork/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useWorld } from './useWorld.ts';
 
@@ -24,13 +24,14 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: Cl
   const pendingTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
   /** `setTimeout` registrado em `pendingTimers`, que se remove da lista ao disparar. */
-  const runLater = (callback: () => void, delayMs: number) => {
+  // Estável (só mexe no ref), então pode entrar nas dependências do efeito abaixo sem refazê-lo.
+  const runLater = useCallback((callback: () => void, delayMs: number) => {
     const timer = setTimeout(() => {
       pendingTimers.current.delete(timer);
       callback();
     }, delayMs);
     pendingTimers.current.add(timer);
-  };
+  }, []);
 
   // Escuta batidas recebidas (quem está dentro) e a resposta da própria batida (quem está fora).
   useEffect(() => {
@@ -59,7 +60,7 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: Cl
       for (const timer of timersAtMount) clearTimeout(timer);
       timersAtMount.clear();
     };
-  }, [world]);
+  }, [world, runLater]);
 
   const { map, self } = world;
   const currentZone = zoneAt(map, self.x, self.y);

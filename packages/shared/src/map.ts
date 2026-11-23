@@ -67,6 +67,7 @@ export type MapError =
   | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
   | { code: 'chair_shared'; a: string; b: string }
   | { code: 'spawn_count'; found: number }
+  | { code: 'furniture_position'; objectId: number }
   | { code: 'spawn_blocked' | 'spawn_in_meeting' };
 
 export type CompileResult = { ok: true; map: CompiledMap } | { ok: false; errors: MapError[] };
@@ -213,6 +214,11 @@ export function compileMap(json: unknown): CompileResult {
   for (const object of objectsOf(findLayer('furniture') as Json)) {
     const resolved = resolveGid(asNumber(object.gid), tilesetRefs);
     if (!resolved) continue;
+    // Sem posição numérica a pegada vira NaN: não bloqueia nada e a chave da mesa sai "@NaN,NaN".
+    if (!Number.isFinite(asNumber(object.x)) || !Number.isFinite(asNumber(object.y))) {
+      errors.push({ code: 'furniture_position', objectId: asNumber(object.id) });
+      continue;
+    }
     const left = Math.floor(asNumber(object.x) / TILE_PX);
     // Linha logo abaixo da pegada (exclusiva): a pegada ocupa de `bottom - footprintHeight` até `bottom - 1`.
     const bottom = Math.ceil(asNumber(object.y) / TILE_PX);

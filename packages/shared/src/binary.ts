@@ -42,7 +42,11 @@ export function encodeTick(ack: number, ts: number, moves: readonly ShortMove[])
     view.setUint16(offset, shortId, true);
     view.setUint8(offset + 2, x);
     view.setUint8(offset + 3, y);
-    view.setUint8(offset + 4, DIR_CODES.indexOf(dir));
+    const dirCode = DIR_CODES.indexOf(dir);
+    // O tipo impede, mas dado ruim em tempo de execução viraria o byte 255 e o tick inteiro seria
+    // recusado no cliente; melhor falhar aqui, onde o erro aponta para quem mandou.
+    if (dirCode < 0) throw new Error(`direção inválida no tick: ${dir}`);
+    view.setUint8(offset + 4, dirCode);
     offset += TICK_MOVE_BYTES;
   }
   return bytes;
