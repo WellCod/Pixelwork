@@ -30,9 +30,14 @@ function inviteProblem(invite: InviteRow | undefined, now: Date): { status: numb
   return null;
 }
 
+/**
+ * Convites por link (criação só por admin, prévia e aceite por qualquer usuário logado) e
+ * remoção de membro, que mora aqui por ser o caminho de volta do convite.
+ */
 export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db, config, clock } = deps;
 
+  /** Convite pelo token em claro, com os nomes que a prévia mostra. */
   const findInvite = async (token: string) =>
     (
       await db
@@ -77,7 +82,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
     const invite = await findInvite(request.params.token);
     const problem = inviteProblem(invite, new Date(clock.now()));
     if (problem || !invite) return reply.code(problem?.status ?? 404).send({ error: problem?.error ?? 'not_found' });
-    const member = await db
+    const existingMembership = await db
       .select({ role: spaceMembers.role })
       .from(spaceMembers)
       .where(and(eq(spaceMembers.spaceId, invite.spaceId), eq(spaceMembers.userId, user.id)));
@@ -86,7 +91,7 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
       spaceName: invite.spaceName,
       orgName: invite.orgName,
       role: invite.role,
-      alreadyMember: member.length > 0,
+      alreadyMember: existingMembership.length > 0,
     };
   });
 
@@ -97,22 +102,23 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
     const invite = await findInvite(request.params.token);
     // Já membro tem precedência sobre expirado ou esgotado: é o que a pessoa precisa saber.
     if (invite) {
-      const member = await db
+      const existingMembership = await db
         .select({ role: spaceMembers.role })
         .from(spaceMembers)
         .where(and(eq(spaceMembers.spaceId, invite.spaceId), eq(spaceMembers.userId, user.id)));
-      if (member.length > 0) return reply.code(409).send({ error: 'already_member' });
+      if (existingMembership.length > 0) return reply.code(409).send({ error: 'already_member' });
     }
     const problem = inviteProblem(invite, now);
     if (problem || !invite) return reply.code(problem?.status ?? 404).send({ error: problem?.error ?? 'not_found' });
 
+    // A checagem acima é só para a mensagem; dentro da transação as condições são conferidas de novo.
     const accept = () => db.transaction(async (tx) => {
-      const member = await tx
+      const existingMembership = await tx
         .select({ role: spaceMembers.role })
         .from(spaceMembers)
         .where(and(eq(spaceMembers.spaceId, invite.spaceId), eq(spaceMembers.userId, user.id)));
       // Quem já é membro não gasta um uso do convite.
-      if (member.length > 0) return 'already_member' as const;
+      if (existingMembership.length > 0) return 'already_member' as const;
       // Decremento condicional: dois aceites simultâneos não passam do limite.
       const taken = await tx
         .update(invites)
@@ -146,8 +152,9 @@ export function registerInviteRoutes(app: FastifyInstance, deps: AuthDeps): void
       const access = await requireMember(deps, request, reply);
       if (!access) return reply;
       const { userId } = request.params;
-      const self = userId === access.user.id;
-      if (!self && access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
+      // Sair do coworking qualquer um pode; remover outra pessoa só admin.
+      const isSelf = userId === access.user.id;
+      if (!isSelf && access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
       if (!isUuid(userId)) return reply.code(404).send({ error: 'not_found' });
 
       // Coworking sem admin ninguém edita nem convida: o último admin não sai nem é removido.

@@ -49,13 +49,14 @@ export interface TestServerOptions {
   rateLimit?: boolean;
 }
 
+/** App inteiro numa porta livre, com banco próprio já com a demo semeada e relógio manual. */
 export async function startTestServer(options: TestServerOptions = {}): Promise<TestServer> {
   const database: TestDatabase = await createTestDatabase();
-  const conn = createDb(database.url);
-  const spaceId = await seedDemo(conn.db, TEST_CONFIG.demoSpaceSlug, options.map ?? TEST_MAP);
+  const databaseHandle = createDb(database.url);
+  const spaceId = await seedDemo(databaseHandle.db, TEST_CONFIG.demoSpaceSlug, options.map ?? TEST_MAP);
   const clock = new ManualClock();
   const app = buildApp({
-    db: conn.db,
+    db: databaseHandle.db,
     config: TEST_CONFIG,
     clock,
     scheduler: clock,
@@ -66,14 +67,14 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
   const baseUrl = await app.listen({ port: 0, host: '127.0.0.1' });
   return {
     app,
-    db: conn.db,
+    db: databaseHandle.db,
     clock,
     baseUrl,
     wsUrl: `${baseUrl.replace('http', 'ws')}/ws?space=${spaceId}`,
     spaceId,
     stop: async () => {
       await app.close();
-      await conn.pool.end();
+      await databaseHandle.pool.end();
       await database.drop();
     },
   };
@@ -84,6 +85,7 @@ export interface Guest {
   cookie: string;
 }
 
+/** Entra como convidado na demo e devolve o cookie de sessão pronto para os cabeçalhos. */
 export async function loginGuest(server: TestServer): Promise<Guest> {
   const response = await fetch(`${server.baseUrl}/auth/guest`, {
     method: 'POST',
@@ -96,6 +98,7 @@ export async function loginGuest(server: TestServer): Promise<Guest> {
   return { id, cookie };
 }
 
+/** Requisição autenticada com a origem e o tipo que os guards exigem; corpo vazio vira null. */
 export async function api(
   server: TestServer,
   guest: Guest,
@@ -124,67 +127,73 @@ export async function until(condition: () => boolean, attempts = 500): Promise<v
 /** Cliente WebSocket de teste usando os tipos do protocolo. */
 export class Bot {
   readonly inbox: ServerMsg[] = [];
-  private waiters: { match: (m: ServerMsg) => boolean; resolve: (m: ServerMsg) => void }[] = [];
+  /** Quem está esperando uma mensagem com `next`; a mensagem que casa vai para o primeiro, não para a inbox. */
+  private waiters: { match: (message: ServerMsg) => boolean; resolve: (message: ServerMsg) => void }[] = [];
   readonly closed: Promise<number>;
   private seq = 0;
 
   /** Id curto -> id, para decodificar o tick binário como o cliente faz. */
   private readonly shortIds = new Map<number, string>();
 
-  private constructor(readonly ws: WebSocket) {
-    ws.on('message', (data, isBinary) => {
-      const msg = isBinary ? this.tickFrom(data as Buffer) : (JSON.parse((data as Buffer).toString('utf8')) as ServerMsg);
-      if (!msg) throw new Error('tick binário inválido');
-      if (msg.t === 'welcome') {
+  private constructor(readonly socket: WebSocket) {
+    socket.on('message', (rawMessage, isBinary) => {
+      const message = isBinary
+        ? this.tickFrom(rawMessage as Buffer)
+        : (JSON.parse((rawMessage as Buffer).toString('utf8')) as ServerMsg);
+      if (!message) throw new Error('tick binário inválido');
+      // Mantém o mapa de ids curtos em dia, como o cliente de verdade.
+      if (message.t === 'welcome') {
         this.shortIds.clear();
-        for (const p of msg.players) this.shortIds.set(p.n, p.id);
+        for (const player of message.players) this.shortIds.set(player.n, player.id);
       }
-      if (msg.t === 'player.join') this.shortIds.set(msg.player.n, msg.player.id);
-      const waiter = this.waiters.find((w) => w.match(msg));
+      if (message.t === 'player.join') this.shortIds.set(message.player.n, message.player.id);
+      const waiter = this.waiters.find((pendingWaiter) => pendingWaiter.match(message));
       if (waiter) {
-        this.waiters = this.waiters.filter((w) => w !== waiter);
-        waiter.resolve(msg);
+        this.waiters = this.waiters.filter((pendingWaiter) => pendingWaiter !== waiter);
+        waiter.resolve(message);
       } else {
-        this.inbox.push(msg);
+        this.inbox.push(message);
       }
     });
-    this.closed = new Promise((resolve) => ws.on('close', (code) => resolve(code)));
+    this.closed = new Promise((resolve) => socket.on('close', (code) => resolve(code)));
   }
 
+  /** Abre o WebSocket com o cookie do convidado; resposta HTTP no lugar do upgrade rejeita com o status. */
   static connect(server: TestServer, guest: Guest, origin = TEST_ORIGIN): Promise<Bot> {
-    const ws = new WebSocket(server.wsUrl, { headers: { cookie: guest.cookie, origin } });
+    const socket = new WebSocket(server.wsUrl, { headers: { cookie: guest.cookie, origin } });
     return new Promise((resolve, reject) => {
-      ws.once('open', () => resolve(new Bot(ws)));
-      ws.once('unexpected-response', (_req, res) => reject(new Error(`HTTP ${res.statusCode}`)));
-      ws.once('error', reject);
+      socket.once('open', () => resolve(new Bot(socket)));
+      socket.once('unexpected-response', (_request, response) => reject(new Error(`HTTP ${response.statusCode}`)));
+      socket.once('error', reject);
     });
   }
 
-  private tickFrom(data: Buffer): ServerMsg | null {
-    const tick = decodeTick(data);
+  /** Tick binário convertido para a forma JSON, com ids curtos trocados pelos ids de usuário. */
+  private tickFrom(frame: Buffer): ServerMsg | null {
+    const tick = decodeTick(frame);
     if (!tick) return null;
     return {
       t: 'tick',
       ack: tick.ack,
       ts: tick.ts,
-      moves: tick.moves.map(([n, x, y, dir]) => [this.shortIds.get(n) ?? `?${n}`, x, y, dir]),
+      moves: tick.moves.map(([shortId, x, y, dir]) => [this.shortIds.get(shortId) ?? `?${shortId}`, x, y, dir]),
     };
   }
 
   /** Próxima mensagem que satisfaz o filtro, incluindo as que já chegaram. */
   next<T extends ServerMsg['t']>(
-    t: T,
-    filter: (m: Extract<ServerMsg, { t: T }>) => boolean = () => true,
+    type: T,
+    filter: (message: Extract<ServerMsg, { t: T }>) => boolean = () => true,
   ): Promise<Extract<ServerMsg, { t: T }>> {
-    const match = (m: ServerMsg): m is Extract<ServerMsg, { t: T }> =>
-      m.t === t && filter(m as Extract<ServerMsg, { t: T }>);
+    const match = (message: ServerMsg): message is Extract<ServerMsg, { t: T }> =>
+      message.t === type && filter(message as Extract<ServerMsg, { t: T }>);
     const index = this.inbox.findIndex(match);
     if (index >= 0) {
-      const [msg] = this.inbox.splice(index, 1);
-      return Promise.resolve(msg as Extract<ServerMsg, { t: T }>);
+      const [message] = this.inbox.splice(index, 1);
+      return Promise.resolve(message as Extract<ServerMsg, { t: T }>);
     }
     return new Promise((resolve) => {
-      this.waiters.push({ match, resolve: (m) => resolve(m as Extract<ServerMsg, { t: T }>) });
+      this.waiters.push({ match, resolve: (message) => resolve(message as Extract<ServerMsg, { t: T }>) });
     });
   }
 
@@ -197,8 +206,9 @@ export class Bot {
     }
   }
 
-  send(msg: ClientMsg | string): void {
-    this.ws.send(typeof msg === 'string' ? msg : JSON.stringify(msg));
+  /** Texto cru passa direto, para os testes de mensagem inválida. */
+  send(message: ClientMsg | string): void {
+    this.socket.send(typeof message === 'string' ? message : JSON.stringify(message));
   }
 
   /**
@@ -207,13 +217,13 @@ export class Bot {
    */
   flush(): Promise<void> {
     return new Promise((resolve) => {
-      this.ws.once('pong', () => resolve());
-      this.ws.ping();
+      this.socket.once('pong', () => resolve());
+      this.socket.ping();
     });
   }
 
   close(): Promise<number> {
-    this.ws.close();
+    this.socket.close();
     return this.closed;
   }
 }

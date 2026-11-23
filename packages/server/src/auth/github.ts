@@ -24,6 +24,7 @@ export interface GitHubClient {
 /** GitHub lento não segura o callback (e o socket) indefinidamente. */
 const GITHUB_TIMEOUT_MS = 10_000;
 
+/** Cliente real do OAuth do GitHub: troca o código pelo token e lê o perfil. */
 export function githubClient(clientId: string, clientSecret: string): GitHubClient {
   return {
     exchangeCode: async (code, redirectUri) => {
@@ -54,17 +55,23 @@ const STATE_PATH = '/auth/github';
 const STATE_TTL_SECONDS = 600;
 const PROVIDER = 'github';
 
-function sameState(a: string | undefined, b: string | undefined): boolean {
-  if (!a || !b) return false;
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
+/** Compara o state em tempo constante; ausente de um dos lados nunca confere. */
+function sameState(receivedState: string | undefined, expectedState: string | undefined): boolean {
+  if (!receivedState || !expectedState) return false;
+  const left = Buffer.from(receivedState);
+  const right = Buffer.from(expectedState);
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
+/**
+ * Login pelo GitHub (OAuth com state em cookie). Conta nova é criada no primeiro login e entra
+ * no coworking de demo; login seguinte só abre sessão.
+ */
 export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { github: GitHubClient }): void {
   const { db, config, clock, github } = deps;
   const enabled = config.github.clientId !== '' && config.github.clientSecret !== '';
   const redirectUri = `${new URL(config.publicUrl).origin}/auth/github/callback`;
+  // Cookie do state restrito a /auth/github, que é onde ele é lido.
   const stateCookie = (value: string, maxAgeSeconds: number) =>
     serializeCookie(STATE_COOKIE, value, { maxAgeSeconds, secure: config.cookieSecure, path: STATE_PATH });
 
@@ -73,19 +80,20 @@ export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { gi
   app.get('/auth/github', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (_request, reply) => {
     if (!enabled) return reply.code(503).send({ error: 'github_not_configured' });
     const state = randomBytes(24).toString('base64url');
-    const url = new URL('https://github.com/login/oauth/authorize');
-    url.searchParams.set('client_id', config.github.clientId);
-    url.searchParams.set('redirect_uri', redirectUri);
-    url.searchParams.set('scope', 'read:user');
-    url.searchParams.set('state', state);
-    return reply.header('set-cookie', stateCookie(state, STATE_TTL_SECONDS)).redirect(url.toString());
+    const authorizeUrl = new URL('https://github.com/login/oauth/authorize');
+    authorizeUrl.searchParams.set('client_id', config.github.clientId);
+    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+    authorizeUrl.searchParams.set('scope', 'read:user');
+    authorizeUrl.searchParams.set('state', state);
+    return reply.header('set-cookie', stateCookie(state, STATE_TTL_SECONDS)).redirect(authorizeUrl.toString());
   });
 
   app.get<{ Querystring: { code?: string; state?: string } }>('/auth/github/callback', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
-    const expected = parseCookies(request.headers.cookie)[STATE_COOKIE];
+    const expectedState = parseCookies(request.headers.cookie)[STATE_COOKIE];
+    // O state é de uso único: apagado já na primeira resposta, dê certo ou não.
     void reply.header('set-cookie', stateCookie('', 0));
     // Sem o state do cookie, o callback pode ter sido disparado por outro site (login CSRF).
-    if (!enabled || !sameState(request.query.state, expected) || !request.query.code) {
+    if (!enabled || !sameState(request.query.state, expectedState) || !request.query.code) {
       return reply.redirect('/?erro=github');
     }
 
@@ -99,20 +107,22 @@ export function registerGitHubRoutes(app: FastifyInstance, deps: AuthDeps & { gi
 
     const providerUserId = String(profile.id);
     const now = clock.now();
+    // Busca a conta vinculada ou cria usuário, vínculo e vaga na demo, tudo antes de abrir a sessão.
     const token = await db.transaction(async (tx) => {
-      const linked = await tx
+      const linkedAccounts = await tx
         .select({ userId: oauthAccounts.userId })
         .from(oauthAccounts)
         .where(and(eq(oauthAccounts.provider, PROVIDER), eq(oauthAccounts.providerUserId, providerUserId)));
-      let userId = linked[0]?.userId;
+      let userId = linkedAccounts[0]?.userId;
       if (!userId) {
         userId = uuidv7(now);
+        // Nome do perfil ou, sem ele, o login; até 40 caracteres contando emoji como um.
         const displayName = Array.from((profile.name ?? '').trim() || profile.login).slice(0, 40).join('');
         await tx.insert(users).values({ id: userId, displayName, avatar: randomAvatar(), isGuest: false });
         await tx.insert(oauthAccounts).values({ provider: PROVIDER, providerUserId, userId });
         // Conta nova começa no coworking de demonstração, como o convidado.
-        const demo = await findDemoSpaceId(tx, config.demoSpaceSlug);
-        if (demo) await tx.insert(spaceMembers).values({ spaceId: demo, userId, role: 'member' }).onConflictDoNothing();
+        const demoSpaceId = await findDemoSpaceId(tx, config.demoSpaceSlug);
+        if (demoSpaceId) await tx.insert(spaceMembers).values({ spaceId: demoSpaceId, userId, role: 'member' }).onConflictDoNothing();
       }
       return createSession(tx, userId, new Date(now + ACCOUNT_SESSION_MS));
     });

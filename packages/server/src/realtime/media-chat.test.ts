@@ -16,7 +16,7 @@ describe('mídia e chat', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -33,7 +33,7 @@ describe('mídia e chat', () => {
     return { guest, bot };
   }
 
-  const said = (bot: Bot) => bot.inbox.filter((m): m is Extract<ServerMsg, { t: 'chat.said' }> => m.t === 'chat.said');
+  const said = (bot: Bot) => bot.inbox.filter((message): message is Extract<ServerMsg, { t: 'chat.said' }> => message.t === 'chat.said');
 
   describe('media.join', () => {
     it('chega depois do welcome com token da sala space: para o próprio usuário', async () => {
@@ -74,11 +74,11 @@ describe('mídia e chat', () => {
       const { bot } = await online();
       for (let i = 0; i < 4; i++) bot.send({ t: 'chat.say', text: `msg ${i}` });
       expect(await bot.next('error')).toEqual({ t: 'error', code: 'chat_rate' });
-      expect(said(bot).map((m) => m.text)).toEqual(['msg 0', 'msg 1', 'msg 2']);
+      expect(said(bot).map((message) => message.text)).toEqual(['msg 0', 'msg 1', 'msg 2']);
 
       server.clock.advance(1000);
       bot.send({ t: 'chat.say', text: 'de novo' });
-      expect((await bot.next('chat.said', (m) => m.text === 'de novo')).text).toBe('de novo');
+      expect((await bot.next('chat.said', (message) => message.text === 'de novo')).text).toBe('de novo');
     });
 
     it('recusa texto vazio e longo demais', async () => {

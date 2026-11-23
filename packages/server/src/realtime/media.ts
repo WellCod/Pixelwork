@@ -29,6 +29,7 @@ export interface LiveKitConfig {
   apiSecret: string;
 }
 
+// Nomes das salas no LiveKit: uma aberta por coworking, uma por zona de reunião e uma por chamada.
 export const spaceRoom = (spaceId: string) => `space:${spaceId}`;
 export const zoneRoom = (spaceId: string, zoneKey: string) => `zone:${spaceId}:${zoneKey}`;
 export const callRoom = (callId: string) => `call:${callId}`;
@@ -45,9 +46,10 @@ export const PRIVATE_SOURCES: readonly MediaSource[] = ['camera', 'microphone', 
  */
 const TOKEN_TTL = '2m';
 
+/** MediaService de verdade, falando com o LiveKit pela API de servidor. */
 export function liveKitMedia(config: LiveKitConfig): MediaService {
   // O cliente aceita a URL ws:// e troca para http por conta própria.
-  const rooms = new RoomServiceClient(config.apiUrl ?? config.url, config.apiKey, config.apiSecret);
+  const roomService = new RoomServiceClient(config.apiUrl ?? config.url, config.apiKey, config.apiSecret);
   return {
     url: config.url,
     token: async (identity, room, sources) => {
@@ -57,11 +59,11 @@ export function liveKitMedia(config: LiveKitConfig): MediaService {
         roomJoin: true,
         canSubscribe: true,
         canPublishData: false,
-        canPublishSources: sources.map((s) => SOURCES[s]),
+        canPublishSources: sources.map((source) => SOURCES[source]),
       });
       return token.toJwt();
     },
-    removeParticipant: (room, identity) => rooms.removeParticipant(room, identity),
-    deleteRoom: (room) => rooms.deleteRoom(room),
+    removeParticipant: (room, identity) => roomService.removeParticipant(room, identity),
+    deleteRoom: (room) => roomService.deleteRoom(room),
   };
 }

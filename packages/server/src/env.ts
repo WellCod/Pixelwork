@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Booleano vindo de variável de ambiente: só aceita os textos `true` e `false`. */
 const flag = z.enum(['true', 'false']).transform((value) => value === 'true');
 
 const DEV_LIVEKIT_KEY = 'devkey';
@@ -24,15 +25,15 @@ const BaseEnv = z.object({
   // 0.0.0.0 dentro do container; em dev, só a máquina local.
   HOST: z.string().default('127.0.0.1'),
   // true atrás de proxy reverso (Caddy em produção).
-  TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   // Liga /internal/stats para o teste de carga. Nunca em produção.
-  LOAD_TEST: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  LOAD_TEST: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
 });
 
 /** Com PUBLIC_URL em https é produção: valores de desenvolvimento não sobem. */
-const Env = BaseEnv.superRefine((env, ctx) => {
+const Env = BaseEnv.superRefine((env, context) => {
   if (!env.PUBLIC_URL.startsWith('https://')) return;
-  const issue = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
+  const issue = (path: string, message: string) => context.addIssue({ code: 'custom', path: [path], message });
   if (env.LIVEKIT_API_KEY === DEV_LIVEKIT_KEY) issue('LIVEKIT_API_KEY', 'chave de desenvolvimento em produção');
   if (env.LIVEKIT_API_SECRET === DEV_LIVEKIT_SECRET || env.LIVEKIT_API_SECRET.length < 32) {
     issue('LIVEKIT_API_SECRET', 'segredo de desenvolvimento ou curto demais (mínimo 32 caracteres)');
@@ -47,10 +48,11 @@ const Env = BaseEnv.superRefine((env, ctx) => {
 
 export type Env = z.infer<typeof Env>;
 
+/** Valida o ambiente e falha no boot com a lista de todos os problemas de uma vez. */
 export function loadEnv(source: Record<string, string | undefined> = process.env): Env {
   const parsed = Env.safeParse(source);
   if (!parsed.success) {
-    const lines = parsed.error.issues.map((i) => `- ${i.path.join('.')}: ${i.message}`);
+    const lines = parsed.error.issues.map((issue) => `- ${issue.path.join('.')}: ${issue.message}`);
     throw new Error(`variáveis de ambiente inválidas:\n${lines.join('\n')}`);
   }
   return parsed.data;

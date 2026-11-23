@@ -11,22 +11,24 @@ export interface TestDatabase {
 
 /** Banco novo e migrado por execução, apagado no fim (docs/architecture.md, seção 14). */
 export async function createTestDatabase(): Promise<TestDatabase> {
-  const name = `pixelwork_test_${randomBytes(6).toString('hex')}`;
-  const admin = new pg.Client({ connectionString: adminUrl });
-  await admin.connect();
-  await admin.query(`create database ${name}`);
-  await admin.end();
+  // Nome aleatório: testes em paralelo (e outros processos) não dividem banco.
+  const databaseName = `pixelwork_test_${randomBytes(6).toString('hex')}`;
+  const adminClient = new pg.Client({ connectionString: adminUrl });
+  await adminClient.connect();
+  await adminClient.query(`create database ${databaseName}`);
+  await adminClient.end();
 
-  const url = new URL(adminUrl);
-  url.pathname = `/${name}`;
-  await runMigrations(url.toString());
+  const databaseUrl = new URL(adminUrl);
+  databaseUrl.pathname = `/${databaseName}`;
+  await runMigrations(databaseUrl.toString());
 
   return {
-    url: url.toString(),
+    url: databaseUrl.toString(),
     drop: async () => {
       const client = new pg.Client({ connectionString: adminUrl });
       await client.connect();
-      await client.query(`drop database if exists ${name} with (force)`);
+      // `with (force)` derruba conexões que o teste tenha deixado abertas.
+      await client.query(`drop database if exists ${databaseName} with (force)`);
       await client.end();
     },
   };

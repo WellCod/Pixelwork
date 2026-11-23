@@ -11,7 +11,7 @@ describe('tempo real', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     // Esgota a tolerância de reconexão para o próximo teste começar vazio.
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
@@ -22,107 +22,107 @@ describe('tempo real', () => {
   });
 
   async function connect(guest?: Awaited<ReturnType<typeof loginGuest>>) {
-    const g = guest ?? (await loginGuest(server));
-    const bot = await Bot.connect(server, g);
+    const resolvedGuest = guest ?? (await loginGuest(server));
+    const bot = await Bot.connect(server, resolvedGuest);
     bots.push(bot);
     const welcome = await bot.next('welcome');
-    return { bot, guest: g, welcome };
+    return { bot, guest: resolvedGuest, welcome };
   }
 
   it('welcome, entrada e saída depois da tolerância de reconexão', async () => {
-    const a = await connect();
-    expect(a.welcome.selfId).toBe(a.guest.id);
-    expect(a.welcome.players).toEqual([expect.objectContaining({ id: a.guest.id, x: 1, y: 1 })]);
+    const alice = await connect();
+    expect(alice.welcome.selfId).toBe(alice.guest.id);
+    expect(alice.welcome.players).toEqual([expect.objectContaining({ id: alice.guest.id, x: 1, y: 1 })]);
 
-    const b = await connect();
-    const join = await a.bot.next('player.join');
-    expect(join.player.id).toBe(b.guest.id);
-    expect(b.welcome.players.map((p) => p.id).sort()).toEqual([a.guest.id, b.guest.id].sort());
+    const bob = await connect();
+    const join = await alice.bot.next('player.join');
+    expect(join.player.id).toBe(bob.guest.id);
+    expect(bob.welcome.players.map((player) => player.id).sort()).toEqual([alice.guest.id, bob.guest.id].sort());
 
-    bots.splice(bots.indexOf(b.bot), 1);
-    await b.bot.close();
+    bots.splice(bots.indexOf(bob.bot), 1);
+    await bob.bot.close();
     await until(() => server.app.realtime.connections() === 1);
 
     server.clock.advance(RECONNECT_GRACE_MS - 1);
-    await a.bot.flush();
-    expect(a.bot.inbox.some((m) => m.t === 'player.leave')).toBe(false);
+    await alice.bot.flush();
+    expect(alice.bot.inbox.some((message) => message.t === 'player.leave')).toBe(false);
 
     server.clock.advance(1);
-    const leave = await a.bot.next('player.leave');
-    expect(leave.id).toBe(b.guest.id);
+    const leave = await alice.bot.next('player.leave');
+    expect(leave.id).toBe(bob.guest.id);
   });
 
   it('volta dentro da tolerância sem player.leave e na mesma posição', async () => {
-    const a = await connect();
-    const b = await connect();
-    await a.bot.next('player.join');
+    const alice = await connect();
+    const bob = await connect();
+    await alice.bot.next('player.join');
 
-    b.bot.send({ t: 'move', seq: 1, dir: 'right' });
-    await b.bot.flush();
-    bots.splice(bots.indexOf(b.bot), 1);
-    await b.bot.close();
+    bob.bot.send({ t: 'move', seq: 1, dir: 'right' });
+    await bob.bot.flush();
+    bots.splice(bots.indexOf(bob.bot), 1);
+    await bob.bot.close();
     await until(() => server.app.realtime.connections() === 1);
     server.clock.advance(RECONNECT_GRACE_MS - 1);
 
-    const again = await connect(b.guest);
-    expect(again.welcome.players.find((p) => p.id === b.guest.id)).toMatchObject({ x: 2, y: 1 });
+    const again = await connect(bob.guest);
+    expect(again.welcome.players.find((player) => player.id === bob.guest.id)).toMatchObject({ x: 2, y: 1 });
     server.clock.advance(RECONNECT_GRACE_MS);
-    await a.bot.flush();
-    expect(a.bot.inbox.some((m) => m.t === 'player.leave')).toBe(false);
+    await alice.bot.flush();
+    expect(alice.bot.inbox.some((message) => message.t === 'player.leave')).toBe(false);
   });
 
   it('movimento aparece para o outro no tick seguinte', async () => {
-    const a = await connect();
-    const b = await connect();
-    a.bot.send({ t: 'move', seq: 1, dir: 'right' });
-    await a.bot.flush();
+    const alice = await connect();
+    const bob = await connect();
+    alice.bot.send({ t: 'move', seq: 1, dir: 'right' });
+    await alice.bot.flush();
     server.clock.advance(TICK_MS);
 
-    const tick = await b.bot.next('tick', (m) => m.moves.length > 0);
-    expect(tick.moves).toEqual([[a.guest.id, 2, 1, 'right']]);
+    const tick = await bob.bot.next('tick', (message) => message.moves.length > 0);
+    expect(tick.moves).toEqual([[alice.guest.id, 2, 1, 'right']]);
     expect(tick.ack).toBe(0);
-    const own = await a.bot.next('tick', (m) => m.moves.length > 0);
+    const own = await alice.bot.next('tick', (message) => message.moves.length > 0);
     expect(own.ack).toBe(1);
   });
 
   it('passo contra a parede devolve a posição autoritativa', async () => {
-    const a = await connect();
-    a.bot.send({ t: 'move', seq: 1, dir: 'up' });
-    await a.bot.flush();
+    const alice = await connect();
+    alice.bot.send({ t: 'move', seq: 1, dir: 'up' });
+    await alice.bot.flush();
     server.clock.advance(TICK_MS);
-    const tick = await a.bot.next('tick');
-    expect(tick).toEqual({ t: 'tick', ack: 1, moves: [[a.guest.id, 1, 1, 'up']], ts: server.clock.now() });
+    const tick = await alice.bot.next('tick');
+    expect(tick).toEqual({ t: 'tick', ack: 1, moves: [[alice.guest.id, 1, 1, 'up']], ts: server.clock.now() });
   });
 
   it('passo antes do intervalo mínimo espera na fila e é aplicado no tick seguinte', async () => {
-    const a = await connect();
-    a.bot.send({ t: 'move', seq: 1, dir: 'down' });
-    await a.bot.flush();
+    const alice = await connect();
+    alice.bot.send({ t: 'move', seq: 1, dir: 'down' });
+    await alice.bot.flush();
     server.clock.advance(MIN_STEP_INTERVAL_MS - 40);
     // Jitter: o segundo passo chega 100 ms depois do primeiro, antes do intervalo mínimo.
-    a.bot.send({ t: 'move', seq: 2, dir: 'down' });
-    await a.bot.flush();
-    const early = await a.bot.next('tick');
+    alice.bot.send({ t: 'move', seq: 2, dir: 'down' });
+    await alice.bot.flush();
+    const early = await alice.bot.next('tick');
     expect(early.ack).toBe(1);
     server.clock.advance(TICK_MS);
-    const tick = await a.bot.next('tick', (t) => t.ack === 2);
-    expect(tick.moves).toEqual([[a.guest.id, 1, 3, 'down']]);
+    const tick = await alice.bot.next('tick', (tickMessage) => tickMessage.ack === 2);
+    expect(tick.moves).toEqual([[alice.guest.id, 1, 3, 'down']]);
   });
 
   it('fila de passos tem limite: o excedente é confirmado sem andar', async () => {
-    const a = await connect();
-    for (let seq = 1; seq <= 5; seq++) a.bot.send({ t: 'move', seq, dir: 'down' });
-    await a.bot.flush();
+    const alice = await connect();
+    for (let seq = 1; seq <= 5; seq++) alice.bot.send({ t: 'move', seq, dir: 'down' });
+    await alice.bot.flush();
     server.clock.advance(TICK_MS);
-    const tick = await a.bot.next('tick');
+    const tick = await alice.bot.next('tick');
     // Passo 1 aplicado na hora; 2 e 3 descartados; 4 e 5 esperando o intervalo.
     expect(tick.ack).toBe(3);
   });
 
   it('ping responde pong com o mesmo id', async () => {
-    const a = await connect();
-    a.bot.send({ t: 'ping', id: 7 });
-    const pong = await a.bot.next('pong');
+    const alice = await connect();
+    alice.bot.send({ t: 'ping', id: 7 });
+    const pong = await alice.bot.next('pong');
     expect(pong).toEqual({ t: 'pong', id: 7, ts: server.clock.now() });
   });
 
@@ -145,16 +145,16 @@ describe('tempo real', () => {
   });
 
   it('fecha a conexão depois de mais de 10 mensagens inválidas em 10 segundos', async () => {
-    const a = await connect();
-    for (let i = 0; i < 11; i++) a.bot.send('{"t":"voar"}');
-    expect(await a.bot.closed).toBe(CLOSE_POLICY);
-    bots.splice(bots.indexOf(a.bot), 1);
+    const alice = await connect();
+    for (let i = 0; i < 11; i++) alice.bot.send('{"t":"voar"}');
+    expect(await alice.bot.closed).toBe(CLOSE_POLICY);
+    bots.splice(bots.indexOf(alice.bot), 1);
   });
 
   it('fecha a conexão acima de 50 mensagens por segundo', async () => {
-    const a = await connect();
-    for (let i = 1; i <= 51; i++) a.bot.send({ t: 'move', seq: i, dir: 'left' });
-    expect(await a.bot.closed).toBe(CLOSE_POLICY);
-    bots.splice(bots.indexOf(a.bot), 1);
+    const alice = await connect();
+    for (let i = 1; i <= 51; i++) alice.bot.send({ t: 'move', seq: i, dir: 'left' });
+    expect(await alice.bot.closed).toBe(CLOSE_POLICY);
+    bots.splice(bots.indexOf(alice.bot), 1);
   });
 });

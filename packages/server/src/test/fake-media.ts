@@ -22,7 +22,8 @@ export class FakeMedia implements MediaService {
     return Promise.resolve();
   }
 
+  /** Salas para as quais a pessoa recebeu token, em ordem. */
   roomsFor(identity: string): string[] {
-    return this.tokens.filter((t) => t.identity === identity).map((t) => t.room);
+    return this.tokens.filter((token) => token.identity === identity).map((token) => token.room);
   }
 }

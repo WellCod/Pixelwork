@@ -53,7 +53,7 @@ describe('mapas: upload, troca ao vivo e export', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -63,32 +63,32 @@ describe('mapas: upload, troca ao vivo e export', () => {
   });
 
   async function online(guest?: Guest) {
-    const g = guest ?? (await loginGuest(server));
-    const bot = await Bot.connect(server, g);
+    const resolvedGuest = guest ?? (await loginGuest(server));
+    const bot = await Bot.connect(server, resolvedGuest);
     bots.push(bot);
     await bot.next('welcome');
-    return { guest: g, bot };
+    return { guest: resolvedGuest, bot };
   }
 
-  async function claim(u: { guest: Guest; bot: Bot }, path: Dir[], deskKey: string) {
-    await u.bot.walk(server.clock, path);
-    expect((await api(server, u.guest, 'POST', space(`/desks/${deskKey}/claim`))).status).toBe(201);
+  async function claim(player: { guest: Guest; bot: Bot }, path: Dir[], deskKey: string) {
+    await player.bot.walk(server.clock, path);
+    expect((await api(server, player.guest, 'POST', space(`/desks/${deskKey}/claim`))).status).toBe(201);
   }
 
   it('validate devolve os erros do mapa e as mesas atribuídas que sumiriam', async () => {
-    const u = await online();
-    await claim(u, ['down', 'right', 'right', 'right', 'right', 'right', 'right'], 'mesa-3');
+    const player = await online();
+    await claim(player, ['down', 'right', 'right', 'right', 'right', 'right', 'right'], 'mesa-3');
     const withoutDesk3 = buildTestMap({ ...base, desks: base.desks?.slice(0, 2) ?? [] });
 
-    const ok = await api(server, admin, 'POST', space('/map/validate'), { map: withoutDesk3 });
-    expect(ok.json).toEqual({ errors: [], orphanDesks: ['mesa-3'] });
+    const validation = await api(server, admin, 'POST', space('/map/validate'), { map: withoutDesk3 });
+    expect(validation.json).toEqual({ errors: [], orphanDesks: ['mesa-3'] });
 
     const broken = { ...withoutDesk3, orientation: 'isometric' };
     expect((await api(server, admin, 'POST', space('/map/validate'), { map: broken })).json).toEqual({
       errors: [{ code: 'not_orthogonal' }],
       orphanDesks: [],
     });
-    expect((await api(server, u.guest, 'POST', space('/map/validate'), { map: withoutDesk3 })).status).toBe(403);
+    expect((await api(server, player.guest, 'POST', space('/map/validate'), { map: withoutDesk3 })).status).toBe(403);
   });
 
   it('409 com baseVersion antiga', async () => {
@@ -106,8 +106,8 @@ describe('mapas: upload, troca ao vivo e export', () => {
   });
 
   it('mesas órfãs saem na mesma transação; falha no meio não deixa estado parcial', async () => {
-    const u = await online();
-    await claim(u, ['down', 'right', 'right', 'right', 'right', 'right', 'right'], 'mesa-3');
+    const player = await online();
+    await claim(player, ['down', 'right', 'right', 'right', 'right', 'right', 'right'], 'mesa-3');
     const withoutDesk3 = buildTestMap({ ...base, desks: base.desks?.slice(0, 2) ?? [] });
     const before = await version();
 
@@ -147,7 +147,7 @@ describe('mapas: upload, troca ao vivo e export', () => {
     expect(await watcher.bot.next('map.updated')).toEqual({ t: 'map.updated', version: before + 1 });
 
     server.clock.advance(100);
-    const tick = await watcher.bot.next('tick', (m) => m.moves.some(([id]) => id === mover.guest.id));
+    const tick = await watcher.bot.next('tick', (message) => message.moves.some(([id]) => id === mover.guest.id));
     const move = tick.moves.find(([id]) => id === mover.guest.id);
     const compiled = compileMap(walled);
     if (!compiled.ok) throw new Error('mapa de teste inválido');
@@ -165,7 +165,7 @@ describe('mapas: upload, troca ao vivo e export', () => {
     await api(server, admin, 'PUT', space('/map'), { map: walled, baseVersion: await version() });
     await islander.bot.next('map.updated');
     server.clock.advance(100);
-    const tick = await islander.bot.next('tick', (m) => m.moves.some(([id]) => id === islander.guest.id));
+    const tick = await islander.bot.next('tick', (message) => message.moves.some(([id]) => id === islander.guest.id));
     expect(tick.moves.find(([id]) => id === islander.guest.id)?.slice(1, 3)).toEqual([1, 1]);
   });
 
@@ -173,21 +173,21 @@ describe('mapas: upload, troca ao vivo e export', () => {
     const inside = await online();
     // Até (9,5), dentro da sala.
     await inside.bot.walk(server.clock, ['down', 'down', 'down', 'down', 'right', 'right', 'right', 'right', 'right', 'right', 'right', 'right']);
-    await inside.bot.next('media.join', (m) => m.room === `zone:${server.spaceId}:sala`);
+    await inside.bot.next('media.join', (message) => message.room === `zone:${server.spaceId}:sala`);
     inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-    await inside.bot.next('zone.state', (m) => m.zone.locked);
+    await inside.bot.next('zone.state', (message) => message.zone.locked);
 
-    const noRoom = buildTestMap({ ...base, zones: base.zones?.filter((z) => z.key !== 'sala') ?? [] });
+    const noRoom = buildTestMap({ ...base, zones: base.zones?.filter((zone) => zone.key !== 'sala') ?? [] });
     await api(server, admin, 'PUT', space('/map'), { map: noRoom, baseVersion: await version() });
-    const join = await inside.bot.next('media.join', (m) => m.room === `space:${server.spaceId}`);
+    const join = await inside.bot.next('media.join', (message) => message.room === `space:${server.spaceId}`);
     expect(join.room).toBe(`space:${server.spaceId}`);
     expect(media.deletedRooms).toContain(`zone:${server.spaceId}:sala`);
     expect(media.removed).toContainEqual({ room: `zone:${server.spaceId}:sala`, identity: inside.guest.id });
 
     // Quem chega depois não vê a sala no welcome.
     const late = await online();
-    const welcomeZones = late.bot.inbox.filter((m): m is Extract<ServerMsg, { t: 'zone.state' }> => m.t === 'zone.state');
-    expect(welcomeZones.every((m) => m.zone.zoneKey !== 'sala')).toBe(true);
+    const welcomeZones = late.bot.inbox.filter((message): message is Extract<ServerMsg, { t: 'zone.state' }> => message.t === 'zone.state');
+    expect(welcomeZones.every((message) => message.zone.zoneKey !== 'sala')).toBe(true);
   });
 
   it('export: zip com map.json, exatamente os tilesets referenciados e os créditos', async () => {
@@ -197,13 +197,13 @@ describe('mapas: upload, troca ao vivo e export', () => {
     const files = unzipSync(new Uint8Array(await response.arrayBuffer()));
     const tilesets = [...TILESET_IDS];
     expect(Object.keys(files).sort()).toEqual(
-      ['CREDITS.txt', 'map.json', ...tilesets.flatMap((t) => [`${t}.png`, `${t}.tsj`])].sort(),
+      ['CREDITS.txt', 'map.json', ...tilesets.flatMap((tileset) => [`${tileset}.png`, `${tileset}.tsj`])].sort(),
     );
     const exported: unknown = JSON.parse(strFromU8(files['map.json'] ?? new Uint8Array()));
     expect(compileMap(exported).ok).toBe(true);
     const credits = strFromU8(files['CREDITS.txt'] ?? new Uint8Array());
     for (const id of tilesets) {
-      const entry = CREDITS.find((c) => c.kind === 'tileset' && c.id === id);
+      const entry = CREDITS.find((credit) => credit.kind === 'tileset' && credit.id === id);
       expect(credits).toContain(`${id}.png: ${entry?.author ?? ''}, licença ${entry?.license ?? ''}`);
     }
 
@@ -219,7 +219,7 @@ describe('mapas: upload, troca ao vivo e export', () => {
     expect(saved.status).toBe(200);
     const response = await fetch(`${server.baseUrl}${space('/map/export')}`, { headers: { cookie: admin.cookie } });
     const files = Object.keys(unzipSync(new Uint8Array(await response.arrayBuffer())));
-    expect(files.some((f) => f.startsWith('desk-decor'))).toBe(false);
+    expect(files.some((fileName) => fileName.startsWith('desk-decor'))).toBe(false);
     expect(files).toContain('furniture.png');
   });
 });

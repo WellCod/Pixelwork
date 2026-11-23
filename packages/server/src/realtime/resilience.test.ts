@@ -15,7 +15,7 @@ describe('resiliência do gateway', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -25,11 +25,11 @@ describe('resiliência do gateway', () => {
   });
 
   function upgradeStatus(url: string, cookie: string): Promise<number> {
-    const ws = new WebSocket(url, { headers: { cookie, origin: TEST_ORIGIN } });
+    const socket = new WebSocket(url, { headers: { cookie, origin: TEST_ORIGIN } });
     return new Promise((resolve) => {
-      ws.once('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
-      ws.once('open', () => {
-        ws.terminate();
+      socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0));
+      socket.once('open', () => {
+        socket.terminate();
         resolve(101);
       });
     });
@@ -139,7 +139,7 @@ describe('limite de taxa', () => {
         });
         statuses.push(response.status);
       }
-      expect(statuses.slice(0, 10).every((s) => s === 201)).toBe(true);
+      expect(statuses.slice(0, 10).every((status) => status === 201)).toBe(true);
       expect(statuses[10]).toBe(429);
     } finally {
       await server.stop();

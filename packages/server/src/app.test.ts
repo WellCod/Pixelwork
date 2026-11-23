@@ -21,14 +21,15 @@ describe('GET /health', () => {
   });
 
   it('responde 503 quando o banco não responde', async () => {
-    const broken = createDb('postgres://app:app@127.0.0.1:1/nada');
-    const brokenApp = buildApp({ db: broken.db, config: TEST_CONFIG });
+    // Porta 1: nada escuta ali, a consulta do health falha na hora.
+    const brokenDatabase = createDb('postgres://app:app@127.0.0.1:1/nada');
+    const brokenApp = buildApp({ db: brokenDatabase.db, config: TEST_CONFIG });
     try {
       const response = await brokenApp.inject({ method: 'GET', url: '/health' });
       expect(response.statusCode).toBe(503);
     } finally {
       await brokenApp.close();
-      await broken.pool.end();
+      await brokenDatabase.pool.end();
     }
   });
 });

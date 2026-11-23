@@ -43,7 +43,7 @@ describe('multi-coworking', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -66,8 +66,8 @@ describe('multi-coworking', () => {
   const sessionFrom = (response: Response): Guest | null => {
     const sid = response.headers
       .getSetCookie()
-      .map((c) => c.split(';')[0] ?? '')
-      .find((c) => c.startsWith('sid=') && c !== 'sid=');
+      .map((cookie) => cookie.split(';')[0] ?? '')
+      .find((cookie) => cookie.startsWith('sid=') && cookie !== 'sid=');
     return sid ? { id: '', cookie: sid } : null;
   };
 
@@ -95,7 +95,7 @@ describe('multi-coworking', () => {
       const response = await loginGitHub();
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe('/');
-      expect(response.headers.getSetCookie().find((c) => c.startsWith('sid='))).toMatch(/Max-Age=2592000/);
+      expect(response.headers.getSetCookie().find((cookie) => cookie.startsWith('sid='))).toMatch(/Max-Age=2592000/);
       const me = await api(server, sessionFrom(response) as Guest, 'GET', '/me');
       expect(me.json).toMatchObject({ name: 'Ana', isGuest: false });
 
@@ -106,7 +106,7 @@ describe('multi-coworking', () => {
 
     it('callback com state divergente ou ausente é recusado sem falar com o github', async () => {
       const before = github.calls;
-      for (const tamper of [(s: string) => `${s}x`, () => undefined]) {
+      for (const tamper of [(state: string) => `${state}x`, () => undefined]) {
         const response = await loginGitHub('bom', tamper);
         expect(response.headers.get('location')).toBe('/?erro=github');
         expect(sessionFrom(response)).toBeNull();
@@ -134,7 +134,7 @@ describe('multi-coworking', () => {
       });
       expect(space.status).toBe(201);
       const list = (await api(server, owner, 'GET', '/spaces')).json as { id: string; role: string; orgRole: string }[];
-      expect(list.find((s) => s.id === (space.json as { id: string }).id)).toMatchObject({ role: 'admin', orgRole: 'owner' });
+      expect(list.find((listedSpace) => listedSpace.id === (space.json as { id: string }).id)).toMatchObject({ role: 'admin', orgRole: 'owner' });
 
       expect((await api(server, owner, 'POST', '/orgs', { name: 'Outra', slug: 'acme' })).status).toBe(409);
       const outsider = await githubAccount(2002, 'intrusa');
@@ -167,14 +167,14 @@ describe('multi-coworking', () => {
       const admin = await adminOfOther();
       const token = await invite(admin, { role: 'admin', maxUses: 2 });
       const stored = await server.db.select().from(invites).where(eq(invites.spaceId, otherSpaceId));
-      expect(stored.every((i) => !Buffer.from(i.tokenHash).toString('utf8').includes(token))).toBe(true);
+      expect(stored.every((invite) => !Buffer.from(invite.tokenHash).toString('utf8').includes(token))).toBe(true);
 
       const joiner = await loginGuest(server);
       const preview = await api(server, joiner, 'GET', `/invites/${token}`);
       expect(preview.json).toMatchObject({ spaceId: otherSpaceId, role: 'admin', alreadyMember: false });
       expect((await api(server, joiner, 'POST', `/invites/${token}/accept`)).status).toBe(201);
       const spaces = (await api(server, joiner, 'GET', '/spaces')).json as { id: string; role: string }[];
-      expect(spaces.find((s) => s.id === otherSpaceId)?.role).toBe('admin');
+      expect(spaces.find((space) => space.id === otherSpaceId)?.role).toBe('admin');
     });
 
     it('expirado, sem usos restantes, já membro e token inexistente', async () => {
@@ -218,7 +218,7 @@ describe('multi-coworking', () => {
       await targetBot.next('welcome');
       await targetBot.walk(server.clock, ['down', 'right', 'right']);
       expect((await api(server, target, 'POST', `/spaces/${server.spaceId}/desks/mesa-1/claim`)).status).toBe(201);
-      await adminBot.next('desk.updated', (m) => m.desk.userId === target.id);
+      await adminBot.next('desk.updated', (message) => message.desk.userId === target.id);
       expect((await api(server, target, 'PUT', `/spaces/${server.spaceId}/desks/mesa-1/decor`, DECOR)).status).toBe(200);
 
       const member = await loginGuest(server);
@@ -226,8 +226,8 @@ describe('multi-coworking', () => {
       expect((await api(server, admin, 'DELETE', `/spaces/${server.spaceId}/members/${target.id}`)).status).toBe(204);
 
       expect(await targetBot.closed).toBe(CLOSE_REMOVED);
-      expect((await adminBot.next('player.leave', (m) => m.id === target.id)).id).toBe(target.id);
-      expect((await adminBot.next('desk.updated', (m) => m.desk.deskKey === 'mesa-1' && m.desk.userId === null)).desk.decor).toBeNull();
+      expect((await adminBot.next('player.leave', (message) => message.id === target.id)).id).toBe(target.id);
+      expect((await adminBot.next('desk.updated', (message) => message.desk.deskKey === 'mesa-1' && message.desk.userId === null)).desk.decor).toBeNull();
       const rows = await server.db.select().from(deskAssignments).where(eq(deskAssignments.userId, target.id));
       expect(rows).toEqual([]);
       expect((await api(server, target, 'GET', `/spaces/${server.spaceId}`)).status).toBe(404);
@@ -279,10 +279,10 @@ describe('multi-coworking', () => {
     };
 
     it('toda rota /spaces/:spaceId/... responde 404 para quem não é membro', async () => {
-      const routes = server.app.routeTable.filter((r) => r.url.startsWith('/spaces/:spaceId'));
+      const routes = server.app.routeTable.filter((route) => route.url.startsWith('/spaces/:spaceId'));
       expect(routes.length).toBeGreaterThan(0);
-      const keys = routes.map((r) => `${r.method} ${r.url}`);
-      expect(keys.filter((k) => !(k in BODIES))).toEqual([]);
+      const keys = routes.map((route) => `${route.method} ${route.url}`);
+      expect(keys.filter((routeKey) => !(routeKey in BODIES))).toEqual([]);
 
       const outsider = await loginGuest(server);
       const someone = await loginGuest(server);

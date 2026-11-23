@@ -13,8 +13,8 @@ export function registerStateGuards(app: FastifyInstance, publicUrl: string): vo
     if (request.headers.origin !== origin) {
       return reply.code(403).send({ error: 'bad_origin' });
     }
-    const type = request.headers['content-type'] ?? '';
-    if (!/^application\/json(\s*;|$)/i.test(type)) {
+    const contentType = request.headers['content-type'] ?? '';
+    if (!/^application\/json(\s*;|$)/i.test(contentType)) {
       return reply.code(415).send({ error: 'json_required' });
     }
   });

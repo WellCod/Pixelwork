@@ -17,20 +17,23 @@ export const MAX_MAP_BYTES = 5 * 1024 * 1024;
 const ValidateBody = z.object({ map: z.unknown() });
 const SaveBody = z.object({ map: z.unknown(), baseVersion: z.number().int().positive() });
 
+/** Erro de tamanho no mesmo formato dos erros do compileMap, para a resposta juntar os dois. */
 function sizeErrors(map: unknown): MapError[] {
   return Buffer.byteLength(JSON.stringify(map ?? null)) > MAX_MAP_BYTES ? [{ code: 'too_large' }] : [];
 }
 
+/** Editor de mapa (só admin): ensaio, gravação com controle de versão, exportação e replay. */
 export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db } = deps;
 
-  const assignedKeys = async (spaceId: string) =>
+  /** Chaves das mesas com dono no coworking. */
+  const assignedDeskKeys = async (spaceId: string) =>
     (
       await db
         .select({ deskKey: deskAssignments.deskKey })
         .from(deskAssignments)
         .where(eq(deskAssignments.spaceId, spaceId))
-    ).map((r) => r.deskKey);
+    ).map((row) => row.deskKey);
 
   /**
    * Gravação do replay (só admin): entradas da simulação desde a última troca de mapa. Sem
@@ -57,8 +60,8 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
       const result = compileMap(body.map);
       const errors = [...sizeErrors(body.map), ...(result.ok ? [] : result.errors)];
       if (!result.ok) return { errors, orphanDesks: [] };
-      const keys = new Set(result.map.desks.map((d) => d.key));
-      const orphanDesks = (await assignedKeys(access.spaceId)).filter((k) => !keys.has(k));
+      const newDeskKeys = new Set(result.map.desks.map((desk) => desk.key));
+      const orphanDesks = (await assignedDeskKeys(access.spaceId)).filter((deskKey) => !newDeskKeys.has(deskKey));
       return { errors, orphanDesks };
     },
   );
@@ -76,10 +79,11 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
       const result = compileMap(body.map);
       const errors = [...sizeErrors(body.map), ...(result.ok ? [] : result.errors)];
       if (!result.ok || errors.length > 0) return reply.code(422).send({ error: 'invalid_map', errors });
-      const deskKeys = result.map.desks.map((d) => d.key);
+      const deskKeys = result.map.desks.map((desk) => desk.key);
       const { spaceId } = access;
 
-      // Mapa, versão e atribuições órfãs numa transação só: ou tudo, ou nada.
+      // Mapa, versão e atribuições órfãs numa transação só: ou tudo, ou nada. O update só pega
+      // se a versão no banco ainda for a que o editor abriu (baseVersion); senão é 409 stale_map.
       const saved = await db.transaction(async (tx) => {
         const updated = await tx
           .update(spaces)
@@ -88,6 +92,7 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
           .returning({ version: spaces.mapVersion });
         const version = updated[0]?.version;
         if (version === undefined) return null;
+        // Mapa sem mesa nenhuma: o notInArray com lista vazia não serve, então apaga todas.
         const orphans = await tx
           .delete(deskAssignments)
           .where(
@@ -96,10 +101,11 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
               : eq(deskAssignments.spaceId, spaceId),
           )
           .returning({ deskKey: deskAssignments.deskKey });
-        return { version, orphanDesks: orphans.map((o) => o.deskKey) };
+        return { version, orphanDesks: orphans.map((orphan) => orphan.deskKey) };
       });
 
       if (!saved) {
+        // Devolve a versão atual para o editor saber de quanto ficou para trás.
         const current = await db.select({ version: spaces.mapVersion }).from(spaces).where(eq(spaces.id, spaceId));
         return reply.code(409).send({ error: 'stale_map', version: current[0]?.version ?? null });
       }
@@ -122,9 +128,9 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
     if (!row || !result?.ok) return reply.code(500).send({ error: 'stored_map_invalid' });
 
     const files: Record<string, Uint8Array> = { 'map.json': strToU8(`${JSON.stringify(row.map, null, 1)}\n`) };
-    for (const id of result.map.tilesets) {
-      for (const ext of ['tsj', 'png']) {
-        files[`${id}.${ext}`] = readFileSync(join(ASSETS_DIR, 'tilesets', `${id}.${ext}`));
+    for (const tilesetId of result.map.tilesets) {
+      for (const extension of ['tsj', 'png']) {
+        files[`${tilesetId}.${extension}`] = readFileSync(join(ASSETS_DIR, 'tilesets', `${tilesetId}.${extension}`));
       }
     }
     files['CREDITS.txt'] = strToU8(creditsText(result.map.tilesets));
@@ -138,8 +144,8 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
 
 /** Créditos dos tilesets do zip; tudo no repositório pode ser redistribuído (docs/art.md, seção 7). */
 export function creditsText(tilesets: readonly string[]): string {
-  const lines = CREDITS.filter((c) => c.kind === 'tileset' && tilesets.includes(c.id)).map(
-    (c) => `${c.id}.png: ${c.author}, licença ${c.license}${c.source ? `, ${c.source}` : ''}`,
+  const lines = CREDITS.filter((credit) => credit.kind === 'tileset' && tilesets.includes(credit.id)).map(
+    (credit) => `${credit.id}.png: ${credit.author}, licença ${credit.license}${credit.source ? `, ${credit.source}` : ''}`,
   );
   return `Créditos dos tilesets deste mapa\n\n${lines.join('\n')}\n`;
 }
