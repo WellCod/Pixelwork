@@ -236,4 +236,51 @@ describe('GameRegistry', () => {
     clock.advance(101);
     expect(frames).toHaveLength(3);
   });
+
+  it('o fim da partida chega à mesa antes do evento de fim', () => {
+    const order: string[] = [];
+    const clock = new ManualClock();
+    const games = new GameRegistry(
+      map.tables,
+      {
+        clock,
+        scheduler: clock,
+        send: (_to, msg) => {
+          if (msg.t === 'game.events' && msg.events.some((e) => e.type === 'end')) order.push('end');
+        },
+        broadcast: (msg) => {
+          if (msg.t === 'table.state' && msg.table.phase === 'ended') order.push('table-ended');
+        },
+        activityChanged: () => undefined,
+      },
+      { start: nearEnd('left') },
+    );
+    games.join('a', KEY, LEFT, false);
+    games.bot('a');
+    clock.advance(100);
+    expect(order).toEqual(['table-ended', 'end']);
+  });
+
+  it('close cancela os intervalos das partidas', () => {
+    const { games, clock } = setup();
+    games.join('a', KEY, LEFT, false);
+    games.bot('a');
+    expect(clock.pending()).toBe(1);
+    games.close();
+    expect(clock.pending()).toBe(0);
+  });
+
+  it('queda solta a raquete: ela não anda sozinha depois da volta', () => {
+    const { games, clock, lastState } = setup();
+    games.join('a', KEY, LEFT, false);
+    games.join('b', KEY, RIGHT, false);
+    games.input('a', 1, 1);
+    clock.advance(100);
+    const before = lastState('b')?.paddles.left;
+    games.disconnected('a');
+    games.reconnected('a');
+    clock.advance(PONG.COUNTDOWN_MS + 200);
+    expect(lastState('b')?.paddles.left).toBe(before);
+  });
 });
+

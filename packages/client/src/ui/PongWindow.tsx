@@ -1,6 +1,7 @@
-import { PONG, type ClientMsg, type PongDir, type PongSide } from '@pixelwork/shared';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { PONG, type ClientMsg, type PongSide } from '@pixelwork/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
+import { PaddleKeys } from '../net/pong-keys.ts';
 import { extrapolateBall, predictPaddle } from '../net/pong-predict.ts';
 import { Modal } from './Modal.tsx';
 import { useWorld } from './useWorld.ts';
@@ -13,8 +14,15 @@ const THEIRS = '#2e222f';
 const BALL = '#ffffff';
 const SHADE = 'rgba(46, 34, 47, 0.55)';
 
-const UP_KEYS = new Set(['ArrowUp', 'w', 'W']);
-const DOWN_KEYS = new Set(['ArrowDown', 's', 'S']);
+/** Foco num campo de texto: as teclas são de quem digita. */
+function isTextField(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  );
+}
 
 const other = (side: PongSide): PongSide => (side === 'left' ? 'right' : 'left');
 
@@ -28,52 +36,38 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (msg: Cl
   const canvas = useRef<HTMLCanvasElement>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [askedRematch, setAskedRematch] = useState(false);
-  const held = useRef(new Set<string>());
-  const sentDir = useRef<PongDir>(0);
-
   const seat = world.seat;
   const table = seat ? world.tables.get(seat.tableKey) : undefined;
 
-  /** Tecla ou botão de toque apertado/solto; só a mudança de direção vai para o servidor. */
-  const press = useCallback(
-    (key: string, on: boolean) => {
-      if (on) held.current.add(key);
-      else held.current.delete(key);
-      const keys = [...held.current];
-      const up = keys.some((k) => UP_KEYS.has(k) || k === 'touch-up');
-      const down = keys.some((k) => DOWN_KEYS.has(k) || k === 'touch-down');
-      const dir: PongDir = up === down ? 0 : up ? -1 : 1;
-      if (dir === sentDir.current) return;
-      sentDir.current = dir;
-      send(world.gameInput(dir));
-    },
-    [world, send],
-  );
+  const keys = useMemo(() => new PaddleKeys((dir) => send(world.gameInput(dir))), [world, send]);
 
-  // Teclado: setas e W/S mexem a raquete.
+  // Teclado: setas e W/S mexem a raquete, só sentado à mesa e fora de campos de texto (o
+  // componente fica montado o tempo todo, e W/S são letras do chat).
   useEffect(() => {
-    const onDown = (e: KeyboardEvent) => {
-      if (!UP_KEYS.has(e.key) && !DOWN_KEYS.has(e.key)) return;
-      e.preventDefault();
-      press(e.key, true);
+    const handle = (e: KeyboardEvent, down: boolean) => {
+      if (keys.press(e.key, down, world.seat !== null && !isTextField(e.target)) && down) e.preventDefault();
     };
-    const onUp = (e: KeyboardEvent) => press(e.key, false);
+    const onDown = (e: KeyboardEvent) => handle(e, true);
+    const onUp = (e: KeyboardEvent) => handle(e, false);
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
     };
-  }, [press]);
+  }, [world, keys]);
 
   // Avisos da partida: fim e vitória por desistência.
   useEffect(
     () =>
       world.subscribe((event) => {
-        // Partida nova (revanche ou alguém chegou): o aviso da anterior sai.
+        // Reconexão: o servidor zerou a raquete; a próxima tecla precisa ser enviada de novo.
+        if (event.type === 'reset') keys.reset();
+        // Partida nova (revanche ou alguém chegou): o aviso da anterior sai e a raquete recomeça.
         if (event.type === 'table' && event.table.tableKey === world.seat?.tableKey && event.table.phase === 'playing') {
           setNotice(null);
           setAskedRematch(false);
+          keys.reset();
         }
         if (event.type !== 'gameEvents' || !world.seat) return;
         const end = event.events.find((e) => e.type === 'end');
@@ -84,7 +78,7 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (msg: Cl
         setNotice(quit ? 'O adversário saiu: vitória por desistência.' : won ? 'Você venceu!' : 'Você perdeu.');
         setAskedRematch(false);
       }),
-    [world],
+    [world, keys],
   );
 
   // Desenho por quadro.
@@ -175,10 +169,10 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (msg: Cl
   }
 
   const touch = (key: string) => ({
-    onPointerDown: () => press(key, true),
-    onPointerUp: () => press(key, false),
-    onPointerLeave: () => press(key, false),
-    onPointerCancel: () => press(key, false),
+    onPointerDown: () => keys.press(key, true, true),
+    onPointerUp: () => keys.press(key, false, true),
+    onPointerLeave: () => keys.press(key, false, true),
+    onPointerCancel: () => keys.press(key, false, true),
   });
 
   return (
