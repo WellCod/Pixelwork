@@ -26,6 +26,15 @@ const me = { id: 'eu', x: 2, y: 2 };
 const at = (id: string, x: number, y: number) => ({ id, x, y });
 
 describe('nextProximity', () => {
+  it('forced inclui o adversário a 4 tiles, mesmo em outra zona', () => {
+    const far = at('adv', 12, 2);
+    expect(nextProximity(map, me, [far], new Set(), new Set(['adv']))).toEqual(new Set(['adv']));
+  });
+
+  it('forced não traz quem não está no mapa', () => {
+    expect(nextProximity(map, me, [], new Set(), new Set(['sumiu'])).size).toBe(0);
+  });
+
   it('entra no raio de entrada', () => {
     expect(nextProximity(map, me, [at('o', 2 + PROXIMITY_ENTER_TILES, 2)], new Set())).toEqual(new Set(['o']));
   });
