@@ -66,7 +66,9 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const [replayOpen, setReplayOpen] = useState(false);
   const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
-  const send = (message: ClientMsg) => connection.current?.send(message);
+  // Estável entre renderizações (só lê o ref da conexão): o PongWindow recria o controle da raquete
+  // quando o send muda, e isso soltava as teclas seguradas no meio da partida.
+  const send = useCallback((message: ClientMsg) => connection.current?.send(message), []);
 
   // Conexão, mídia e chamadas vivem enquanto o coworking for o mesmo, mesmo se o mapa trocar.
   useEffect(() => {
