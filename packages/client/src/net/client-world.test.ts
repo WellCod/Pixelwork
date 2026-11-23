@@ -59,4 +59,22 @@ describe('ClientWorld: mesas de jogo', () => {
     expect(world.gameAckedDir).toBe(1);
     expect(world.lastGame?.paddles.left).toBe(50);
   });
+
+  it('game.state não muda a versão que a UI observa', () => {
+    const world = new ClientWorld(map);
+    world.handle(welcome({ tableKey: 'ping-pong@4,3', side: 'left' }));
+    const before = world.version;
+    world.handle({
+      t: 'game.state',
+      tableKey: 'ping-pong@4,3',
+      ack: 0,
+      phase: 'playing',
+      serveAt: 0,
+      ball: { x: 80, y: 45, vx: 0, vy: 0 },
+      paddles: { left: 45, right: 45 },
+      score: { left: 0, right: 0 },
+      serverTs: 0,
+    });
+    expect(world.version).toBe(before);
+  });
 });

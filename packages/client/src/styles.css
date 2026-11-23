@@ -1126,3 +1126,60 @@ a.button {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+
+/* ---- pingpong ---- */
+
+.pong-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pong-score span:first-child {
+  text-align: right;
+}
+
+.pong-score strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pong-field {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  image-rendering: pixelated;
+}
+
+.pong-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap);
+  margin-top: 10px;
+}
+
+.pong-status > span {
+  flex: 1 1 auto;
+}
+
+.pong-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap);
+  margin-top: 10px;
+}
+
+.pong-controls .hint {
+  flex: 1 1 100%;
+}
+
+.pong-controls button[aria-label] {
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: none;
+}

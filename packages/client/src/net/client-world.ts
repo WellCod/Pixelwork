@@ -255,7 +255,8 @@ export class ClientWorld {
   };
 
   private emit(event: WorldEvent): void {
-    this.version++;
+    // O estado da partida chega a 30 Hz e é lido direto pelo desenho do jogo: não re-renderiza a UI.
+    if (event.type !== 'game') this.version++;
     for (const listener of this.listeners) listener(event);
   }
 }

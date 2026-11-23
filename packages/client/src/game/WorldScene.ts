@@ -4,6 +4,7 @@ import {
   STEP_MS,
   TILESETS,
   TILESET_IDS,
+  PROXIMITY_ENTER_TILES,
   TILE_PX,
   tilesetImageUrl,
   type ClientMsg,
@@ -15,7 +16,7 @@ import * as Phaser from 'phaser';
 import type { ClientWorld, WorldEvent } from '../net/client-world.ts';
 import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
-import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, zonePill } from './labels.ts';
+import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
 import { deskSprites, isNear, seatedFacing } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
@@ -76,6 +77,8 @@ const DECOR_FRAMES = new Map(
 export class WorldScene extends Phaser.Scene {
   private readonly avatars = new Map<string, Avatar>();
   private readonly deskObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
+  /** Placar sobre cada mesa de jogo, visível só para quem está perto. */
+  private readonly tablePlaques = new Map<string, Phaser.GameObjects.Container>();
   private keys!: Record<Dir, Phaser.Input.Keyboard.Key[]>;
   private lastStepAt = -Infinity;
   private unsubscribe: (() => void) | null = null;
@@ -163,6 +166,7 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(LABEL_DEPTH - 3)
       .setVisible(false);
     this.rebuild();
+    this.renderTables();
     // A Inter chega por CSS; quando carrega, os rótulos são redesenhados com ela (antes saem na
     // fonte reserva). Só os rótulos: refazer os avatares cancelaria o seguir e os balões de chat.
     // Se a fonte não carregar, os rótulos ficam na reserva.
@@ -174,6 +178,7 @@ export class WorldScene extends Phaser.Scene {
           this.renderZoneLabels();
           for (const player of this.options.world.players.values()) this.refreshAvatar(player);
           this.renderDesks();
+          this.renderTables();
         })
         .catch(() => undefined);
     }
@@ -308,6 +313,10 @@ export class WorldScene extends Phaser.Scene {
     switch (event.type) {
       case 'reset':
         this.rebuild();
+        this.renderTables();
+        break;
+      case 'table':
+        this.renderTables();
         break;
       case 'join':
         this.addAvatar(event.player);
@@ -342,8 +351,42 @@ export class WorldScene extends Phaser.Scene {
         avatar.dir = event.pos.dir;
         if (event.type === 'selfCorrected') avatar.mover.correct(event.pos.x, event.pos.y);
         else avatar.mover.push(event.pos.x, event.pos.y);
+        this.updateTablePlaques();
         break;
       }
+    }
+  }
+
+  /** Placar de cada mesa: "Livre", "Esperando" ou "Ana 3 × 5 Bruno". */
+  private renderTables(): void {
+    const { world } = this.options;
+    for (const plaque of this.tablePlaques.values()) plaque.destroy();
+    this.tablePlaques.clear();
+    const firstName = (id: string | null) =>
+      id === 'bot' ? 'Bot' : id ? ((world.players.get(id)?.name ?? 'Alguém').split(' ')[0] ?? 'Alguém') : '…';
+    for (const table of world.map.tables) {
+      const state = world.tables.get(table.key);
+      const text =
+        !state || state.phase === 'free'
+          ? 'Pingpong: livre'
+          : state.phase === 'waiting'
+            ? 'Pingpong: esperando'
+            : `${firstName(state.left)} ${state.score.left} × ${state.score.right} ${firstName(state.right)}`;
+      const cx = (table.x + table.w / 2) * TILE_PX;
+      this.tablePlaques.set(table.key, tablePlaque(this, cx, table.y * TILE_PX - 2, text).setDepth(LABEL_DEPTH - 2));
+    }
+    this.updateTablePlaques();
+  }
+
+  /** Só quem está a até PROXIMITY_ENTER_TILES da pegada da mesa vê o placar. */
+  private updateTablePlaques(): void {
+    const { world } = this.options;
+    for (const table of world.map.tables) {
+      const plaque = this.tablePlaques.get(table.key);
+      if (!plaque) continue;
+      const dx = Math.max(table.x - world.self.x, 0, world.self.x - (table.x + table.w - 1));
+      const dy = Math.max(table.y - world.self.y, 0, world.self.y - (table.y + table.h - 1));
+      plaque.setVisible(Math.hypot(dx, dy) <= PROXIMITY_ENTER_TILES);
     }
   }
 
