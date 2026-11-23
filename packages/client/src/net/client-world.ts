@@ -81,30 +81,31 @@ export class ClientWorld {
     return () => this.listeners.delete(listener);
   }
 
-  handle(msg: ServerMsg): void {
-    switch (msg.t) {
+  /** Aplica uma mensagem do servidor ao estado local e avisa os assinantes. */
+  handle(message: ServerMsg): void {
+    switch (message.t) {
       case 'welcome': {
-        this.selfId = msg.selfId;
+        this.selfId = message.selfId;
         this.players.clear();
         this.shortIds.clear();
-        for (const p of msg.players) {
-          this.players.set(p.id, p);
-          this.shortIds.set(p.n, p.id);
+        for (const player of message.players) {
+          this.players.set(player.id, player);
+          this.shortIds.set(player.n, player.id);
         }
         this.desks.clear();
-        for (const d of msg.desks) this.desks.set(d.deskKey, d);
+        for (const desk of message.desks) this.desks.set(desk.deskKey, desk);
         this.zones.clear();
-        for (const z of msg.zones) this.zones.set(z.zoneKey, z);
+        for (const zone of message.zones) this.zones.set(zone.zoneKey, zone);
         this.tables.clear();
-        for (const t of msg.tables) this.tables.set(t.tableKey, t);
-        this.seat = msg.game;
+        for (const table of message.tables) this.tables.set(table.tableKey, table);
+        this.seat = message.game;
         this.lastGame = null;
         // Como o seq do movimento, o do jogo recomeça a cada welcome (o servidor zera o ack).
         this.gameSeq = 0;
         this.gamePending = [];
         this.gameAckedDir = 0;
-        const me = this.players.get(msg.selfId);
-        this.self = me ? { x: me.x, y: me.y, dir: me.dir } : this.self;
+        const selfPlayer = this.players.get(message.selfId);
+        this.self = selfPlayer ? { x: selfPlayer.x, y: selfPlayer.y, dir: selfPlayer.dir } : this.self;
         this.authoritative = this.self;
         this.pending = [];
         this.seq = 0;
@@ -113,14 +114,16 @@ export class ClientWorld {
         break;
       }
       case 'tick': {
-        if (msg.ts !== undefined) this.lastTick = { serverTs: msg.ts, receivedAt: Date.now() };
-        for (const [id, x, y, dir] of msg.moves) {
+        if (message.ts !== undefined) this.lastTick = { serverTs: message.ts, receivedAt: Date.now() };
+        // Movimento do próprio jogador só atualiza a posição autoritativa: a tela segue a predição,
+        // e a reconciliação abaixo decide se ela precisa ser corrigida.
+        for (const [id, x, y, dir] of message.moves) {
           const player = this.players.get(id);
           if (player) Object.assign(player, { x, y, dir });
           if (id === this.selfId) this.authoritative = { x, y, dir };
           else this.emit({ type: 'remoteMove', id, x, y, dir });
         }
-        const result = reconcile(this.authoritative, msg.ack, this.pending, this.map, this.canEnter);
+        const result = reconcile(this.authoritative, message.ack, this.pending, this.map, this.canEnter);
         this.pending = result.pending;
         if (result.pos.x !== this.self.x || result.pos.y !== this.self.y) {
           this.corrections++;
@@ -130,56 +133,57 @@ export class ClientWorld {
         break;
       }
       case 'player.join':
-        this.players.set(msg.player.id, msg.player);
-        this.shortIds.set(msg.player.n, msg.player.id);
-        this.emit({ type: 'join', player: msg.player });
+        this.players.set(message.player.id, message.player);
+        this.shortIds.set(message.player.n, message.player.id);
+        this.emit({ type: 'join', player: message.player });
         break;
       case 'player.leave': {
-        const n = this.players.get(msg.id)?.n;
-        if (n !== undefined && this.shortIds.get(n) === msg.id) this.shortIds.delete(n);
-        this.players.delete(msg.id);
-        this.emit({ type: 'leave', id: msg.id });
+        // O id curto pode já ter sido reaproveitado por quem entrou depois: só apaga se ainda for dele.
+        const shortId = this.players.get(message.id)?.n;
+        if (shortId !== undefined && this.shortIds.get(shortId) === message.id) this.shortIds.delete(shortId);
+        this.players.delete(message.id);
+        this.emit({ type: 'leave', id: message.id });
         break;
       }
       case 'player.update': {
-        const player = this.players.get(msg.id);
-        if (player) Object.assign(player, msg.patch);
-        this.emit({ type: 'update', id: msg.id });
+        const player = this.players.get(message.id);
+        if (player) Object.assign(player, message.patch);
+        this.emit({ type: 'update', id: message.id });
         break;
       }
       case 'desk.updated':
-        this.desks.set(msg.desk.deskKey, msg.desk);
-        this.emit({ type: 'desk', desk: msg.desk });
+        this.desks.set(message.desk.deskKey, message.desk);
+        this.emit({ type: 'desk', desk: message.desk });
         break;
       case 'chat.said':
-        this.emit({ type: 'chat', from: msg.from, text: msg.text });
+        this.emit({ type: 'chat', from: message.from, text: message.text });
         break;
       case 'error':
-        this.emit({ type: 'error', code: msg.code });
+        this.emit({ type: 'error', code: message.code });
         break;
       case 'map.updated':
-        this.emit({ type: 'mapUpdated', version: msg.version });
+        this.emit({ type: 'mapUpdated', version: message.version });
         break;
       case 'zone.state':
-        this.zones.set(msg.zone.zoneKey, msg.zone);
-        if (!msg.zone.locked) this.allowedZones.delete(msg.zone.zoneKey);
-        this.emit({ type: 'zone', zone: msg.zone });
+        this.zones.set(message.zone.zoneKey, message.zone);
+        if (!message.zone.locked) this.allowedZones.delete(message.zone.zoneKey);
+        this.emit({ type: 'zone', zone: message.zone });
         break;
       case 'zone.knockRequest':
-        this.emit({ type: 'knockRequest', requestId: msg.requestId, zoneKey: msg.zoneKey, from: msg.from });
+        this.emit({ type: 'knockRequest', requestId: message.requestId, zoneKey: message.zoneKey, from: message.from });
         break;
       case 'zone.knockResult':
-        if (msg.allowed) this.allowedZones.add(msg.zoneKey);
-        this.emit({ type: 'knockResult', zoneKey: msg.zoneKey, allowed: msg.allowed });
+        if (message.allowed) this.allowedZones.add(message.zoneKey);
+        this.emit({ type: 'knockResult', zoneKey: message.zoneKey, allowed: message.allowed });
         break;
       case 'call.incoming':
-        this.emit({ type: 'callIncoming', callId: msg.callId, from: msg.from });
+        this.emit({ type: 'callIncoming', callId: message.callId, from: message.from });
         break;
       case 'call.ended':
-        this.emit({ type: 'callEnded', callId: msg.callId, reason: msg.reason });
+        this.emit({ type: 'callEnded', callId: message.callId, reason: message.reason });
         break;
       case 'table.state': {
-        const table = msg.table;
+        const table = message.table;
         this.tables.set(table.tableKey, table);
         const side = table.left === this.selfId ? 'left' : table.right === this.selfId ? 'right' : null;
         if (side) {
@@ -193,16 +197,18 @@ export class ClientWorld {
         break;
       }
       case 'game.state': {
-        if (this.seat?.tableKey !== msg.tableKey) break;
-        const acked = this.gamePending.filter((p) => p.seq <= msg.ack).at(-1);
+        if (this.seat?.tableKey !== message.tableKey) break;
+        // O último input confirmado vira a direção que o servidor já aplica; os seguintes ficam
+        // pendentes para a previsão da raquete.
+        const acked = this.gamePending.filter((input) => input.seq <= message.ack).at(-1);
         if (acked) this.gameAckedDir = acked.dir;
-        this.gamePending = this.gamePending.filter((p) => p.seq > msg.ack);
-        this.lastGame = { ...msg, receivedAt: Date.now() };
+        this.gamePending = this.gamePending.filter((input) => input.seq > message.ack);
+        this.lastGame = { ...message, receivedAt: Date.now() };
         this.emit({ type: 'game' });
         break;
       }
       case 'game.events':
-        if (this.seat?.tableKey === msg.tableKey) this.emit({ type: 'gameEvents', events: msg.events });
+        if (this.seat?.tableKey === message.tableKey) this.emit({ type: 'gameEvents', events: message.events });
         break;
       default:
         break;
@@ -233,6 +239,7 @@ export class ClientWorld {
     return { t: 'move', seq: this.seq, dir };
   }
 
+  /** Id completo a partir do id curto do tick binário. */
   idOf(short: number): string | undefined {
     return this.shortIds.get(short);
   }

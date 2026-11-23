@@ -74,6 +74,11 @@ const DECOR_FRAMES = new Map(
   Object.entries(TILESETS[DESK_TILESET].items).map(([frame, item]) => [item, Number(frame)]),
 );
 
+/**
+ * Cena do coworking: mapa, móveis, mesas, avatares e rótulos. Lê o estado do `ClientWorld`,
+ * transforma teclado e clique em passos, e desenha a predição do próprio avatar e a interpolação
+ * dos outros.
+ */
 export class WorldScene extends Phaser.Scene {
   private readonly avatars = new Map<string, Avatar>();
   private readonly deskObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
@@ -117,11 +122,13 @@ export class WorldScene extends Phaser.Scene {
     // da pegada, desenhada abaixo dos móveis e acima do piso.
     const shadows = this.add.graphics().setDepth(-0.5);
     shadows.fillStyle(SHADOW_COLOR, SHADOW_ALPHA);
+    // Profundidade = y da base em pixels: quem está mais embaixo na tela é desenhado por cima, e o
+    // avatar passa na frente ou atrás do móvel conforme a linha em que está.
     for (const object of objectLayer(mapJson, 'furniture')) {
       const tile = object.gid ? resolveGid(mapJson, object.gid) : null;
       if (!tile) continue;
-      const w = object.width ?? TILE_PX;
-      if (TILESETS[tile.id].collides.includes(tile.frame)) shadows.fillEllipse(object.x + w / 2, object.y - 2, w - 2, 6);
+      const width = object.width ?? TILE_PX;
+      if (TILESETS[tile.id].collides.includes(tile.frame)) shadows.fillEllipse(object.x + width / 2, object.y - 2, width - 2, 6);
       this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
     }
     this.renderZoneLabels();
@@ -133,12 +140,12 @@ export class WorldScene extends Phaser.Scene {
 
     const keyboard = this.input.keyboard;
     if (!keyboard) throw new Error('teclado indisponível');
-    const k = Phaser.Input.Keyboard.KeyCodes;
+    const keyCodes = Phaser.Input.Keyboard.KeyCodes;
     this.keys = {
-      up: [keyboard.addKey(k.UP), keyboard.addKey(k.W)],
-      down: [keyboard.addKey(k.DOWN), keyboard.addKey(k.S)],
-      left: [keyboard.addKey(k.LEFT), keyboard.addKey(k.A)],
-      right: [keyboard.addKey(k.RIGHT), keyboard.addKey(k.D)],
+      up: [keyboard.addKey(keyCodes.UP), keyboard.addKey(keyCodes.W)],
+      down: [keyboard.addKey(keyCodes.DOWN), keyboard.addKey(keyCodes.S)],
+      left: [keyboard.addKey(keyCodes.LEFT), keyboard.addKey(keyCodes.A)],
+      right: [keyboard.addKey(keyCodes.RIGHT), keyboard.addKey(keyCodes.D)],
     };
     // Toque rápido (soltar antes do próximo frame) também anda um tile.
     for (const [dir, keys] of Object.entries(this.keys) as [Dir, Phaser.Input.Keyboard.Key[]][]) {
@@ -198,6 +205,11 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * A cada frame: tecla segurada anda (e cancela clique para andar e seguir); sem tecla, segue a
+   * rota automática. Depois anima cada avatar pelo `Mover` e escolhe o quadro (andando, sentado
+   * ou parado).
+   */
   override update(_time: number, delta: number): void {
     const { world } = this.options;
     const typing = isTyping();
@@ -217,6 +229,8 @@ export class WorldScene extends Phaser.Scene {
     if (ghostOn) this.ghost?.setPosition(world.confirmed.x * TILE_PX, world.confirmed.y * TILE_PX);
     for (const [id, avatar] of this.avatars) {
       avatar.mover.update(delta);
+      // (x, y) é o pé do avatar: centro do tile na horizontal, base do tile na vertical. A
+      // profundidade é o próprio y, como a dos móveis; sombra e anel ficam logo abaixo do sprite.
       const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
       const y = avatar.mover.y * TILE_PX + TILE_PX;
       avatar.sprite.setPosition(x, y).setDepth(y);
@@ -232,6 +246,7 @@ export class WorldScene extends Phaser.Scene {
       const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
       avatar.title.setVisible(avatar.title.value !== '' && (near || avatar.hovered));
 
+      // O próprio avatar segue "andando" enquanto a tecla está segurada, mesmo parado contra a parede.
       const walking = avatar.mover.moving || (id === world.selfId && held !== undefined);
       const seated = walking
         ? null
@@ -257,7 +272,9 @@ export class WorldScene extends Phaser.Scene {
   private onPointerDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
     const { world } = this.options;
     if (!world.selfId) return;
-    const clicked = over.map((o) => o.getData('id') as string | undefined).find((id) => id && id !== world.selfId);
+    const clicked = over
+      .map((gameObject) => gameObject.getData('id') as string | undefined)
+      .find((id) => id && id !== world.selfId);
     if (clicked) {
       this.route = [];
       this.setFollowing(clicked);
@@ -270,6 +287,10 @@ export class WorldScene extends Phaser.Scene {
     this.route = path ?? [];
   }
 
+  /**
+   * Passo automático: seguindo alguém, recalcula o caminho até ficar a um tile da pessoa; com rota
+   * de clique, consome o próximo passo dela.
+   */
   private autoStep(): void {
     const { world } = this.options;
     if (this.following) {
@@ -372,8 +393,8 @@ export class WorldScene extends Phaser.Scene {
           : state.phase === 'waiting'
             ? 'Pingpong: esperando'
             : `${firstName(state.left)} ${state.score.left} × ${state.score.right} ${firstName(state.right)}`;
-      const cx = (table.x + table.w / 2) * TILE_PX;
-      this.tablePlaques.set(table.key, tablePlaque(this, cx, table.y * TILE_PX - 2, text).setDepth(LABEL_DEPTH - 2));
+      const centerX = (table.x + table.w / 2) * TILE_PX;
+      this.tablePlaques.set(table.key, tablePlaque(this, centerX, table.y * TILE_PX - 2, text).setDepth(LABEL_DEPTH - 2));
     }
     this.updateTablePlaques();
   }
@@ -384,6 +405,7 @@ export class WorldScene extends Phaser.Scene {
     for (const table of world.map.tables) {
       const plaque = this.tablePlaques.get(table.key);
       if (!plaque) continue;
+      // Distância até o tile mais próximo da pegada (zero em cada eixo quando está dentro dela).
       const dx = Math.max(table.x - world.self.x, 0, world.self.x - (table.x + table.w - 1));
       const dy = Math.max(table.y - world.self.y, 0, world.self.y - (table.y + table.h - 1));
       plaque.setVisible(Math.hypot(dx, dy) <= PROXIMITY_ENTER_TILES);
@@ -402,6 +424,7 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** Refaz todos os avatares e mesas a partir do estado do mundo (welcome). */
   private rebuild(): void {
     for (const id of [...this.avatars.keys()]) this.removeAvatar(id);
     for (const player of this.options.world.players.values()) this.addAvatar(player);
@@ -412,9 +435,10 @@ export class WorldScene extends Phaser.Scene {
     this.removeAvatar(player.id);
     const { world } = this.options;
     const isSelf = player.id === world.selfId;
-    const pos = isSelf ? world.self : player;
+    // O próprio avatar nasce na posição prevista, não na última que o servidor mandou.
+    const position = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
-    const sprite = this.add.sprite(0, 0, textureKey, idleFrame(pos.dir)).setOrigin(0.5, 1);
+    const sprite = this.add.sprite(0, 0, textureKey, idleFrame(position.dir)).setOrigin(0.5, 1);
     const shadow = this.add.ellipse(0, 0, 12, 5, SHADOW_COLOR, SHADOW_ALPHA);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = new NamePill(this).setDepth(LABEL_DEPTH);
@@ -425,9 +449,9 @@ export class WorldScene extends Phaser.Scene {
       shadow,
       label,
       title,
-      mover: new Mover(pos.x, pos.y),
+      mover: new Mover(position.x, position.y),
       textureKey,
-      dir: pos.dir,
+      dir: position.dir,
       hovered: false,
       chat: null,
       chatTimer: null,
@@ -441,6 +465,7 @@ export class WorldScene extends Phaser.Scene {
     if (isSelf) this.cameras.main.startFollow(sprite, true);
   }
 
+  /** Atualiza nome, status, cargo e textura (avatar trocado) sem recriar o avatar. */
   private refreshAvatar(player: Player): void {
     const avatar = this.avatars.get(player.id);
     if (!avatar) return;
@@ -472,6 +497,7 @@ export class WorldScene extends Phaser.Scene {
   screenPosition(id: string): { x: number; y: number } | null {
     const avatar = this.avatars.get(id);
     if (!avatar) return null;
+    // Mundo -> canvas pela janela visível da câmera e pelo zoom; canvas -> CSS pelo devicePixelRatio.
     const camera = this.cameras.main;
     const view = camera.worldView;
     const scale = canvasToCss(camera.zoom);
@@ -496,14 +522,15 @@ export class WorldScene extends Phaser.Scene {
    */
   private fitCamera(): void {
     const camera = this.cameras.main;
-    const viewW = this.scale.width / camera.zoom;
-    const viewH = this.scale.height / camera.zoom;
+    const viewWidth = this.scale.width / camera.zoom;
+    const viewHeight = this.scale.height / camera.zoom;
     const { width, height } = this.mapSize;
-    const x = width < viewW ? -Math.floor((viewW - width) / 2) : 0;
-    const y = height < viewH ? -Math.floor((viewH - height) / 2) : 0;
-    camera.setBounds(x, y, Math.max(width, viewW), Math.max(height, viewH));
+    const x = width < viewWidth ? -Math.floor((viewWidth - width) / 2) : 0;
+    const y = height < viewHeight ? -Math.floor((viewHeight - height) / 2) : 0;
+    camera.setBounds(x, y, Math.max(width, viewWidth), Math.max(height, viewHeight));
   }
 
+  /** Balão de chat sobre o avatar por CHAT_BUBBLE_MS; mensagem nova substitui a anterior. */
   private showChat(id: string, text: string): void {
     const avatar = this.avatars.get(id);
     if (!avatar) return;
@@ -524,15 +551,17 @@ export class WorldScene extends Phaser.Scene {
   private renderDesk(deskKey: string): void {
     for (const object of this.deskObjects.get(deskKey) ?? []) object.destroy();
     const { world } = this.options;
-    const desk = world.map.desks.find((d) => d.key === deskKey);
+    const desk = world.map.desks.find((candidate) => candidate.key === deskKey);
     if (!desk) return;
     const state = world.desks.get(deskKey);
     const decor = state?.decor ?? null;
     const objects: Phaser.GameObjects.GameObject[] = [];
 
+    // Os sprites da mesa são posicionados a partir do canto esquerdo e da base da pegada, e a
+    // profundidade de cada um é a da base somada ao z relativo que o `deskSprites` define.
     const x = desk.x * TILE_PX;
     const bottom = (desk.y + desk.h) * TILE_PX;
-    const item = (itemId: string | null, dx: number, dy: number, depth: number, flip = false) => {
+    const addItem = (itemId: string | null, dx: number, dy: number, depth: number, flip = false) => {
       const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
       if (frame === undefined) return;
       objects.push(
@@ -544,7 +573,7 @@ export class WorldScene extends Phaser.Scene {
       );
     };
 
-    for (const sprite of deskSprites(desk, decor)) item(sprite.item, sprite.dx, sprite.dy, bottom + sprite.z, sprite.flip);
+    for (const sprite of deskSprites(desk, decor)) addItem(sprite.item, sprite.dx, sprite.dy, bottom + sprite.z, sprite.flip);
 
     if (state?.userId && state.ownerName && !world.players.has(state.userId)) {
       objects.push(this.plaque(desk, state.ownerName));
@@ -553,7 +582,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private plaque(desk: CompiledDesk, name: string): Phaser.GameObjects.Container {
-    const cx = desk.x * TILE_PX + (desk.w * TILE_PX) / 2;
-    return deskPlaque(this, cx, desk.y * TILE_PX - 11, name).setDepth(LABEL_DEPTH - 2);
+    const centerX = desk.x * TILE_PX + (desk.w * TILE_PX) / 2;
+    return deskPlaque(this, centerX, desk.y * TILE_PX - 11, name).setDepth(LABEL_DEPTH - 2);
   }
 }

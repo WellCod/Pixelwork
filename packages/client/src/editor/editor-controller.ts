@@ -27,7 +27,10 @@ export interface Selection {
 }
 
 /** Opções do pincel, pelo item_id do catálogo (o frame vem dele, não da posição no tileset). */
-const option = (tileset: 'floors' | 'walls') => (o: { item: string; label: string }) => ({ ...o, frame: frameOf(tileset, o.item) });
+const option = (tileset: 'floors' | 'walls') => (entry: { item: string; label: string }) => ({
+  ...entry,
+  frame: frameOf(tileset, entry.item),
+});
 
 export const FLOOR_OPTIONS = [
   { item: 'wood-light', label: 'Madeira clara' },
@@ -69,13 +72,13 @@ export const RUG_OPTIONS: { rug: RugId; label: string }[] = [
   { rug: 'cream', label: 'Tapete creme' },
 ];
 
-
 /** Ordem de clique na ferramenta de seleção: o que fica por cima primeiro. */
 const PICK_ORDER: ObjectLayerName[] = ['spawn', 'desks', 'furniture', 'zones'];
 
+/** firstgid do tileset no documento: o gid gravado no mapa é firstgid + frame. */
 function firstGid(doc: TiledDoc, id: TilesetId): number | null {
-  const refs = doc.tilesets as { firstgid: number; source: string }[] | undefined;
-  return refs?.find((t) => t.source === `${id}.tsj`)?.firstgid ?? null;
+  const references = doc.tilesets as { firstgid: number; source: string }[] | undefined;
+  return references?.find((reference) => reference.source === `${id}.tsj`)?.firstgid ?? null;
 }
 
 /** Tilesets de móveis colocáveis: o `furniture` (16x16) e os de várias células. */
@@ -149,11 +152,12 @@ export class EditorController {
     this.changed();
   }
 
+  /** Objeto do documento apontado pela seleção, ou undefined se ela ficou órfã. */
   selected() {
     if (!this.selection) return undefined;
     const { layer, id } = this.selection;
-    const objects = this.doc.layers.find((l) => l.name === layer && l.type === 'objectgroup');
-    return objects?.type === 'objectgroup' ? objects.objects.find((o) => o.id === id) : undefined;
+    const objectLayer = this.doc.layers.find((candidate) => candidate.name === layer && candidate.type === 'objectgroup');
+    return objectLayer?.type === 'objectgroup' ? objectLayer.objects.find((object) => object.id === id) : undefined;
   }
 
   // ---- ações da cena ----
@@ -172,6 +176,7 @@ export class EditorController {
     }
   }
 
+  /** Clique num tile com a ferramenta atual: põe móvel, mesa ou spawn, ou seleciona. */
   click(tx: number, ty: number): void {
     const { doc } = this;
     switch (this.tool) {
@@ -201,6 +206,7 @@ export class EditorController {
     this.stack.execute(paintRug(this.doc, this.rug, rect.x, rect.y, rect.x + rect.w - 1, rect.y + rect.h - 1));
   }
 
+  /** Fim do arrasto da ferramenta de zona: cria a zona, seleciona e volta para a seleção. */
   drawZone(rect: TileRect): void {
     this.stack.execute(addZone(this.doc, rect, 'open', 'Nova zona'));
     this.selectLast('zones');
@@ -255,6 +261,7 @@ export class EditorController {
     return JSON.stringify(this.doc) !== this.baseline;
   }
 
+  /** Objeto sob o tile, procurando as camadas de cima para baixo (PICK_ORDER). */
   private pick(tx: number, ty: number): Selection | null {
     for (const layer of PICK_ORDER) {
       const object = objectAt(this.doc, layer, tx, ty);
@@ -263,9 +270,10 @@ export class EditorController {
     return null;
   }
 
+  /** Seleciona o objeto recém-criado, que o comando acrescenta no fim da camada. */
   private selectLast(layer: ObjectLayerName): void {
-    const objects = this.doc.layers.find((l) => l.name === layer && l.type === 'objectgroup');
-    const last = objects?.type === 'objectgroup' ? objects.objects.at(-1) : undefined;
+    const objectLayer = this.doc.layers.find((candidate) => candidate.name === layer && candidate.type === 'objectgroup');
+    const last = objectLayer?.type === 'objectgroup' ? objectLayer.objects.at(-1) : undefined;
     if (last) this.selection = { layer, id: last.id };
     this.changed();
   }

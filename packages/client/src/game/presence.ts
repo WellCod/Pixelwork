@@ -9,8 +9,9 @@ import {
 
 const OPPOSITE: Record<Dir, Dir> = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
+/** Mesa cuja cadeira fica nesse tile, se houver. */
 export function deskAtChair(map: CompiledMap, x: number, y: number): CompiledDesk | undefined {
-  return map.desks.find((d) => d.chairX === x && d.chairY === y);
+  return map.desks.find((desk) => desk.chairX === x && desk.chairY === y);
 }
 
 /**
@@ -37,10 +38,6 @@ export function isNear(ax: number, ay: number, bx: number, by: number): boolean 
 export type Slot = 'left' | 'right' | 'back' | 'floor';
 
 /**
- * Deslocamento em pixels de cada slot a partir do tile da mesa. Esquerda e direita são as de
- * quem está sentado; o fundo fica atrás da mesa e o chão ao lado dela.
- */
-/**
  * Mesa de 2 tiles: deslocamentos a partir do canto esquerdo e da base da pegada inteira. Na mesa
  * larga (para cima/baixo) o monitor fica no meio e os itens nas pontas; na lateral, o monitor fica
  * na metade de cima e os itens embaixo e no alto.
@@ -52,6 +49,10 @@ export const SLOT_OFFSET_WIDE: Record<Dir, Record<Slot | 'monitor', [x: number, 
   right: { monitor: [0, -17], left: [0, -27], right: [0, -3], back: [14, -8], floor: [-2, -30] },
 };
 
+/**
+ * Mesa de 1 tile: deslocamento em pixels de cada slot a partir do tile da mesa. Esquerda e direita
+ * são as de quem está sentado; o fundo fica atrás da mesa e o chão ao lado dela.
+ */
 export const SLOT_OFFSET: Record<Dir, Record<Slot, [x: number, y: number]>> = {
   down: { left: [5, -3], right: [-5, -3], back: [0, -14], floor: [14, 2] },
   up: { left: [-5, 3], right: [5, 3], back: [0, 14], floor: [-14, -2] },
@@ -75,7 +76,7 @@ export interface DividerLayout {
  */
 export function dividerLayout(desk: CompiledDesk): DividerLayout | null {
   if (desk.wallBehind) return null;
-  const T = 16;
+  const TILE = 16;
   if (desk.orientation === 'down' || desk.orientation === 'up') {
     const down = desk.orientation === 'down';
     const dy = down ? -7 : 6;
@@ -83,15 +84,16 @@ export function dividerLayout(desk: CompiledDesk): DividerLayout | null {
       desk.w === 2
         ? [
             { item: 'divider-wide-l', dx: 0, dy, flip: false },
-            { item: 'divider-wide-r', dx: T, dy, flip: false },
+            { item: 'divider-wide-r', dx: TILE, dy, flip: false },
           ]
         : [{ item: 'divider', dx: 0, dy, flip: false }];
     return { pieces, back: [desk.w === 2 ? 8 : 0, down ? -9 : 4], behind: down };
   }
+  // Lateral: um painel por tile de altura, empilhados de baixo para cima a partir da base.
   const left = desk.orientation === 'left';
-  const dx = left ? desk.w * T - 12 : -4;
-  const pieces = Array.from({ length: desk.h }, (_, i) => ({ item: 'divider-side', dx, dy: -(desk.h - 1 - i) * T, flip: !left }));
-  return { pieces, back: [left ? desk.w * T - 8 : -8, desk.h === 2 ? -10 : -2], behind: true };
+  const dx = left ? desk.w * TILE - 12 : -4;
+  const pieces = Array.from({ length: desk.h }, (_, i) => ({ item: 'divider-side', dx, dy: -(desk.h - 1 - i) * TILE, flip: !left }));
+  return { pieces, back: [left ? desk.w * TILE - 8 : -8, desk.h === 2 ? -10 : -2], behind: true };
 }
 
 export interface DeskSprite {
@@ -113,7 +115,7 @@ const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
  * Mesa livre (sem decoração) aparece com a variação padrão e um monitor.
  */
 export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSprite[] {
-  const T = 16;
+  const TILE = 16;
   const sprites: DeskSprite[] = [];
   const add = (item: string | null, dx: number, dy: number, z: number, flip = false) => {
     if (item) sprites.push({ item, dx, dy, z, flip });
@@ -124,9 +126,9 @@ export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSp
   // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
   if (wide) {
     add(`${variant}-wide-l`, 0, 0, 0);
-    add(`${variant}-wide-r`, T, 0, 0);
+    add(`${variant}-wide-r`, TILE, 0, 0);
   } else if (tall) {
-    add(`${variant}-tall-t`, 0, -T, 0);
+    add(`${variant}-tall-t`, 0, -TILE, 0);
     add(`${variant}-tall-b`, 0, 0, 0);
   } else {
     add(variant, 0, 0, 0);
@@ -136,7 +138,9 @@ export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSp
   if (!decor) return sprites;
   // Sem parede atrás, a decoração "de parede" vai presa numa divisória em vez de flutuar.
   const divider = decor.slots.back ? dividerLayout(desk) : null;
-  if (divider) for (const p of divider.pieces) add(p.item, p.dx, p.dy, divider.behind ? -0.2 : 0.3, p.flip);
+  if (divider) for (const piece of divider.pieces) add(piece.item, piece.dx, piece.dy, divider.behind ? -0.2 : 0.3, piece.flip);
+  // Ordem em z: divisória atrás (-0,2) < item de parede nela (-0,15) < tampo (0) < monitor (0,1) <
+  // itens do tampo e do chão (0,2); com a divisória na frente, ela e o item preso sobem acima de tudo.
   for (const slot of SLOTS) {
     const [dx, dy] = slot === 'back' && divider ? divider.back : offsets[slot];
     const backZ = divider ? (divider.behind ? -0.15 : 0.35) : -0.1;

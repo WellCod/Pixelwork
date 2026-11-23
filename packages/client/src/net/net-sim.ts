@@ -8,7 +8,9 @@ export class NetSim {
   latencyMs = 0;
   /** Variação máxima por mensagem, em ms. */
   jitterMs = 0;
+  /** Overlay de netcode visível. */
   overlay = false;
+  /** Muda a cada `set`; a UI em React usa como snapshot. */
   version = 0;
   private readonly listeners = new Set<() => void>();
 

@@ -25,7 +25,7 @@ export class CallStore {
   private readonly listeners = new Set<() => void>();
   private callingTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private send: (msg: ClientMsg) => void = () => undefined;
+  private send: (message: ClientMsg) => void = () => undefined;
 
   constructor(private readonly world: ClientWorld) {}
 
@@ -35,7 +35,7 @@ export class CallStore {
   }
 
   /** Liga a store à conexão atual; devolve a função que desliga. */
-  start(send: (msg: ClientMsg) => void): () => void {
+  start(send: (message: ClientMsg) => void): () => void {
     this.send = send;
     const stop = this.world.subscribe((event) => {
       const { world } = this;
@@ -77,6 +77,7 @@ export class CallStore {
     };
   }
 
+  /** Convida alguém; o servidor responde com a atividade "call" (atendeu) ou `call.ended`. */
   call(userId: string): void {
     this.notice = null;
     this.send({ t: 'call.invite', userId });
@@ -88,6 +89,7 @@ export class CallStore {
     }, CALL_RING_TIMEOUT_MS + 5_000);
   }
 
+  /** Atende ou recusa a chamada que está tocando. */
   answer(accept: boolean): void {
     if (this.state.kind !== 'ringing') return;
     this.send({ t: 'call.reply', callId: this.state.callId, accept });
@@ -104,11 +106,12 @@ export class CallStore {
     this.changed();
   }
 
+  /** A outra pessoa da chamada, em qualquer fase. */
   private peer(): string | null {
-    const s = this.state;
-    if (s.kind === 'calling') return s.to;
-    if (s.kind === 'ringing') return s.from;
-    if (s.kind === 'active') return s.peer;
+    const state = this.state;
+    if (state.kind === 'calling') return state.to;
+    if (state.kind === 'ringing') return state.from;
+    if (state.kind === 'active') return state.peer;
     return null;
   }
 

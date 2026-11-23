@@ -1,5 +1,6 @@
 import { RENDER_SCALE } from '@pixelwork/shared';
 
+/** Pixels físicos por pixel CSS da tela (1 quando o navegador não informa). */
 export const dpr = (): number => window.devicePixelRatio || 1;
 
 /**

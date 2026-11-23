@@ -9,13 +9,13 @@ const map = ((): CompiledMap => {
   return result.map;
 })();
 
-const table = (over: Partial<TableState>): TableState => ({
+const table = (overrides: Partial<TableState>): TableState => ({
   tableKey: 'ping-pong@4,3',
   phase: 'waiting',
   left: null,
   right: null,
   score: { left: 0, right: 0 },
-  ...over,
+  ...overrides,
 });
 
 function welcome(game: { tableKey: string; side: 'left' | 'right' } | null): ServerMsg {
@@ -55,7 +55,7 @@ describe('ClientWorld: mesas de jogo', () => {
       score: { left: 0, right: 0 },
       serverTs: 0,
     });
-    expect(world.gamePending.map((p) => p.seq)).toEqual([2]);
+    expect(world.gamePending.map((input) => input.seq)).toEqual([2]);
     expect(world.gameAckedDir).toBe(1);
     expect(world.lastGame?.paddles.left).toBe(50);
   });

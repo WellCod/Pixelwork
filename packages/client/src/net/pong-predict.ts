@@ -5,7 +5,7 @@ import { PONG, type PongDir, type PongState } from '@pixelwork/shared';
 const MIN_Y = PONG.PADDLE_H / 2;
 const MAX_Y = PONG.H - PONG.PADDLE_H / 2;
 const HALF_BALL = PONG.BALL / 2;
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export interface PendingGameInput {
   seq: number;
@@ -25,27 +25,31 @@ export function predictPaddle(
   receivedAt: number,
   now: number,
 ): number {
+  // Integra por trechos: cada trecho anda na direção vigente até o próximo input mudar ela.
+  // Input enviado antes da chegada do estado conta a partir da chegada (o y do servidor já o inclui
+  // até ali); nenhum passa de `now`.
   let y = serverY;
   let dir: PongDir = ackedDir;
-  let t = receivedAt;
+  let segmentStart = receivedAt;
   for (const input of pending) {
-    const at = clamp(input.at, t, now);
-    y = clamp(y + dir * PONG.PADDLE_SPEED * ((at - t) / 1000), MIN_Y, MAX_Y);
+    const inputAt = clamp(input.at, segmentStart, now);
+    y = clamp(y + dir * PONG.PADDLE_SPEED * ((inputAt - segmentStart) / 1000), MIN_Y, MAX_Y);
     dir = input.dir;
-    t = at;
+    segmentStart = inputAt;
   }
-  return clamp(y + dir * PONG.PADDLE_SPEED * ((now - t) / 1000), MIN_Y, MAX_Y);
+  return clamp(y + dir * PONG.PADDLE_SPEED * ((now - segmentStart) / 1000), MIN_Y, MAX_Y);
 }
 
 /** Bola andando pela velocidade, refletindo nas paredes; para nas linhas de fundo. */
 export function extrapolateBall(ball: PongState['ball'], receivedAt: number, now: number): { x: number; y: number } {
-  const dt = Math.max(0, now - receivedAt) / 1000;
-  const x = clamp(ball.x + ball.vx * dt, 0, PONG.W);
-  let y = ball.y + ball.vy * dt;
+  const elapsedSeconds = Math.max(0, now - receivedAt) / 1000;
+  const x = clamp(ball.x + ball.vx * elapsedSeconds, 0, PONG.W);
+  let y = ball.y + ball.vy * elapsedSeconds;
   const span = PONG.H - 2 * HALF_BALL;
   // Reflete quantas vezes for preciso: dobra a posição no intervalo [HALF_BALL, H - HALF_BALL].
-  let rel = (y - HALF_BALL) % (2 * span);
-  if (rel < 0) rel += 2 * span;
-  y = HALF_BALL + (rel > span ? 2 * span - rel : rel);
+  // Num período de 2 * span a bola desce o vão inteiro e volta; a segunda metade é o espelho.
+  let offset = (y - HALF_BALL) % (2 * span);
+  if (offset < 0) offset += 2 * span;
+  y = HALF_BALL + (offset > span ? 2 * span - offset : offset);
   return { x, y };
 }

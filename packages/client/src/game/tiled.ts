@@ -11,6 +11,7 @@ export interface TiledObject {
   properties?: { name: string; value: unknown }[];
 }
 
+/** Os 4 bits altos do gid do Tiled são flags de espelhamento e rotação; o resto é o tile. */
 const GID_MASK = 0x0fffffff;
 
 /**
@@ -18,42 +19,47 @@ const GID_MASK = 0x0fffffff;
  * do catálogo, e aqui eles viram tilesets embutidos só para a renderização.
  */
 export function embedTilesets(map: Json): Json {
-  const refs = (map.tilesets as { firstgid: number; source: string }[]).map((ref) => {
-    const id = ref.source.replace(/\.tsj$/, '') as TilesetId;
-    const meta = TILESETS[id];
+  const embedded = (map.tilesets as { firstgid: number; source: string }[]).map((reference) => {
+    const id = reference.source.replace(/\.tsj$/, '') as TilesetId;
+    const tileset = TILESETS[id];
     return {
-      firstgid: ref.firstgid,
+      firstgid: reference.firstgid,
       name: id,
       image: tilesetImageUrl(id),
-      imagewidth: meta.columns * meta.tileWidth,
-      imageheight: Math.ceil(meta.tilecount / meta.columns) * meta.tileHeight,
-      tilewidth: meta.tileWidth,
-      tileheight: meta.tileHeight,
-      columns: meta.columns,
-      tilecount: meta.tilecount,
+      imagewidth: tileset.columns * tileset.tileWidth,
+      imageheight: Math.ceil(tileset.tilecount / tileset.columns) * tileset.tileHeight,
+      tilewidth: tileset.tileWidth,
+      tileheight: tileset.tileHeight,
+      columns: tileset.columns,
+      tilecount: tileset.tilecount,
       margin: 0,
       spacing: 0,
     };
   });
-  return { ...map, tilesets: refs };
+  return { ...map, tilesets: embedded };
 }
 
+/** Objetos da camada de objetos com esse nome (vazio se ela não existir). */
 export function objectLayer(map: Json, name: string): TiledObject[] {
   const layers = map.layers as { name: string; objects?: TiledObject[] }[];
-  return layers.find((l) => l.name === name)?.objects ?? [];
+  return layers.find((layer) => layer.name === name)?.objects ?? [];
 }
 
+/** Valor da propriedade customizada do objeto, ou undefined. */
 export function prop(object: TiledObject, name: string): unknown {
-  return object.properties?.find((p) => p.name === name)?.value;
+  return object.properties?.find((property) => property.name === name)?.value;
 }
 
-/** gid -> tileset e frame, considerando o firstgid de cada tileset referenciado. */
+/**
+ * gid -> tileset e frame, considerando o firstgid de cada tileset referenciado. O dono do gid é
+ * o tileset de maior firstgid que não passa dele; gid 0 é tile vazio.
+ */
 export function resolveGid(map: Json, gid: number): { id: TilesetId; frame: number } | null {
-  const clean = gid & GID_MASK;
-  let best: { firstgid: number; source: string } | null = null;
-  for (const ref of map.tilesets as { firstgid: number; source: string }[]) {
-    if (ref.firstgid <= clean && (!best || ref.firstgid > best.firstgid)) best = ref;
+  const tileGid = gid & GID_MASK;
+  let owner: { firstgid: number; source: string } | null = null;
+  for (const reference of map.tilesets as { firstgid: number; source: string }[]) {
+    if (reference.firstgid <= tileGid && (!owner || reference.firstgid > owner.firstgid)) owner = reference;
   }
-  if (!best || clean === 0) return null;
-  return { id: best.source.replace(/\.tsj$/, '') as TilesetId, frame: clean - best.firstgid };
+  if (!owner || tileGid === 0) return null;
+  return { id: owner.source.replace(/\.tsj$/, '') as TilesetId, frame: tileGid - owner.firstgid };
 }

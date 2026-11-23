@@ -36,10 +36,10 @@ export interface FurnitureOption {
 export function categorize(options: readonly FurnitureOption[]): { label: string; items: FurnitureOption[] }[] {
   const placed = new Set<FurnitureOption>();
   const groups = CATEGORIES.map((category) => {
-    const items = options.filter((o) => category.items.includes(o.item) && !placed.has(o));
-    for (const o of items) placed.add(o);
+    const items = options.filter((option) => category.items.includes(option.item) && !placed.has(option));
+    for (const option of items) placed.add(option);
     return { label: category.label, items };
   });
-  groups.push({ label: 'Outros', items: options.filter((o) => !placed.has(o)) });
-  return groups.filter((g) => g.items.length > 0);
+  groups.push({ label: 'Outros', items: options.filter((option) => !placed.has(option)) });
+  return groups.filter((group) => group.items.length > 0);
 }

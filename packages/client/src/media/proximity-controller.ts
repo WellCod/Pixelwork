@@ -27,29 +27,36 @@ export class ProximityController {
     for (const stop of this.stops.splice(0)) stop();
   }
 
+  /**
+   * Recalcula ouvir, ver e volume e só repassa à mídia quando algo mudou de fato (volume com
+   * tolerância de 0,01), porque este método roda a cada passo de qualquer jogador.
+   */
   private update(): void {
     const { world, media } = this;
     if (!world.selfId) return;
     const self = { id: world.selfId, x: world.self.x, y: world.self.y };
-    const others = [...world.players.values()].map((p) => ({ id: p.id, x: p.x, y: p.y }));
+    const others = [...world.players.values()].map((player) => ({ id: player.id, x: player.x, y: player.y }));
     const opponent = opponentOf(world);
+    // O adversário entra no áudio mesmo fora do raio da proximidade.
     const forced = new Set(opponent ? [opponent] : []);
     const audible = nextProximity(world.map, self, others, this.audible, forced);
 
     const volumes = new Map<string, number>();
-    const near = others.filter((o) => audible.has(o.id));
+    const near = others.filter((other) => audible.has(other.id));
     // O adversário da partida fica a 4 tiles: volume cheio, como quem está do lado.
-    for (const o of near) volumes.set(o.id, forced.has(o.id) ? volumeAt(1) : volumeAt(tileDistance(self, o)));
+    for (const other of near) {
+      volumes.set(other.id, forced.has(other.id) ? volumeAt(1) : volumeAt(tileDistance(self, other)));
+    }
     const bubbles = selectBubbles(
       self,
-      near.map((o) => ({ ...o, hasCamera: media.hasCamera(o.id) })),
+      near.map((other) => ({ ...other, hasCamera: media.hasCamera(other.id) })),
       MAX_VIDEO_BUBBLES,
     );
 
     const changed =
       !sameSet(audible, this.audible) ||
       bubbles.join() !== this.bubbles.join() ||
-      [...volumes].some(([id, v]) => Math.abs(v - (this.lastVolumes.get(id) ?? -1)) > 0.01);
+      [...volumes].some(([id, volume]) => Math.abs(volume - (this.lastVolumes.get(id) ?? -1)) > 0.01);
     if (!changed) return;
     this.audible = audible;
     this.bubbles = bubbles;
@@ -58,8 +65,8 @@ export class ProximityController {
   }
 }
 
-function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
-  return a.size === b.size && [...a].every((x) => b.has(x));
+function sameSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return left.size === right.size && [...left].every((id) => right.has(id));
 }
 
 /** Adversário humano da partida em andamento do próprio jogador, ou null. */
