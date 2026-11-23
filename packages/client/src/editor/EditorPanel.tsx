@@ -5,6 +5,7 @@ import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
 import { describeMapError } from '../ui/MapModal.tsx';
 import { TileThumb } from '../ui/TileThumb.tsx';
+import { isTyping } from '../input-focus.ts';
 import { label } from '../ui/labels.ts';
 import { categorize } from './categories.ts';
 import { FLOOR_OPTIONS, FURNITURE_OPTIONS, RUG_OPTIONS, WALL_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
@@ -52,7 +53,7 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
   useEffect(() => {
     // Atalhos do editor: Ctrl/Cmd+Z desfaz, Ctrl/Cmd+Y ou Ctrl/Cmd+Shift+Z refaz, Delete remove e R gira.
     const onKey = (event: KeyboardEvent) => {
-      const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement;
+      const typing = isTyping();
       if (typing) return;
       const modifier = event.ctrlKey || event.metaKey;
       if (modifier && event.key.toLowerCase() === 'z' && !event.shiftKey) {
