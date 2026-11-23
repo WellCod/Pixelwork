@@ -51,32 +51,32 @@ const objectId = (doc: TiledDoc, layer: ObjectLayerName, index = 0) => {
 
 /** Gerador determinístico (mulberry32): sequências reproduzíveis sem dependência. */
 function prng(seed: number): () => number {
-  let a = seed >>> 0;
+  let state = seed >>> 0;
   return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = state;
+    mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
   };
 }
 
 describe('ida e volta de cada comando', () => {
   const doc = baseDoc();
-  const cases: [string, (d: TiledDoc) => EditorCommand | null][] = [
-    ['pintar parede', (d) => paint(d, 'walls', [[3, 6], [4, 6], [3, 6]], FIRSTGID.walls)],
-    ['apagar piso', (d) => paint(d, 'floor', [[5, 7]], 0)],
-    ['pôr móvel', (d) => placeFurniture(d, 'furniture', FURNITURE.plant, 6, 7)],
-    ['criar zona', (d) => addZone(d, { x: 1, y: 6, w: 3, h: 2 }, 'open', 'Copa')],
-    ['redimensionar zona', (d) => resizeZone(d, objectId(d, 'zones'), { x: 1, y: 1, w: 5, h: 3 })],
-    ['renomear e mudar o tipo da zona', (d) => setZoneProps(d, objectId(d, 'zones'), { name: 'Squad', type: 'meeting' })],
-    ['criar mesa', (d) => addDesk(d, 6, 2, 'down')],
-    ['girar mesa', (d) => rotateDesk(d, objectId(d, 'desks'))],
-    ['mover mesa', (d) => moveObject(d, 'desks', objectId(d, 'desks'), 2, 6)],
-    ['mover móvel', (d) => moveObject(d, 'furniture', objectId(d, 'furniture'), 11, 8)],
-    ['mover spawn', (d) => moveSpawn(d, 3, 8)],
-    ['remover zona', (d) => removeObject(d, 'zones', objectId(d, 'zones', 1))],
-    ['remover mesa', (d) => removeObject(d, 'desks', objectId(d, 'desks'))],
+  const cases: [string, (currentDoc: TiledDoc) => EditorCommand | null][] = [
+    ['pintar parede', (currentDoc) => paint(currentDoc, 'walls', [[3, 6], [4, 6], [3, 6]], FIRSTGID.walls)],
+    ['apagar piso', (currentDoc) => paint(currentDoc, 'floor', [[5, 7]], 0)],
+    ['pôr móvel', (currentDoc) => placeFurniture(currentDoc, 'furniture', FURNITURE.plant, 6, 7)],
+    ['criar zona', (currentDoc) => addZone(currentDoc, { x: 1, y: 6, w: 3, h: 2 }, 'open', 'Copa')],
+    ['redimensionar zona', (currentDoc) => resizeZone(currentDoc, objectId(currentDoc, 'zones'), { x: 1, y: 1, w: 5, h: 3 })],
+    ['renomear e mudar o tipo da zona', (currentDoc) => setZoneProps(currentDoc, objectId(currentDoc, 'zones'), { name: 'Squad', type: 'meeting' })],
+    ['criar mesa', (currentDoc) => addDesk(currentDoc, 6, 2, 'down')],
+    ['girar mesa', (currentDoc) => rotateDesk(currentDoc, objectId(currentDoc, 'desks'))],
+    ['mover mesa', (currentDoc) => moveObject(currentDoc, 'desks', objectId(currentDoc, 'desks'), 2, 6)],
+    ['mover móvel', (currentDoc) => moveObject(currentDoc, 'furniture', objectId(currentDoc, 'furniture'), 11, 8)],
+    ['mover spawn', (currentDoc) => moveSpawn(currentDoc, 3, 8)],
+    ['remover zona', (currentDoc) => removeObject(currentDoc, 'zones', objectId(currentDoc, 'zones', 1))],
+    ['remover mesa', (currentDoc) => removeObject(currentDoc, 'desks', objectId(currentDoc, 'desks'))],
   ];
 
   it.each(cases)('%s: aplicar, desfazer e refazer devolvem exatamente o estado anterior', (_name, build) => {
@@ -137,8 +137,8 @@ describe('chaves estáveis', () => {
     stack.execute(moveObject(stack.doc, 'desks', deskId, 2, 6));
     stack.execute(rotateDesk(stack.doc, deskId));
     stack.execute(moveObject(stack.doc, 'zones', zoneId, 1, 5));
-    const desk = objectLayer(stack.doc, 'desks').objects.find((o) => o.id === deskId);
-    const zone = objectLayer(stack.doc, 'zones').objects.find((o) => o.id === zoneId);
+    const desk = objectLayer(stack.doc, 'desks').objects.find((object) => object.id === deskId);
+    const zone = objectLayer(stack.doc, 'zones').objects.find((object) => object.id === zoneId);
     expect(desk && prop(desk, 'desk_key')).toBe('mesa-1');
     expect(zone && prop(zone, 'zone_key')).toBe('produto');
   });
@@ -160,8 +160,8 @@ describe('chaves estáveis', () => {
     stack.execute(addZone(stack.doc, { x: 1, y: 6, w: 3, h: 2 }, 'meeting', 'Foco'));
     const result = compileMap(stack.doc);
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
-    expect(result.map.desks.map((d) => d.key)).toContain('mesa-3');
-    expect(result.map.zones.map((z) => z.key)).toContain('zona-1');
+    expect(result.map.desks.map((desk) => desk.key)).toContain('mesa-3');
+    expect(result.map.zones.map((zone) => zone.key)).toContain('zona-1');
   });
 });
 
@@ -169,20 +169,20 @@ describe('sequências aleatórias', () => {
   // Erros que uma edição livre pode produzir; qualquer outro indica comando corrompendo o JSON.
   const EXPECTED: MapError['code'][] = ['zone_overlap', 'chair_blocked', 'chair_shared', 'spawn_blocked', 'spawn_in_meeting'];
 
-  function randomCommand(doc: TiledDoc, rand: () => number): EditorCommand | null {
-    const x = Math.floor(rand() * doc.width);
-    const y = Math.floor(rand() * doc.height);
-    const pick = <T>(items: readonly T[]): T | undefined => items[Math.floor(rand() * items.length)];
+  function randomCommand(doc: TiledDoc, random: () => number): EditorCommand | null {
+    const x = Math.floor(random() * doc.width);
+    const y = Math.floor(random() * doc.height);
+    const pick = <T>(items: readonly T[]): T | undefined => items[Math.floor(random() * items.length)];
     const someId = (layer: ObjectLayerName) => pick(objectLayer(doc, layer).objects)?.id;
-    switch (Math.floor(rand() * 11)) {
+    switch (Math.floor(random() * 11)) {
       case 0:
-        return paint(doc, 'walls', [[x, y], [x + 1, y]], rand() < 0.7 ? FIRSTGID.walls : 0);
+        return paint(doc, 'walls', [[x, y], [x + 1, y]], random() < 0.7 ? FIRSTGID.walls : 0);
       case 1:
         return paint(doc, 'floor', [[x, y]], pick([FIRSTGID.floors, FIRSTGID.floors + 1, 0]) ?? 0);
       case 2:
         return placeFurniture(doc, 'furniture', pick([FURNITURE.plant, FURNITURE.chair]) ?? 0, x, y);
       case 3:
-        return addZone(doc, { x, y, w: 1 + Math.floor(rand() * 4), h: 1 + Math.floor(rand() * 3) }, rand() < 0.5 ? 'open' : 'meeting', 'Z');
+        return addZone(doc, { x, y, w: 1 + Math.floor(random() * 4), h: 1 + Math.floor(random() * 3) }, random() < 0.5 ? 'open' : 'meeting', 'Z');
       case 4:
         return addDesk(doc, x, y, pick(DIRS) ?? 'down');
       case 5: {
@@ -203,7 +203,7 @@ describe('sequências aleatórias', () => {
         return moveSpawn(doc, x, y);
       case 9: {
         const id = someId('zones');
-        return id === undefined ? null : setZoneProps(doc, id, { type: rand() < 0.5 ? 'open' : 'meeting', name: `n${x}` });
+        return id === undefined ? null : setZoneProps(doc, id, { type: random() < 0.5 ? 'open' : 'meeting', name: `n${x}` });
       }
       default: {
         const id = someId('zones');
@@ -213,14 +213,14 @@ describe('sequências aleatórias', () => {
   }
 
   it.each(Array.from({ length: 40 }, (_, i) => i + 1))('semente %i: só erros esperados, e desfazer tudo volta ao início', (seed) => {
-    const rand = prng(seed);
+    const random = prng(seed);
     const original = baseDoc();
     const stack = new CommandStack(original);
-    for (let i = 0; i < 60; i++) stack.execute(randomCommand(stack.doc, rand));
+    for (let i = 0; i < 60; i++) stack.execute(randomCommand(stack.doc, random));
     expect(stack.canUndo).toBe(true);
 
     const result = compileMap(stack.doc);
-    const unexpected = result.ok ? [] : result.errors.filter((e) => !EXPECTED.includes(e.code));
+    const unexpected = result.ok ? [] : result.errors.filter((error) => !EXPECTED.includes(error.code));
     expect(unexpected).toEqual([]);
 
     while (stack.canUndo) stack.undo();
@@ -230,11 +230,11 @@ describe('sequências aleatórias', () => {
   it('as sequências chegam a produzir os erros esperados (o teste não é vazio)', () => {
     const codes = new Set<string>();
     for (let seed = 1; seed <= 40; seed++) {
-      const rand = prng(seed);
+      const random = prng(seed);
       const stack = new CommandStack(baseDoc());
-      for (let i = 0; i < 60; i++) stack.execute(randomCommand(stack.doc, rand));
+      for (let i = 0; i < 60; i++) stack.execute(randomCommand(stack.doc, random));
       const result = compileMap(stack.doc);
-      if (!result.ok) for (const e of result.errors) codes.add(e.code);
+      if (!result.ok) for (const error of result.errors) codes.add(error.code);
     }
     expect(codes.size).toBeGreaterThan(0);
   });
@@ -257,13 +257,13 @@ describe('adoptDocument', () => {
     const used = prop(stack.doc, 'pixelwork_next_desk');
     const template = baseDoc();
     const adopted = adoptDocument(stack.doc, template);
-    const keys = objectLayer(adopted, 'desks').objects.map((o) => prop(o, 'desk_key'));
-    const old = objectLayer(stack.doc, 'desks').objects.map((o) => prop(o, 'desk_key'));
+    const keys = objectLayer(adopted, 'desks').objects.map((object) => prop(object, 'desk_key'));
+    const old = objectLayer(stack.doc, 'desks').objects.map((object) => prop(object, 'desk_key'));
     for (const key of keys) expect(old).not.toContain(key);
     expect(Number(prop(adopted, 'pixelwork_next_desk'))).toBeGreaterThan(Number(used));
     expect(compileMap(adopted).ok).toBe(true);
     // O modelo original não é alterado.
-    expect(objectLayer(template, 'desks').objects.map((o) => prop(o, 'desk_key'))).not.toEqual(keys);
+    expect(objectLayer(template, 'desks').objects.map((object) => prop(object, 'desk_key'))).not.toEqual(keys);
   });
 });
 
@@ -289,19 +289,19 @@ describe('móveis de várias células', () => {
 
   it('tileset novo ganha um firstgid que não cruza com os do mapa (mapa editado no Tiled)', () => {
     const doc = baseDoc();
-    const refs = (doc.tilesets as { firstgid: number; source: string }[]).filter((t) => t.source !== 'furniture-2x1.tsj');
+    const refs = (doc.tilesets as { firstgid: number; source: string }[]).filter((tilesetRef) => tilesetRef.source !== 'furniture-2x1.tsj');
     // O Tiled compacta os firstgid: aqui o desk-decor ocupa a faixa onde o bloco de 100 do 2x1 cairia.
-    const decor = refs.find((t) => t.source === 'desk-decor.tsj');
+    const decor = refs.find((tilesetRef) => tilesetRef.source === 'desk-decor.tsj');
     if (decor) decor.firstgid = 390;
     doc.tilesets = refs;
     const stack = new CommandStack(doc);
     stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 0, 3, 6));
-    const ranges = (stack.doc.tilesets as { firstgid: number; source: string }[]).map((t) => {
-      const id = t.source.replace(/\.tsj$/, '') as keyof typeof TILESETS;
-      return [t.firstgid, t.firstgid + TILESETS[id].tilecount] as const;
+    const ranges = (stack.doc.tilesets as { firstgid: number; source: string }[]).map((tilesetRef) => {
+      const id = tilesetRef.source.replace(/\.tsj$/, '') as keyof typeof TILESETS;
+      return [tilesetRef.firstgid, tilesetRef.firstgid + TILESETS[id].tilecount] as const;
     });
-    for (const [a0, a1] of ranges) {
-      expect(ranges.filter(([b0, b1]) => a0 < b1 && b0 < a1)).toHaveLength(1);
+    for (const [start, end] of ranges) {
+      expect(ranges.filter(([otherStart, otherEnd]) => start < otherEnd && otherStart < end)).toHaveLength(1);
     }
   });
 
@@ -338,12 +338,12 @@ describe('móveis de várias células', () => {
 
   it('mapa sem o tileset ganha a referência no mesmo comando, e desfazer volta idêntico', () => {
     const doc = baseDoc();
-    doc.tilesets = (doc.tilesets as { firstgid: number; source: string }[]).filter((t) => t.source !== 'furniture-2x1.tsj');
+    doc.tilesets = (doc.tilesets as { firstgid: number; source: string }[]).filter((tilesetRef) => tilesetRef.source !== 'furniture-2x1.tsj');
     const before = json(doc);
     const stack = new CommandStack(doc);
     stack.execute(placeFurniture(stack.doc, 'furniture-2x1', 1, 2, 6));
     const refs = stack.doc.tilesets as { firstgid: number; source: string }[];
-    const ref = refs.find((t) => t.source === 'furniture-2x1.tsj');
+    const ref = refs.find((tilesetRef) => tilesetRef.source === 'furniture-2x1.tsj');
     expect(ref?.firstgid).toBe(FIRSTGID['furniture-2x1']);
     expect(lastFurniture(stack.doc)?.gid).toBe(FIRSTGID['furniture-2x1'] + 1);
     expect(compileMap(stack.doc).ok).toBe(true);
@@ -371,7 +371,7 @@ describe('mesa de 2 tiles no editor', () => {
     expect(lastDesk(stack.doc)).toMatchObject({ width: 16, height: 32 });
     expect(prop(lastDesk(stack.doc) ?? {}, 'orientation')).toBe('left');
     const result = compileMap(stack.doc);
-    expect(result.ok ? [] : result.errors.filter((e) => e.code === 'desk_size')).toEqual([]);
+    expect(result.ok ? [] : result.errors.filter((error) => error.code === 'desk_size')).toEqual([]);
   });
 
   it('mesa larga girada encostada na parede dá chair_blocked, sem exceção', () => {

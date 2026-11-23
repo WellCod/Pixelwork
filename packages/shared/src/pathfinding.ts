@@ -22,15 +22,16 @@ class MinHeap {
   push(node: number, priority: number): void {
     const items = this.items;
     items.push({ node, priority });
+    // Sobe o item novo enquanto ele tiver prioridade menor que a do pai (filhos de i: 2i+1 e 2i+2).
     let i = items.length - 1;
     while (i > 0) {
-      const parent = (i - 1) >> 1;
-      const p = items[parent];
-      const c = items[i];
-      if (!p || !c || p.priority <= c.priority) break;
-      items[parent] = c;
-      items[i] = p;
-      i = parent;
+      const parentIndex = (i - 1) >> 1;
+      const parent = items[parentIndex];
+      const child = items[i];
+      if (!parent || !child || parent.priority <= child.priority) break;
+      items[parentIndex] = child;
+      items[i] = parent;
+      i = parentIndex;
     }
   }
 
@@ -40,20 +41,21 @@ class MinHeap {
     const last = items.pop();
     if (!top || !last) return undefined;
     if (items.length > 0) {
+      // O último vai para a raiz e desce trocando com o menor filho até a ordem do heap voltar.
       items[0] = last;
       let i = 0;
       for (;;) {
-        const l = 2 * i + 1;
-        const r = l + 1;
+        const leftIndex = 2 * i + 1;
+        const rightIndex = leftIndex + 1;
         let smallest = i;
-        if ((items[l]?.priority ?? Infinity) < (items[smallest]?.priority ?? Infinity)) smallest = l;
-        if ((items[r]?.priority ?? Infinity) < (items[smallest]?.priority ?? Infinity)) smallest = r;
+        if ((items[leftIndex]?.priority ?? Infinity) < (items[smallest]?.priority ?? Infinity)) smallest = leftIndex;
+        if ((items[rightIndex]?.priority ?? Infinity) < (items[smallest]?.priority ?? Infinity)) smallest = rightIndex;
         if (smallest === i) break;
-        const a = items[i];
-        const b = items[smallest];
-        if (!a || !b) break;
-        items[i] = b;
-        items[smallest] = a;
+        const current = items[i];
+        const smallestChild = items[smallest];
+        if (!current || !smallestChild) break;
+        items[i] = smallestChild;
+        items[smallest] = current;
         i = smallest;
       }
     }
@@ -75,14 +77,18 @@ export function findPath(
 ): Dir[] | null {
   const { canEnter, stopAt = 0 } = options;
   const width = map.width;
+  // Cada tile vira um número (y * width + x) para caber em Map e no heap sem alocar objeto.
   const index = (x: number, y: number) => y * width + x;
+  // Manhattan até o alvo: heurística admissível com passos de 4 direções e custo 1.
   const distance = (x: number, y: number) => Math.abs(x - to.x) + Math.abs(y - to.y);
   if (distance(from.x, from.y) <= stopAt) return [];
   // Alvo intransitável só serve com stopAt (parar ao lado de uma mesa, por exemplo).
   if (stopAt === 0 && !isWalkable(map, to.x, to.y)) return null;
 
   const start = index(from.x, from.y);
+  /** Custo conhecido (passos desde a origem) de cada tile já alcançado: o `g` do A*. */
   const cost = new Map<number, number>([[start, 0]]);
+  /** De onde se chegou a cada tile e com que direção, para remontar o caminho no fim. */
   const came = new Map<number, { prev: number; dir: Dir }>();
   const open = new MinHeap();
   open.push(start, distance(from.x, from.y));
@@ -91,22 +97,24 @@ export function findPath(
     const x = node % width;
     const y = Math.floor(node / width);
     if (distance(x, y) <= stopAt) {
+      // Volta pelos predecessores até a origem e inverte para ter a ordem de andar.
       const path: Dir[] = [];
-      for (let step = came.get(node); step; step = came.get(step.prev)) path.push(step.dir);
+      for (let cameFrom = came.get(node); cameFrom; cameFrom = came.get(cameFrom.prev)) path.push(cameFrom.dir);
       return path.reverse();
     }
-    const g = cost.get(node) ?? 0;
+    const nodeCost = cost.get(node) ?? 0;
     for (const dir of DIRS) {
       const [dx, dy] = DIR_DELTA[dir];
-      const nx = x + dx;
-      const ny = y + dy;
-      if (!isWalkable(map, nx, ny) || (canEnter && !canEnter({ x, y }, nx, ny))) continue;
-      const next = index(nx, ny);
-      const ng = g + 1;
-      if (ng >= (cost.get(next) ?? Infinity)) continue;
-      cost.set(next, ng);
-      came.set(next, { prev: node, dir });
-      open.push(next, ng + distance(nx, ny));
+      const neighborX = x + dx;
+      const neighborY = y + dy;
+      if (!isWalkable(map, neighborX, neighborY) || (canEnter && !canEnter({ x, y }, neighborX, neighborY))) continue;
+      const neighbor = index(neighborX, neighborY);
+      const neighborCost = nodeCost + 1;
+      // Só reabre o vizinho quando este caminho é mais curto que o já conhecido.
+      if (neighborCost >= (cost.get(neighbor) ?? Infinity)) continue;
+      cost.set(neighbor, neighborCost);
+      came.set(neighbor, { prev: node, dir });
+      open.push(neighbor, neighborCost + distance(neighborX, neighborY));
     }
   }
   return null;

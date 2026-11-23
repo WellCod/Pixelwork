@@ -19,6 +19,7 @@ export const DIRS = ['up', 'down', 'left', 'right'] as const;
 export const Dir = z.enum(DIRS);
 export type Dir = z.infer<typeof Dir>;
 
+/** Deslocamento em tiles de um passo em cada direção (y cresce para baixo). */
 export const DIR_DELTA: Readonly<Record<Dir, readonly [dx: number, dy: number]>> = {
   up: [0, -1],
   down: [0, 1],
@@ -27,8 +28,10 @@ export const DIR_DELTA: Readonly<Record<Dir, readonly [dx: number, dy: number]>>
 };
 
 export type Status = 'available' | 'focus' | 'away';
+/** O que o jogador está fazendo, mostrado aos outros (reunião, chamada, jogo). */
 export type Activity = 'idle' | 'meeting' | 'call' | 'game';
 
+/** Avatar montado por camadas do catálogo; cabelo e acessório são opcionais. */
 export const AvatarSpec = z.object({
   body: z.enum(BODY_IDS),
   skin: z.enum(SKIN_PALETTES),
@@ -40,6 +43,7 @@ export const AvatarSpec = z.object({
 });
 export type AvatarSpec = z.infer<typeof AvatarSpec>;
 
+/** Decoração da mesa atribuída: variante, monitor e um item por espaço. */
 export const DeskDecor = z.object({
   variant: z.enum(DESK_VARIANTS),
   monitor: z.enum(['single', 'dual', 'laptop']),
@@ -96,9 +100,12 @@ export interface GameSeat {
   side: PongSide;
 }
 
+/** Número de sequência do cliente, ecoado no `ack` para a reconciliação. */
 const Seq = z.number().int().nonnegative();
+/** Chave de zona ou de mesa de jogo, com teto de 40 caracteres como as chaves do mapa. */
 const Key = z.string().min(1).max(40);
 
+/** Mensagens do cliente para o servidor no WebSocket, validadas na chegada. */
 export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('move'), seq: Seq, dir: Dir }),
   z.object({ t: z.literal('zone.lock'), zoneKey: Key, locked: z.boolean() }),
@@ -107,6 +114,7 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('call.invite'), userId: z.string().min(1) }),
   z.object({ t: z.literal('call.reply'), callId: z.string().min(1), accept: z.boolean() }),
   z.object({ t: z.literal('call.leave') }),
+  // Teto folgado em unidades UTF-16 só contra abuso; o limite real (em code points, depois do trim) é conferido no servidor.
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
   z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
   z.object({ t: z.literal('game.join'), tableKey: Key }),
@@ -117,8 +125,10 @@ export const ClientMsg = z.discriminatedUnion('t', [
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
+/** Movimento do tick já decodificado, com o id completo do jogador. */
 export type TickMove = [id: string, x: number, y: number, dir: Dir];
 
+/** Mensagens do servidor para o cliente; só o `tick` vai em binário na rede. */
 export type ServerMsg =
   | {
       t: 'welcome';

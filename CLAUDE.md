@@ -90,7 +90,13 @@ Atualize esta seção quando os comandos mudarem.
 - A opção mais simples que resolve é válida. Nada de abstração ou camada sem problema concreto.
 - Não invente API, flag ou comportamento de biblioteca. Sem certeza, verifique na documentação
   ou diga que não tem certeza.
-- Comentários só onde o "por quê" não é óbvio.
+- Código claro (pedido do dono, 2026-11-23): variáveis, parâmetros e callbacks com nomes que dizem
+  o que guardam (`layer`, `tilesetRef`, `player`), nunca `l`, `o`, `r`, `n`, `w`. Nome curto só em
+  índice de laço (`i`, `j`), coordenada (`x`, `y`, `dx`, `dy`, `tx`, `ty`) e `id`. Letras de legenda
+  nas grades de pixel art são o desenho, não nome de variável.
+- Função exportada que não é óbvia tem JSDoc dizendo o que faz e, quando importa, por quê. Bloco que
+  não se explica pelo código (algoritmo, conta, regra de rede ou de mídia, caso de borda, ordem que
+  importa) ganha comentário antes dele. Comentário explica o porquê, não narra a linha.
 - Se uma decisão de `docs/architecture.md` se mostrar errada na prática, aponte e proponha a
   mudança; não desvie em silêncio. Decisão aprovada é registrada no próprio documento.
 - Ao fim de cada fase: testes passando, typecheck limpo, e pare para revisão.

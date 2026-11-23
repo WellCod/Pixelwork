@@ -3,9 +3,12 @@ import { TILE_PX } from './constants.ts';
 import { DIR_DELTA, DIRS, type Dir } from './protocol.ts';
 import { INTERACTIVE_ITEMS, type CompiledTable } from './tables.ts';
 
+/** Lado máximo do mapa em tiles (100x100). */
 export const MAX_MAP_TILES = 100;
+/** Chave da zona implícita: todo tile fora de uma zona desenhada pertence a ela. */
 export const OPEN_ZONE_KEY = '__open';
-const KEY = /^[a-z0-9-]{1,40}$/;
+/** Formato aceito para `zone_key` e `desk_key`. */
+const KEY_PATTERN = /^[a-z0-9-]{1,40}$/;
 // Bits de espelhamento e rotação que o Tiled guarda no topo do gid.
 const GID_MASK = 0x0fffffff;
 
@@ -36,6 +39,7 @@ export interface CompiledDesk {
   wallBehind: boolean;
 }
 
+/** Mapa validado e reduzido ao que a simulação e o cliente consultam (grade, zonas, mesas). */
 export interface CompiledMap {
   width: number;
   height: number;
@@ -80,16 +84,18 @@ interface TilesetRef {
   id: TilesetId;
 }
 
+/** Valor da propriedade `name` de um objeto do Tiled (lista `properties`), ou undefined. */
 function property(object: Json, name: string): unknown {
-  const props = object.properties;
-  if (!Array.isArray(props)) return undefined;
-  for (const prop of props) {
-    if (isObject(prop) && prop.name === name) return prop.value;
+  const properties = object.properties;
+  if (!Array.isArray(properties)) return undefined;
+  for (const entry of properties) {
+    if (isObject(entry) && entry.name === name) return entry.value;
   }
   return undefined;
 }
 
-function num(value: unknown): number {
+/** Número finito ou NaN: com NaN as comparações falham e o valor inválido vira erro de validação. */
+function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : NaN;
 }
 
@@ -98,18 +104,24 @@ function objectsOf(layer: Json): Json[] {
 }
 
 /** Resolve um gid do mapa para o tileset do catálogo e o índice local do tile. */
-function resolveGid(gid: number, refs: readonly TilesetRef[]): { id: TilesetId; tile: number } | null {
-  const clean = gid & GID_MASK;
-  if (clean === 0) return null;
-  let found: TilesetRef | null = null;
-  for (const ref of refs) {
-    if (ref.firstgid <= clean && (!found || ref.firstgid > found.firstgid)) found = ref;
+function resolveGid(gid: number, tilesetRefs: readonly TilesetRef[]): { id: TilesetId; tile: number } | null {
+  const bareGid = gid & GID_MASK;
+  if (bareGid === 0) return null;
+  // Dono do gid: o tileset de maior firstgid que ainda não passa dele (regra do Tiled).
+  let owner: TilesetRef | null = null;
+  for (const tilesetRef of tilesetRefs) {
+    if (tilesetRef.firstgid <= bareGid && (!owner || tilesetRef.firstgid > owner.firstgid)) owner = tilesetRef;
   }
-  if (!found) return null;
-  const tile = clean - found.firstgid;
-  return tile < TILESETS[found.id].tilecount ? { id: found.id, tile } : null;
+  if (!owner) return null;
+  const tile = bareGid - owner.firstgid;
+  return tile < TILESETS[owner.id].tilecount ? { id: owner.id, tile } : null;
 }
 
+/**
+ * Valida o JSON do Tiled e compila o mapa (docs/architecture.md, seção 6). Primeiro confere a
+ * estrutura (orientação, tamanho, camadas, tilesets); com ela válida, monta a grade caminhável,
+ * as zonas, as mesas e o spawn, juntando todos os erros em vez de parar no primeiro.
+ */
 export function compileMap(json: unknown): CompileResult {
   // Sem objeto não há `orientation`, então o mapa não é ortogonal.
   if (!isObject(json)) return { ok: false, errors: [{ code: 'not_orthogonal' }] };
@@ -119,8 +131,8 @@ export function compileMap(json: unknown): CompileResult {
   if (json.infinite === true) errors.push({ code: 'infinite' });
   if (json.tilewidth !== TILE_PX || json.tileheight !== TILE_PX) errors.push({ code: 'wrong_tile_size' });
 
-  const width = num(json.width);
-  const height = num(json.height);
+  const width = asNumber(json.width);
+  const height = asNumber(json.height);
   const sizeOk =
     Number.isInteger(width) &&
     Number.isInteger(height) &&
@@ -131,96 +143,109 @@ export function compileMap(json: unknown): CompileResult {
   if (!sizeOk) errors.push({ code: 'too_large' });
 
   const layers = Array.isArray(json.layers) ? json.layers.filter(isObject) : [];
-  const layer = (name: string) => layers.find((l) => l.name === name);
+  const findLayer = (name: string) => layers.find((layer) => layer.name === name);
 
   for (const name of TILE_LAYERS) {
-    const l = layer(name);
-    if (!l) errors.push({ code: 'missing_layer', layer: name });
-    else if (l.type !== 'tilelayer') errors.push({ code: 'wrong_layer_type', layer: name });
-    else if (l.encoding !== undefined || l.compression !== undefined || !Array.isArray(l.data)) {
+    const layer = findLayer(name);
+    if (!layer) errors.push({ code: 'missing_layer', layer: name });
+    else if (layer.type !== 'tilelayer') errors.push({ code: 'wrong_layer_type', layer: name });
+    else if (layer.encoding !== undefined || layer.compression !== undefined || !Array.isArray(layer.data)) {
       errors.push({ code: 'compressed_layer' });
     }
   }
   for (const name of OBJECT_LAYERS) {
-    const l = layer(name);
-    if (!l) errors.push({ code: 'missing_layer', layer: name });
-    else if (l.type !== 'objectgroup') errors.push({ code: 'wrong_layer_type', layer: name });
+    const layer = findLayer(name);
+    if (!layer) errors.push({ code: 'missing_layer', layer: name });
+    else if (layer.type !== 'objectgroup') errors.push({ code: 'wrong_layer_type', layer: name });
   }
 
-  const refs: TilesetRef[] = [];
+  // Só tilesets externos do catálogo (`<id>.tsj`); tileset embutido no mapa é recusado.
+  const tilesetRefs: TilesetRef[] = [];
   const tilesetList = Array.isArray(json.tilesets) ? json.tilesets : [];
-  for (const raw of tilesetList) {
-    const source = isObject(raw) && typeof raw.source === 'string' ? raw.source : '';
+  for (const rawTileset of tilesetList) {
+    const source = isObject(rawTileset) && typeof rawTileset.source === 'string' ? rawTileset.source : '';
     const id = source.endsWith('.tsj') ? source.slice(0, -4) : '';
     const known = (TILESET_IDS as readonly string[]).includes(id);
-    const firstgid = isObject(raw) ? num(raw.firstgid) : NaN;
+    const firstgid = isObject(rawTileset) ? asNumber(rawTileset.firstgid) : NaN;
     if (!known || !Number.isInteger(firstgid) || firstgid < 1) {
       errors.push({ code: 'unknown_tileset', source: source || '(embutido)' });
     } else {
-      refs.push({ firstgid, id: id as TilesetId });
+      tilesetRefs.push({ firstgid, id: id as TilesetId });
     }
   }
 
   // Um tileset que cresceu depois de o mapa ser salvo invade os gids do seguinte.
-  const sorted = [...refs].sort((a, b) => a.firstgid - b.firstgid);
-  sorted.forEach((ref, i) => {
-    const next = sorted[i + 1];
-    if (next && ref.firstgid + TILESETS[ref.id].tilecount > next.firstgid) {
-      errors.push({ code: 'tileset_overlap', a: ref.id, b: next.id });
+  const refsByFirstgid = [...tilesetRefs].sort((left, right) => left.firstgid - right.firstgid);
+  refsByFirstgid.forEach((tilesetRef, i) => {
+    const nextRef = refsByFirstgid[i + 1];
+    if (nextRef && tilesetRef.firstgid + TILESETS[tilesetRef.id].tilecount > nextRef.firstgid) {
+      errors.push({ code: 'tileset_overlap', a: tilesetRef.id, b: nextRef.id });
     }
   });
 
   // Sem estrutura válida não dá para seguir para a geometria.
   if (errors.length > 0) return { ok: false, errors };
 
-  const size = width * height;
-  const tileData = (name: string): unknown[] => (layer(name)?.data as unknown[] | undefined) ?? [];
+  const tileCount = width * height;
+  const tileData = (name: string): unknown[] => (findLayer(name)?.data as unknown[] | undefined) ?? [];
   const floor = tileData('floor');
   const walls = tileData('walls');
   // Camada com outro tamanho compila, mas o Phaser desenharia deslocado ou vazio.
   for (const name of TILE_LAYERS) {
-    if (tileData(name).length !== size) errors.push({ code: 'layer_size', layer: name });
+    if (tileData(name).length !== tileCount) errors.push({ code: 'layer_size', layer: name });
   }
 
-  const walkable = new Uint8Array(size);
-  for (let i = 0; i < size; i++) {
-    const hasFloor = (num(floor[i]) & GID_MASK) > 0;
-    const hasWall = (num(walls[i]) & GID_MASK) > 0;
+  // Caminhável = tem piso e não tem parede; móveis e mesas bloqueiam depois.
+  const walkable = new Uint8Array(tileCount);
+  for (let i = 0; i < tileCount; i++) {
+    const hasFloor = (asNumber(floor[i]) & GID_MASK) > 0;
+    const hasWall = (asNumber(walls[i]) & GID_MASK) > 0;
     walkable[i] = hasFloor && !hasWall ? 1 : 0;
   }
   const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height;
   const block = (x: number, y: number) => {
     if (inside(x, y)) walkable[y * width + x] = 0;
   };
-  const isWalkable = (x: number, y: number) => inside(x, y) && walkable[y * width + x] === 1;
+  const walkableAt = (x: number, y: number) => inside(x, y) && walkable[y * width + x] === 1;
 
   // Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo.
-  const interactive: Omit<CompiledTable, 'sides'>[] = [];
-  for (const object of objectsOf(layer('furniture') as Json)) {
-    const resolved = resolveGid(num(object.gid), refs);
+  const interactiveTables: Omit<CompiledTable, 'sides'>[] = [];
+  for (const object of objectsOf(findLayer('furniture') as Json)) {
+    const resolved = resolveGid(asNumber(object.gid), tilesetRefs);
     if (!resolved) continue;
-    const x0 = Math.floor(num(object.x) / TILE_PX);
-    const y1 = Math.ceil(num(object.y) / TILE_PX);
-    const w = Math.max(1, Math.round(num(object.width) / TILE_PX) || 1);
-    const h = Math.max(1, Math.round(num(object.height) / TILE_PX) || 1);
+    const left = Math.floor(asNumber(object.x) / TILE_PX);
+    // Linha logo abaixo da pegada (exclusiva): a pegada ocupa de `bottom - footprintHeight` até `bottom - 1`.
+    const bottom = Math.ceil(asNumber(object.y) / TILE_PX);
+    const footprintWidth = Math.max(1, Math.round(asNumber(object.width) / TILE_PX) || 1);
+    const footprintHeight = Math.max(1, Math.round(asNumber(object.height) / TILE_PX) || 1);
     const item = TILESETS[resolved.id].items[resolved.tile];
     const game = item === undefined ? undefined : INTERACTIVE_ITEMS[item];
-    if (item !== undefined && game !== undefined) interactive.push({ key: `${item}@${x0},${y1 - h}`, game, x: x0, y: y1 - h, w, h });
+    if (item !== undefined && game !== undefined) {
+      interactiveTables.push({
+        key: `${item}@${left},${bottom - footprintHeight}`,
+        game,
+        x: left,
+        y: bottom - footprintHeight,
+        w: footprintWidth,
+        h: footprintHeight,
+      });
+    }
     if (!TILESETS[resolved.id].collides.includes(resolved.tile)) continue;
     // Recortado ao mapa: um objeto com tamanho absurdo num JSON pequeno travaria o servidor.
-    for (let y = Math.max(0, y1 - h); y < Math.min(height, y1); y++) {
-      for (let x = Math.max(0, x0); x < Math.min(width, x0 + w); x++) block(x, y);
+    for (let y = Math.max(0, bottom - footprintHeight); y < Math.min(height, bottom); y++) {
+      for (let x = Math.max(0, left); x < Math.min(width, left + footprintWidth); x++) block(x, y);
     }
   }
 
   const zones: CompiledZone[] = [{ key: OPEN_ZONE_KEY, type: 'open', name: '', tiles: 0 }];
-  const zoneIndex = new Uint16Array(size);
+  const zoneIndex = new Uint16Array(tileCount);
   const zoneKeys = new Set<string>();
-  const overlaps = new Set<string>();
-  for (const object of objectsOf(layer('zones') as Json)) {
+  /** Pares de zonas já reportados como sobrepostos, para um erro só por par. */
+  const reportedOverlaps = new Set<string>();
+  for (const object of objectsOf(findLayer('zones') as Json)) {
     const rawKey = property(object, 'zone_key');
     const key = typeof rawKey === 'string' ? rawKey : '';
-    if (!KEY.test(key)) {
+    if (!KEY_PATTERN.test(key)) {
       errors.push({ code: 'invalid_key', kind: 'zone', key });
       continue;
     }
@@ -234,49 +259,55 @@ export function compileMap(json: unknown): CompileResult {
       errors.push({ code: 'invalid_zone_type', key });
       continue;
     }
-    const [x, y, w, h] = [object.x, object.y, object.width, object.height].map(num) as [
+    const [pixelX, pixelY, pixelWidth, pixelHeight] = [object.x, object.y, object.width, object.height].map(asNumber) as [
       number,
       number,
       number,
       number,
     ];
-    const aligned = [x, y, w, h].every((v) => Number.isInteger(v / TILE_PX)) && w > 0 && h > 0;
+    // Zona tem que cair na grade: posição e tamanho múltiplos de TILE_PX, e área positiva.
+    const aligned =
+      [pixelX, pixelY, pixelWidth, pixelHeight].every((value) => Number.isInteger(value / TILE_PX)) &&
+      pixelWidth > 0 &&
+      pixelHeight > 0;
     if (!aligned) {
       errors.push({ code: 'zone_not_aligned', key });
       continue;
     }
-    const nameProp = property(object, 'name');
+    const nameProperty = property(object, 'name');
     const zone: CompiledZone = {
       key,
       type,
-      name: typeof nameProp === 'string' ? nameProp : key,
+      name: typeof nameProperty === 'string' ? nameProperty : key,
       tiles: 0,
     };
-    const ty0 = Math.max(0, y / TILE_PX);
-    const ty1 = Math.min(height, (y + h) / TILE_PX);
-    const tx0 = Math.max(0, x / TILE_PX);
-    const tx1 = Math.min(width, (x + w) / TILE_PX);
+    // Retângulo em tiles recortado ao mapa; os limites `end` são exclusivos.
+    const firstRow = Math.max(0, pixelY / TILE_PX);
+    const endRow = Math.min(height, (pixelY + pixelHeight) / TILE_PX);
+    const firstColumn = Math.max(0, pixelX / TILE_PX);
+    const endColumn = Math.min(width, (pixelX + pixelWidth) / TILE_PX);
     // Zona sem nenhum tile dentro do mapa criaria tranca e sala de mídia que ninguém alcança.
-    if (tx1 <= tx0 || ty1 <= ty0) {
+    if (endColumn <= firstColumn || endRow <= firstRow) {
       errors.push({ code: 'zone_outside', key });
       continue;
     }
     zones.push(zone);
-    const index = zones.length - 1;
-    for (let ty = ty0; ty < ty1; ty++) {
-      for (let tx = tx0; tx < tx1; tx++) {
-        const i = ty * width + tx;
-        const current = zoneIndex[i] ?? 0;
-        if (current !== 0) {
-          const other = zones[current]?.key ?? '';
-          const pair = [other, key].sort().join('\0');
-          if (!overlaps.has(pair)) {
-            overlaps.add(pair);
-            errors.push({ code: 'zone_overlap', a: other, b: key });
+    const zoneNumber = zones.length - 1;
+    for (let ty = firstRow; ty < endRow; ty++) {
+      for (let tx = firstColumn; tx < endColumn; tx++) {
+        const tileIndex = ty * width + tx;
+        const existingZone = zoneIndex[tileIndex] ?? 0;
+        if (existingZone !== 0) {
+          // Tile já é de outra zona: a primeira desenhada fica com ele.
+          const otherKey = zones[existingZone]?.key ?? '';
+          const pairKey = [otherKey, key].sort().join('\0');
+          if (!reportedOverlaps.has(pairKey)) {
+            reportedOverlaps.add(pairKey);
+            errors.push({ code: 'zone_overlap', a: otherKey, b: key });
           }
           continue;
         }
-        zoneIndex[i] = index;
+        zoneIndex[tileIndex] = zoneNumber;
       }
     }
   }
@@ -288,10 +319,10 @@ export function compileMap(json: unknown): CompileResult {
   // Duas passadas: toda mesa bloqueia o próprio tile antes de conferir as cadeiras.
   const desks: CompiledDesk[] = [];
   const deskKeys = new Set<string>();
-  for (const object of objectsOf(layer('desks') as Json)) {
+  for (const object of objectsOf(findLayer('desks') as Json)) {
     const rawKey = property(object, 'desk_key');
     const key = typeof rawKey === 'string' ? rawKey : '';
-    if (!KEY.test(key)) {
+    if (!KEY_PATTERN.test(key)) {
       errors.push({ code: 'invalid_key', kind: 'desk', key });
       continue;
     }
@@ -306,54 +337,77 @@ export function compileMap(json: unknown): CompileResult {
       continue;
     }
     const dir = orientation as Dir;
-    const x = Math.floor(num(object.x) / TILE_PX);
-    const y = Math.floor(num(object.y) / TILE_PX);
+    const x = Math.floor(asNumber(object.x) / TILE_PX);
+    const y = Math.floor(asNumber(object.y) / TILE_PX);
     if (!inside(x, y)) {
       errors.push({ code: 'desk_outside', deskKey: key });
       continue;
     }
     // Pegada pelo tamanho do objeto no Tiled: 16x16 é a mesa de 1 tile dos mapas antigos.
-    const w = Math.max(1, Math.round(num(object.width) / TILE_PX) || 1);
-    const h = Math.max(1, Math.round(num(object.height) / TILE_PX) || 1);
+    const footprintWidth = Math.max(1, Math.round(asNumber(object.width) / TILE_PX) || 1);
+    const footprintHeight = Math.max(1, Math.round(asNumber(object.height) / TILE_PX) || 1);
     const facesUpDown = dir === 'up' || dir === 'down';
-    const sizeOk = (w === 1 && h === 1) || (w === 2 && h === 1 && facesUpDown) || (w === 1 && h === 2 && !facesUpDown);
+    // Mesa larga fica de lado para a cadeira: 2x1 virada para cima/baixo, 1x2 para os lados.
+    const sizeOk =
+      (footprintWidth === 1 && footprintHeight === 1) ||
+      (footprintWidth === 2 && footprintHeight === 1 && facesUpDown) ||
+      (footprintWidth === 1 && footprintHeight === 2 && !facesUpDown);
     if (!sizeOk) {
       errors.push({ code: 'desk_size', deskKey: key });
       continue;
     }
-    if (!inside(x + w - 1, y + h - 1)) {
+    if (!inside(x + footprintWidth - 1, y + footprintHeight - 1)) {
       errors.push({ code: 'desk_outside', deskKey: key });
       continue;
     }
     // Cadeira na frente do tile de âncora, encostada na borda da pegada.
-    const chair = { down: [x, y + h], up: [x, y - 1], left: [x - 1, y], right: [x + w, y] }[dir];
-    const back: [number, number][] = facesUpDown
-      ? Array.from({ length: w }, (_, i) => [x + i, dir === 'down' ? y - 1 : y + h])
-      : Array.from({ length: h }, (_, i) => [dir === 'left' ? x + w : x - 1, y + i]);
-    const wallBehind = back.every(([bx, by]) => inside(bx, by) && (num(walls[by * width + bx]) & GID_MASK) > 0);
-    desks.push({ key, x, y, w, h, orientation: dir, chairX: chair[0] ?? x, chairY: chair[1] ?? y, wallBehind });
-    for (let ty = y; ty < y + h; ty++) for (let tx = x; tx < x + w; tx++) block(tx, ty);
+    const chairTile = {
+      down: [x, y + footprintHeight],
+      up: [x, y - 1],
+      left: [x - 1, y],
+      right: [x + footprintWidth, y],
+    }[dir];
+    // Tiles logo atrás da pegada, do lado oposto à cadeira.
+    const backTiles: [number, number][] = facesUpDown
+      ? Array.from({ length: footprintWidth }, (_, i) => [x + i, dir === 'down' ? y - 1 : y + footprintHeight])
+      : Array.from({ length: footprintHeight }, (_, i) => [dir === 'left' ? x + footprintWidth : x - 1, y + i]);
+    const wallBehind = backTiles.every(
+      ([backX, backY]) => inside(backX, backY) && (asNumber(walls[backY * width + backX]) & GID_MASK) > 0,
+    );
+    desks.push({
+      key,
+      x,
+      y,
+      w: footprintWidth,
+      h: footprintHeight,
+      orientation: dir,
+      chairX: chairTile[0] ?? x,
+      chairY: chairTile[1] ?? y,
+      wallBehind,
+    });
+    for (let ty = y; ty < y + footprintHeight; ty++) for (let tx = x; tx < x + footprintWidth; tx++) block(tx, ty);
   }
-  const chairs = new Map<number, string>();
+  /** Tile da cadeira (índice na grade) -> chave da primeira mesa que usa essa cadeira. */
+  const chairOwners = new Map<number, string>();
   for (const desk of desks) {
-    if (!isWalkable(desk.chairX, desk.chairY)) errors.push({ code: 'chair_blocked', deskKey: desk.key });
+    if (!walkableAt(desk.chairX, desk.chairY)) errors.push({ code: 'chair_blocked', deskKey: desk.key });
     // Duas mesas com a mesma cadeira: sentar ali contaria como estar nas duas.
-    const chair = desk.chairY * width + desk.chairX;
-    const other = chairs.get(chair);
-    if (other !== undefined) errors.push({ code: 'chair_shared', a: other, b: desk.key });
-    else chairs.set(chair, desk.key);
+    const chairIndex = desk.chairY * width + desk.chairX;
+    const otherDeskKey = chairOwners.get(chairIndex);
+    if (otherDeskKey !== undefined) errors.push({ code: 'chair_shared', a: otherDeskKey, b: desk.key });
+    else chairOwners.set(chairIndex, desk.key);
   }
 
-  const spawns = objectsOf(layer('spawn') as Json);
+  const spawns = objectsOf(findLayer('spawn') as Json);
   let spawn = { x: 0, y: 0 };
   if (spawns.length !== 1) {
     errors.push({ code: 'spawn_count', found: spawns.length });
   } else if (spawns[0]) {
     spawn = {
-      x: Math.floor(num(spawns[0].x) / TILE_PX),
-      y: Math.floor(num(spawns[0].y) / TILE_PX),
+      x: Math.floor(asNumber(spawns[0].x) / TILE_PX),
+      y: Math.floor(asNumber(spawns[0].y) / TILE_PX),
     };
-    if (!isWalkable(spawn.x, spawn.y)) errors.push({ code: 'spawn_blocked' });
+    if (!walkableAt(spawn.x, spawn.y)) errors.push({ code: 'spawn_blocked' });
     // Quem entra nasceria dentro da sala e furaria a tranca.
     else if (zones[zoneIndex[spawn.y * width + spawn.x] ?? 0]?.type === 'meeting') {
       errors.push({ code: 'spawn_in_meeting' });
@@ -362,9 +416,14 @@ export function compileMap(json: unknown): CompileResult {
 
   if (errors.length > 0) return { ok: false, errors };
   // Lados calculados depois de tudo bloquear (móveis e mesas): só tiles onde dá para ficar.
-  const column = (x: number, t: Omit<CompiledTable, 'sides'>) =>
-    Array.from({ length: t.h }, (_, i): [number, number] => [x, t.y + i]).filter(([cx, cy]) => isWalkable(cx, cy));
-  const tables: CompiledTable[] = interactive.map((t) => ({ ...t, sides: { left: column(t.x - 1, t), right: column(t.x + t.w, t) } }));
+  const walkableColumn = (columnX: number, table: Omit<CompiledTable, 'sides'>) =>
+    Array.from({ length: table.h }, (_, i): [number, number] => [columnX, table.y + i]).filter(([cellX, cellY]) =>
+      walkableAt(cellX, cellY),
+    );
+  const tables: CompiledTable[] = interactiveTables.map((table) => ({
+    ...table,
+    sides: { left: walkableColumn(table.x - 1, table), right: walkableColumn(table.x + table.w, table) },
+  }));
   return {
     ok: true,
     map: {
@@ -376,15 +435,17 @@ export function compileMap(json: unknown): CompileResult {
       desks,
       tables,
       spawn,
-      tilesets: [...new Set(refs.map((r) => r.id))],
+      tilesets: [...new Set(tilesetRefs.map((tilesetRef) => tilesetRef.id))],
     },
   };
 }
 
+/** Tile dentro do mapa e caminhável; fora do mapa conta como bloqueado. */
 export function isWalkable(map: CompiledMap, x: number, y: number): boolean {
   return x >= 0 && y >= 0 && x < map.width && y < map.height && map.walkable[y * map.width + x] === 1;
 }
 
+/** Zona do tile; fora do mapa, a zona implícita `__open`. */
 export function zoneAt(map: CompiledMap, x: number, y: number): CompiledZone {
   const index = x >= 0 && y >= 0 && x < map.width && y < map.height ? map.zoneIndex[y * map.width + x] : 0;
   const zone = map.zones[index ?? 0] ?? map.zones[0];
@@ -398,22 +459,24 @@ export function zoneAt(map: CompiledMap, x: number, y: number): CompiledZone {
  */
 export function relocate(map: CompiledMap, x: number, y: number): { x: number; y: number } {
   if (isWalkable(map, x, y)) return { x, y };
-  const zone = zoneAt(map, x, y).key;
+  const zoneKey = zoneAt(map, x, y).key;
   const inside = (tx: number, ty: number) => tx >= 0 && ty >= 0 && tx < map.width && ty < map.height;
+  // Posição fora do mapa (mapa novo menor) começa a busca da borda mais próxima.
   const start = { x: Math.min(Math.max(x, 0), map.width - 1), y: Math.min(Math.max(y, 0), map.height - 1) };
   const seen = new Uint8Array(map.width * map.height);
   const queue: { x: number; y: number }[] = [start];
   seen[start.y * map.width + start.x] = 1;
+  // A fila cresce durante o laço; `head` anda por ela sem `shift`, que seria O(n) por item.
   for (let head = 0; head < queue.length; head++) {
     const tile = queue[head];
     if (!tile) break;
-    if (isWalkable(map, tile.x, tile.y) && zoneAt(map, tile.x, tile.y).key === zone) return tile;
+    if (isWalkable(map, tile.x, tile.y) && zoneAt(map, tile.x, tile.y).key === zoneKey) return tile;
     for (const [dx, dy] of Object.values(DIR_DELTA)) {
-      const nx = tile.x + dx;
-      const ny = tile.y + dy;
-      if (!inside(nx, ny) || seen[ny * map.width + nx]) continue;
-      seen[ny * map.width + nx] = 1;
-      queue.push({ x: nx, y: ny });
+      const neighborX = tile.x + dx;
+      const neighborY = tile.y + dy;
+      if (!inside(neighborX, neighborY) || seen[neighborY * map.width + neighborX]) continue;
+      seen[neighborY * map.width + neighborX] = 1;
+      queue.push({ x: neighborX, y: neighborY });
     }
   }
   return { ...map.spawn };

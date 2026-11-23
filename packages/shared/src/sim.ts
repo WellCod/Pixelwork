@@ -14,6 +14,7 @@ export interface WorldState {
   players: ReadonlyMap<string, SimPlayer>;
 }
 
+/** Pedido de passo de um jogador (o `move` do cliente). */
 export interface Input {
   playerId: string;
   seq: number;
@@ -30,6 +31,12 @@ export interface StepRules {
   canEnter?: (playerId: string, x: number, y: number, map: CompiledMap) => boolean;
 }
 
+/**
+ * Avança a simulação aplicando os passos pedidos, na ordem recebida. Função pura: não altera o
+ * estado de entrada e devolve o mesmo objeto quando nenhum passo foi aplicado.
+ * Passo antes de MIN_STEP_INTERVAL_MS desde o último é ignorado sem evento; passo para tile não
+ * caminhável (ou barrado por `rules.canEnter`) só vira o jogador e gera `blocked`.
+ */
 export function step(
   state: WorldState,
   inputs: readonly Input[],
@@ -38,6 +45,7 @@ export function step(
   rules: StepRules = {},
 ): { state: WorldState; events: WorldEvent[] } {
   const events: WorldEvent[] = [];
+  // Copiado só no primeiro passo aplicado (copy-on-write); até lá o estado recebido serve.
   let players: Map<string, SimPlayer> | null = null;
 
   for (const input of inputs) {
@@ -48,6 +56,7 @@ export function step(
     const x = current.x + dx;
     const y = current.y + dy;
     const allowed = isWalkable(map, x, y) && (rules.canEnter?.(input.playerId, x, y, map) ?? true);
+    // Passo recusado também conta para o intervalo mínimo: atualiza `lastStepAt` mesmo sem andar.
     const next: SimPlayer = allowed
       ? { x, y, dir: input.dir, lastStepAt: now }
       : { ...current, dir: input.dir, lastStepAt: now };

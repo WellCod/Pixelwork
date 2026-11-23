@@ -3,6 +3,7 @@
 import type { CompiledMap } from './map.ts';
 import type { PongSide } from './pong.ts';
 
+/** Jogos disponíveis nas mesas interativas. */
 export type GameKind = 'pong';
 
 /** item_id do catálogo -> jogo da mesa. */
@@ -25,7 +26,7 @@ export interface CompiledTable {
 export function tableAtSide(map: CompiledMap, x: number, y: number): { table: CompiledTable; side: PongSide } | null {
   for (const table of map.tables) {
     for (const side of ['left', 'right'] as const) {
-      if (table.sides[side].some(([sx, sy]) => sx === x && sy === y)) return { table, side };
+      if (table.sides[side].some(([sideX, sideY]) => sideX === x && sideY === y)) return { table, side };
     }
   }
   return null;

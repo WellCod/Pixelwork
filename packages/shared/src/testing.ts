@@ -22,9 +22,14 @@ export interface TestMapOptions {
   spawns?: [x: number, y: number][];
 }
 
+/** Propriedades no formato do Tiled (lista de `{ name, type, value }`), todas string. */
 const props = (values: Record<string, string>) =>
   Object.entries(values).map(([name, value]) => ({ name, type: 'string', value }));
 
+/**
+ * JSON de mapa Tiled no formato que o `compileMap` aceita, com piso em tudo, parede na borda e
+ * os objetos pedidos. Coordenadas das opções em tiles; aqui viram pixels como no Tiled.
+ */
 export function buildTestMap(options: TestMapOptions = {}): Record<string, unknown> {
   const width = options.width ?? 10;
   const height = options.height ?? 8;
@@ -40,6 +45,7 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
   for (const [x, y] of options.walls ?? []) walls[y * width + x] = FIRSTGID.walls;
 
   let nextId = 1;
+  /** Objeto do Tiled com os campos obrigatórios e id sequencial, mais o que vier em `extra`. */
   const object = (extra: Record<string, unknown>) => ({
     id: nextId++,
     name: '',
@@ -69,13 +75,14 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
         id: 3,
         name: 'furniture',
         type: 'objectgroup',
-        objects: (options.furniture ?? []).map((f) =>
+        // Objeto de tile do Tiled fica ancorado no canto inferior esquerdo, daí o `y + 1`.
+        objects: (options.furniture ?? []).map((furniture) =>
           object({
-            gid: FIRSTGID[f.tileset ?? 'furniture'] + f.tile,
-            x: f.x * TILE_PX,
-            y: (f.y + 1) * TILE_PX,
-            width: (f.w ?? 1) * TILE_PX,
-            height: (f.h ?? 1) * TILE_PX,
+            gid: FIRSTGID[furniture.tileset ?? 'furniture'] + furniture.tile,
+            x: furniture.x * TILE_PX,
+            y: (furniture.y + 1) * TILE_PX,
+            width: (furniture.w ?? 1) * TILE_PX,
+            height: (furniture.h ?? 1) * TILE_PX,
           }),
         ),
       },
@@ -83,13 +90,13 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
         id: 4,
         name: 'zones',
         type: 'objectgroup',
-        objects: (options.zones ?? []).map((z) =>
+        objects: (options.zones ?? []).map((zone) =>
           object({
-            x: z.x * TILE_PX,
-            y: z.y * TILE_PX,
-            width: z.w * TILE_PX,
-            height: z.h * TILE_PX,
-            properties: props({ zone_key: z.key, type: z.type, name: z.name ?? z.key }),
+            x: zone.x * TILE_PX,
+            y: zone.y * TILE_PX,
+            width: zone.w * TILE_PX,
+            height: zone.h * TILE_PX,
+            properties: props({ zone_key: zone.key, type: zone.type, name: zone.name ?? zone.key }),
           }),
         ),
       },
@@ -97,15 +104,15 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
         id: 5,
         name: 'desks',
         type: 'objectgroup',
-        objects: (options.desks ?? []).map((d) => {
-          const wide = d.size === 2;
-          const vertical = d.orientation === 'left' || d.orientation === 'right';
+        objects: (options.desks ?? []).map((desk) => {
+          const wide = desk.size === 2;
+          const vertical = desk.orientation === 'left' || desk.orientation === 'right';
           return object({
-            x: d.x * TILE_PX,
-            y: d.y * TILE_PX,
+            x: desk.x * TILE_PX,
+            y: desk.y * TILE_PX,
             width: wide && !vertical ? 2 * TILE_PX : TILE_PX,
             height: wide && vertical ? 2 * TILE_PX : TILE_PX,
-            properties: props({ desk_key: d.key, orientation: d.orientation }),
+            properties: props({ desk_key: desk.key, orientation: desk.orientation }),
           });
         }),
       },
@@ -113,6 +120,7 @@ export function buildTestMap(options: TestMapOptions = {}): Record<string, unkno
         id: 6,
         name: 'spawn',
         type: 'objectgroup',
+        // Spawn é um ponto no centro do tile.
         objects: (options.spawns ?? [[1, 1]]).map(([x, y]) =>
           object({ x: x * TILE_PX + TILE_PX / 2, y: y * TILE_PX + TILE_PX / 2, point: true }),
         ),
