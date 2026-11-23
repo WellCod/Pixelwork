@@ -14,10 +14,15 @@ export const DEFAULT_DECOR: DeskDecor = {
   slots: { left: null, right: null, back: null, floor: null },
 };
 
+/**
+ * Mesas fixas: reivindicar sentado na cadeira, decorar a própria e liberar (dono ou admin).
+ * Cada alteração gravada vai também para o runtime, que avisa quem está no mapa.
+ */
 export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db } = deps;
 
-  const assignment = async (spaceId: string, deskKey: string) =>
+  /** Atribuição atual da mesa no coworking, se houver. */
+  const findAssignment = async (spaceId: string, deskKey: string) =>
     (
       await db
         .select({ userId: deskAssignments.userId })
@@ -34,8 +39,8 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
     if (!runtime || !desk) return reply.code(404).send({ error: 'not_found' });
 
     // A posição vem do servidor de tempo real; o cliente não informa onde está.
-    const pos = runtime.positionOf(user.id);
-    if (pos?.x !== desk.chairX || pos.y !== desk.chairY) {
+    const position = runtime.positionOf(user.id);
+    if (position?.x !== desk.chairX || position.y !== desk.chairY) {
       return reply.code(422).send({ error: 'not_on_chair' });
     }
 
@@ -45,7 +50,8 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
         .values({ spaceId, deskKey: desk.key, userId: user.id, decor: DEFAULT_DECOR });
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
-      const taken = await assignment(spaceId, desk.key);
+      // Duas unicidades possíveis: a mesa já tem dono, ou o usuário já tem outra mesa neste coworking.
+      const taken = await findAssignment(spaceId, desk.key);
       return reply.code(409).send({ error: taken ? 'desk_taken' : 'already_has_desk' });
     }
 
@@ -67,6 +73,7 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
     const { spaceId, user, membership } = access;
     const { deskKey } = request.params;
 
+    // O filtro por userId faz do update a checagem de dono; zero linhas vira 403 ou 404 abaixo.
     const updated = await db
       .update(deskAssignments)
       .set({ decor })
@@ -79,7 +86,7 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
       )
       .returning({ deskKey: deskAssignments.deskKey });
     if (updated.length === 0) {
-      const current = await assignment(spaceId, deskKey);
+      const current = await findAssignment(spaceId, deskKey);
       return reply.code(current ? 403 : 404).send({ error: current ? 'not_owner' : 'not_found' });
     }
 
@@ -94,7 +101,7 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
     const { spaceId, user, membership } = access;
     const { deskKey } = request.params;
 
-    const current = await assignment(spaceId, deskKey);
+    const current = await findAssignment(spaceId, deskKey);
     if (!current) return reply.code(404).send({ error: 'not_found' });
     if (current.userId !== user.id && membership.role !== 'admin') {
       return reply.code(403).send({ error: 'not_owner' });

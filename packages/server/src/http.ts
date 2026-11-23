@@ -11,12 +11,15 @@ export async function parseBody<T extends z.ZodType>(
   if (parsed.success) return parsed.data;
   await reply.code(400).send({
     error: 'invalid_body',
-    issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+    issues: parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
   });
   return null;
 }
 
-/** O Drizzle embrulha o erro do pg em `cause`. */
+/**
+ * Violação de unicidade (23505) do Postgres. O Drizzle embrulha o erro do pg em `cause`,
+ * então a cadeia inteira é percorrida.
+ */
 export function isUniqueViolation(error: unknown): boolean {
   for (let current = error; current; current = (current as { cause?: unknown }).cause) {
     if ((current as { code?: unknown }).code === '23505') return true;

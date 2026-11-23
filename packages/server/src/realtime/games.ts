@@ -17,11 +17,12 @@ import {
 } from '@pixelwork/shared';
 import type { Clock, Scheduler, Timer } from './clock.ts';
 
+/** O que as mesas precisam do runtime do coworking: tempo, envio de mensagens e aviso de atividade. */
 export interface GameHost {
   clock: Clock;
   scheduler: Scheduler;
-  send(userId: string, msg: ServerMsg): void;
-  broadcast(msg: ServerMsg): void;
+  send(userId: string, message: ServerMsg): void;
+  broadcast(message: ServerMsg): void;
   /** A atividade do jogador mudou (entrou ou saiu de uma mesa). */
   activityChanged(userId: string): void;
   /** Duração de cada quadro da partida, em segundos (métrica). */
@@ -35,17 +36,21 @@ export interface GameOptions {
 
 export type JoinError = 'table_not_found' | 'table_not_at_side' | 'table_side_taken' | 'table_busy';
 
+/** Ocupante do lado da mesa quando a pessoa joga contra o computador. */
 const BOT = 'bot';
 
+/** Partida em andamento: estado da simulação, última direção de cada lado e pedidos de revanche. */
 interface Match {
   state: PongState;
   inputs: { left: PongDir; right: PongDir };
+  /** Laço de quadros; null quando a partida está pausada ou terminou. */
   timer: Timer | null;
   rematch: Set<PongSide>;
 }
 
+/** Mesa do mapa: quem ocupa cada lado (id do usuário, BOT ou ninguém) e a partida, se houver. */
 interface Table {
-  def: CompiledTable;
+  definition: CompiledTable;
   left: string | null;
   right: string | null;
   match: Match | null;
@@ -53,44 +58,55 @@ interface Table {
   acks: Map<string, number>;
 }
 
-const other = (side: PongSide): PongSide => (side === 'left' ? 'right' : 'left');
-const isHuman = (id: string | null): id is string => id !== null && id !== BOT;
+const oppositeSide = (side: PongSide): PongSide => (side === 'left' ? 'right' : 'left');
+const isHuman = (occupant: string | null): occupant is string => occupant !== null && occupant !== BOT;
 
+/**
+ * Estado de todas as mesas de jogo de um coworking. O servidor é a autoridade da partida: o
+ * cliente só manda direção e recebe o estado de cada quadro.
+ */
 export class GameRegistry {
   private readonly tables = new Map<string, Table>();
   private readonly seats = new Map<string, GameSeat>();
   /** Jogadores sem conexão (dentro da tolerância de reconexão). */
   private readonly offline = new Set<string>();
-  private readonly start: (now: number) => PongState;
+  private readonly createMatchState: (now: number) => PongState;
 
   constructor(
-    defs: CompiledTable[],
+    definitions: CompiledTable[],
     private readonly host: GameHost,
     options: GameOptions = {},
   ) {
-    this.start = options.start ?? newPong;
-    for (const def of defs) this.tables.set(def.key, { def, left: null, right: null, match: null, acks: new Map() });
+    this.createMatchState = options.start ?? newPong;
+    for (const definition of definitions) this.tables.set(definition.key, { definition, left: null, right: null, match: null, acks: new Map() });
   }
 
-  join(userId: string, tableKey: string, pos: { x: number; y: number }, inCall: boolean): JoinError | null {
+  /**
+   * Senta o jogador no lado da mesa onde ele está parado. Trocar de mesa ou de lado sai da
+   * anterior; com gente dos dois lados a partida começa na hora.
+   */
+  join(userId: string, tableKey: string, position: { x: number; y: number }, inCall: boolean): JoinError | null {
     const table = this.tables.get(tableKey);
     if (!table) return 'table_not_found';
     if (inCall) return 'table_busy';
-    const side = (['left', 'right'] as const).find((s) => table.def.sides[s].some(([x, y]) => x === pos.x && y === pos.y));
+    const side = (['left', 'right'] as const).find((candidateSide) =>
+      table.definition.sides[candidateSide].some(([x, y]) => x === position.x && y === position.y),
+    );
     if (!side) return 'table_not_at_side';
     const seat = this.seats.get(userId);
+    // Já sentado ali: nada muda.
     if (seat?.tableKey === tableKey && seat.side === side) return null;
     if (isHuman(table[side]) && table[side] !== userId) return 'table_side_taken';
     if (seat) this.leave(userId);
 
     // O bot só joga contra uma pessoa: quem chega no lado dele o substitui.
-    this.stop(table);
-    if (table[other(side)] === BOT) table[other(side)] = null;
+    this.stopMatch(table);
+    if (table[oppositeSide(side)] === BOT) table[oppositeSide(side)] = null;
     table[side] = userId;
     table.acks.set(userId, 0);
     this.seats.set(userId, { tableKey, side });
-    if (isHuman(table[other(side)])) this.begin(table);
-    this.changed(table);
+    if (isHuman(table[oppositeSide(side)])) this.startMatch(table);
+    this.broadcastTable(table);
     this.host.activityChanged(userId);
     return null;
   }
@@ -99,12 +115,13 @@ export class GameRegistry {
   bot(userId: string): void {
     const seat = this.seats.get(userId);
     const table = seat && this.tables.get(seat.tableKey);
-    if (!seat || !table || table[other(seat.side)] !== null) return;
-    table[other(seat.side)] = BOT;
-    this.begin(table);
-    this.changed(table);
+    if (!seat || !table || table[oppositeSide(seat.side)] !== null) return;
+    table[oppositeSide(seat.side)] = BOT;
+    this.startMatch(table);
+    this.broadcastTable(table);
   }
 
+  /** Direção da raquete; `seq` repetido ou fora de ordem é descartado. */
   input(userId: string, seq: number, dir: PongDir): void {
     const seat = this.seats.get(userId);
     const table = seat && this.tables.get(seat.tableKey);
@@ -119,10 +136,10 @@ export class GameRegistry {
     const table = seat && this.tables.get(seat.tableKey);
     if (!seat || !table?.match || table.match.state.phase !== 'ended') return;
     table.match.rematch.add(seat.side);
-    const opponent = table[other(seat.side)];
-    if (opponent === BOT || table.match.rematch.has(other(seat.side))) {
-      this.begin(table);
-      this.changed(table);
+    const opponent = table[oppositeSide(seat.side)];
+    if (opponent === BOT || table.match.rematch.has(oppositeSide(seat.side))) {
+      this.startMatch(table);
+      this.broadcastTable(table);
     }
   }
 
@@ -133,15 +150,15 @@ export class GameRegistry {
     this.seats.delete(userId);
     this.offline.delete(userId);
     if (!seat || !table) return;
-    const opponent = table[other(seat.side)];
+    const opponent = table[oppositeSide(seat.side)];
     if (isHuman(opponent) && table.match && table.match.state.phase !== 'ended') {
-      this.host.send(opponent, { t: 'game.events', tableKey: table.def.key, events: [{ type: 'end', winner: other(seat.side) }] });
+      this.host.send(opponent, { t: 'game.events', tableKey: table.definition.key, events: [{ type: 'end', winner: oppositeSide(seat.side) }] });
     }
-    this.stop(table);
+    this.stopMatch(table);
     table[seat.side] = null;
     table.acks.delete(userId);
-    if (opponent === BOT) table[other(seat.side)] = null;
-    this.changed(table);
+    if (opponent === BOT) table[oppositeSide(seat.side)] = null;
+    this.broadcastTable(table);
     this.host.activityChanged(userId);
   }
 
@@ -170,31 +187,31 @@ export class GameRegistry {
     if (!table || !match || match.state.phase !== 'paused') return;
     if ([table.left, table.right].some((id) => isHuman(id) && this.offline.has(id))) return;
     match.state = resumePong(match.state, this.host.clock.now());
-    match.timer = this.host.scheduler.setInterval(() => this.frame(table, match), PONG.FRAME_MS);
+    match.timer = this.host.scheduler.setInterval(() => this.runFrame(table, match), PONG.FRAME_MS);
   }
 
   /** Troca de mapa: encerra as partidas, libera as mesas antigas e passa a usar as novas. */
-  replaceTables(defs: CompiledTable[]): void {
-    const seated = [...this.seats.keys()];
+  replaceTables(definitions: CompiledTable[]): void {
+    const seatedUserIds = [...this.seats.keys()];
     for (const table of this.tables.values()) {
-      this.stop(table);
+      this.stopMatch(table);
       table.left = null;
       table.right = null;
-      this.changed(table);
+      this.broadcastTable(table);
     }
     this.seats.clear();
     this.tables.clear();
-    for (const def of defs) {
-      const table: Table = { def, left: null, right: null, match: null, acks: new Map() };
-      this.tables.set(def.key, table);
-      this.changed(table);
+    for (const definition of definitions) {
+      const table: Table = { definition, left: null, right: null, match: null, acks: new Map() };
+      this.tables.set(definition.key, table);
+      this.broadcastTable(table);
     }
-    for (const id of seated) this.host.activityChanged(id);
+    for (const userId of seatedUserIds) this.host.activityChanged(userId);
   }
 
   /** Runtime descarregado: nenhum intervalo de partida sobrevive. */
   close(): void {
-    for (const table of this.tables.values()) this.stop(table);
+    for (const table of this.tables.values()) this.stopMatch(table);
   }
 
   seatOf(userId: string): GameSeat | null {
@@ -202,11 +219,11 @@ export class GameRegistry {
   }
 
   states(): TableState[] {
-    return [...this.tables.values()].map((t) => this.stateOf(t));
+    return [...this.tables.values()].map((table) => this.stateOf(table));
   }
 
   activeMatches(): number {
-    return [...this.tables.values()].filter((t) => t.match?.timer).length;
+    return [...this.tables.values()].filter((table) => table.match?.timer).length;
   }
 
   private tableOf(userId: string): Table | undefined {
@@ -214,11 +231,12 @@ export class GameRegistry {
     return seat && this.tables.get(seat.tableKey);
   }
 
+  /** Resumo público da mesa: livre, esperando adversário, jogando ou terminada. */
   private stateOf(table: Table): TableState {
     const { match } = table;
     const phase = match ? (match.state.phase === 'ended' ? 'ended' : 'playing') : table.left || table.right ? 'waiting' : 'free';
     return {
-      tableKey: table.def.key,
+      tableKey: table.definition.key,
       phase,
       left: table.left,
       right: table.right,
@@ -226,27 +244,28 @@ export class GameRegistry {
     };
   }
 
-  private begin(table: Table): void {
-    this.stop(table);
+  private startMatch(table: Table): void {
+    this.stopMatch(table);
     const { clock, scheduler } = this.host;
-    const match: Match = { state: this.start(clock.now()), inputs: { left: 0, right: 0 }, timer: null, rematch: new Set() };
+    const match: Match = { state: this.createMatchState(clock.now()), inputs: { left: 0, right: 0 }, timer: null, rematch: new Set() };
     table.match = match;
-    match.timer = scheduler.setInterval(() => this.frame(table, match), PONG.FRAME_MS);
+    match.timer = scheduler.setInterval(() => this.runFrame(table, match), PONG.FRAME_MS);
   }
 
-  private stop(table: Table): void {
+  private stopMatch(table: Table): void {
     table.match?.timer?.cancel();
     table.match = null;
   }
 
-  private frame(table: Table, match: Match): void {
-    const started = performance.now();
-    const before = match.state;
+  /** Um quadro da partida: aplica as direções (a do bot calculada aqui), avança e envia o estado. */
+  private runFrame(table: Table, match: Match): void {
+    const frameStartedAt = performance.now();
+    const previousState = match.state;
     const inputs = {
-      left: table.left === BOT ? botInput(before, 'left') : match.inputs.left,
-      right: table.right === BOT ? botInput(before, 'right') : match.inputs.right,
+      left: table.left === BOT ? botInput(previousState, 'left') : match.inputs.left,
+      right: table.right === BOT ? botInput(previousState, 'right') : match.inputs.right,
     };
-    const { state, events } = stepPong(before, inputs, this.host.clock.now());
+    const { state, events } = stepPong(previousState, inputs, this.host.clock.now());
     match.state = state;
     this.sendState(table, state);
     if (state.phase === 'ended') {
@@ -255,22 +274,22 @@ export class GameRegistry {
     }
     // A mesa muda antes dos eventos: quem recebe o `end` já vê a mesa em `ended` (e não confunde
     // fim normal com desistência).
-    const scored = before.score.left !== state.score.left || before.score.right !== state.score.right;
-    if (scored || before.phase !== state.phase) this.changed(table);
+    const scored = previousState.score.left !== state.score.left || previousState.score.right !== state.score.right;
+    if (scored || previousState.phase !== state.phase) this.broadcastTable(table);
     if (events.length > 0) {
-      for (const id of [table.left, table.right].filter(isHuman)) {
-        this.host.send(id, { t: 'game.events', tableKey: table.def.key, events });
+      for (const playerId of [table.left, table.right].filter(isHuman)) {
+        this.host.send(playerId, { t: 'game.events', tableKey: table.definition.key, events });
       }
     }
-    this.host.observeFrame?.((performance.now() - started) / 1000);
+    this.host.observeFrame?.((performance.now() - frameStartedAt) / 1000);
   }
 
   private sendState(table: Table, state: PongState): void {
-    for (const id of [table.left, table.right].filter(isHuman)) {
-      this.host.send(id, {
+    for (const playerId of [table.left, table.right].filter(isHuman)) {
+      this.host.send(playerId, {
         t: 'game.state',
-        tableKey: table.def.key,
-        ack: table.acks.get(id) ?? 0,
+        tableKey: table.definition.key,
+        ack: table.acks.get(playerId) ?? 0,
         phase: state.phase,
         serveAt: state.serveAt,
         ball: state.ball,
@@ -281,7 +300,7 @@ export class GameRegistry {
     }
   }
 
-  private changed(table: Table): void {
+  private broadcastTable(table: Table): void {
     this.host.broadcast({ t: 'table.state', table: this.stateOf(table) });
   }
 }

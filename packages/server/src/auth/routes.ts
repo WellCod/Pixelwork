@@ -50,6 +50,7 @@ export async function requireUser(
   return user;
 }
 
+/** Entrada como convidado na demo, sessão atual e logout. */
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db, config, clock } = deps;
 
@@ -65,6 +66,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       avatar: randomAvatar(),
       isGuest: true,
     };
+    // Usuário, vaga na demo e sessão juntos: falha no meio não deixa convidado órfão.
     const token = await db.transaction(async (tx) => {
       await tx.insert(users).values({ ...user, guestExpiresAt: expiresAt });
       await tx.insert(spaceMembers).values({ spaceId, userId: user.id, role: 'member' });
@@ -90,6 +92,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
     const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
     if (token) {
       await deleteSession(db, token);
+      // Derruba também os WebSockets abertos com esta sessão, em qualquer coworking.
       app.realtime.closeSession(hashToken(token));
     }
     void reply.header(

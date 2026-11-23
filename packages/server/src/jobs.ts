@@ -18,7 +18,7 @@ export interface JobDeps {
   scheduler: Scheduler;
   gateway: Gateway;
   demoSpaceSlug: string;
-  log: { info: (obj: unknown, msg: string) => void; error: (obj: unknown, msg: string) => void };
+  log: { info: (details: unknown, message: string) => void; error: (details: unknown, message: string) => void };
 }
 
 /** Apaga convidados expirados; a cascata leva sessões, participações e mesas. */
@@ -28,12 +28,12 @@ export async function cleanupExpiredGuests(deps: JobDeps): Promise<string[]> {
     .delete(users)
     .where(and(eq(users.isGuest, true), lte(users.guestExpiresAt, now)))
     .returning({ id: users.id });
-  const ids = removed.map((r) => r.id);
+  const removedUserIds = removed.map((row) => row.id);
   // Quem ainda estava online sai do mapa e tem a mesa liberada na hora.
   deps.gateway.forEachRuntime((runtime) => {
-    for (const id of ids) runtime.removeMember(id);
+    for (const userId of removedUserIds) runtime.removeMember(userId);
   });
-  return ids;
+  return removedUserIds;
 }
 
 /** Sessões de conta vencidas; as de convidado já saem pela cascata do usuário. */
@@ -53,6 +53,7 @@ export async function resetDemo(deps: JobDeps): Promise<number | null> {
   const compiled = compileMap(template);
   if (!compiled.ok) throw new Error('template da demo não compila');
 
+  // Mesas e mapa trocam juntos; o mapVersion sobe para os clientes saberem que o mapa mudou.
   const version = await deps.db.transaction(async (tx) => {
     await tx.delete(deskAssignments).where(eq(deskAssignments.spaceId, spaceId));
     const updated = await tx
@@ -63,6 +64,7 @@ export async function resetDemo(deps: JobDeps): Promise<number | null> {
     return updated[0]?.version ?? null;
   });
   if (version === null) return null;
+  // Coworking carregado em memória recebe o mapa novo sem esperar reconexão.
   const runtime = deps.gateway.runtime(spaceId);
   runtime?.clearDesks();
   runtime?.replaceMap(compiled.map, version);
@@ -78,26 +80,28 @@ export function nextDemoReset(now: number): number {
 
 /** Agenda os dois jobs no próprio processo, com relógio e agendador injetáveis. */
 export function scheduleJobs(deps: JobDeps): { stop: () => void } {
-  const run = (name: string, job: () => Promise<unknown>) => {
+  // Cada job roda solto: erro só vai para o log e não derruba o agendamento.
+  const runJob = (name: string, job: () => Promise<unknown>) => {
     job().then(
       (result) => deps.log.info({ job: name, result }, 'job concluído'),
       (error: unknown) => deps.log.error({ job: name, error }, 'job falhou'),
     );
   };
-  const cleanup = deps.scheduler.setInterval(() => {
-    run('limpeza de convidados', () => cleanupExpiredGuests(deps));
-    run('limpeza de sessões', () => cleanupExpiredSessions(deps));
+  const hourlyCleanup = deps.scheduler.setInterval(() => {
+    runJob('limpeza de convidados', () => cleanupExpiredGuests(deps));
+    runJob('limpeza de sessões', () => cleanupExpiredSessions(deps));
   }, HOUR_MS);
-  let daily: { cancel: () => void } | null = null;
-  const first = deps.scheduler.setTimeout(() => {
-    run('reset da demo', () => resetDemo(deps));
-    daily = deps.scheduler.setInterval(() => run('reset da demo', () => resetDemo(deps)), DAY_MS);
+  // O reset espera até a próxima 03:00 UTC e daí em diante repete a cada 24 horas.
+  let dailyReset: { cancel: () => void } | null = null;
+  const firstReset = deps.scheduler.setTimeout(() => {
+    runJob('reset da demo', () => resetDemo(deps));
+    dailyReset = deps.scheduler.setInterval(() => runJob('reset da demo', () => resetDemo(deps)), DAY_MS);
   }, nextDemoReset(deps.clock.now()) - deps.clock.now());
   return {
     stop: () => {
-      cleanup.cancel();
-      first.cancel();
-      daily?.cancel();
+      hourlyCleanup.cancel();
+      firstReset.cancel();
+      dailyReset?.cancel();
     },
   };
 }

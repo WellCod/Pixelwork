@@ -4,6 +4,7 @@ import { createDb } from './db.ts';
 
 export const migrationsFolder = join(import.meta.dirname, '../drizzle');
 
+/** Aplica as migrations pendentes da pasta drizzle/ com um pool próprio, fechado no fim. */
 export async function runMigrations(connectionString: string): Promise<void> {
   const { pool, db } = createDb(connectionString);
   try {
@@ -13,9 +14,10 @@ export async function runMigrations(connectionString: string): Promise<void> {
   }
 }
 
+// Rodando direto (`node migrate.ts`): não passa pelo loadEnv, só precisa do banco.
 if (import.meta.main) {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL não definida');
-  await runMigrations(url);
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL não definida');
+  await runMigrations(databaseUrl);
   console.log('migrations aplicadas');
 }

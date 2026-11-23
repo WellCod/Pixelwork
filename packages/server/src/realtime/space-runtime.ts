@@ -47,12 +47,14 @@ import {
   type MediaService,
 } from './media.ts';
 
+/** Conexão de um cliente vista pelo runtime; o gateway cuida do WebSocket por trás. */
 export interface Conn {
   /** Texto para as mensagens JSON; bytes para o tick binário. */
-  send(data: string | Uint8Array): void;
+  send(payload: string | Uint8Array): void;
   close(code: number, reason: string): void;
 }
 
+// Limites por conexão: mensagens inválidas em 10 s, mensagens em geral por segundo e rajada do chat.
 const INVALID_WINDOW_MS = 10_000;
 const MAX_INVALID = 10;
 const RATE_WINDOW_MS = 1_000;
@@ -62,21 +64,25 @@ const CHAT_PER_SECOND = 1;
 /** Teto da gravação de replay por coworking (~1 MB em JSON); cheia, recomeça de um retrato. */
 const MAX_REPLAY_EVENTS = 20_000;
 
+/** Quem está no mapa deste coworking, conectado ou dentro da tolerância de reconexão. */
 interface Member {
   profile: PlayerProfile;
   /** Id curto do tick binário; liberado quando a pessoa sai do mapa. */
-  short: number;
-  conn: Conn | null;
+  shortId: number;
+  /** Null enquanto a pessoa está desconectada, dentro da tolerância de reconexão. */
+  connection: Conn | null;
   /** Maior `seq` decidido (aplicado ou recusado) desde a conexão atual; vai no `ack` do tick. */
   lastSeq: number;
   /** Maior `seq` recebido; os que chegaram cedo demais esperam em `queued`. */
   lastReceived: number;
   queued: { seq: number; dir: Dir }[];
+  /** O `ack` mudou e precisa ir no próximo tick mesmo sem ninguém ter andado. */
   ackDirty: boolean;
+  /** Fim da tolerância de reconexão; ao disparar, a pessoa sai do mapa. */
   leaveTimer: Timer | null;
-  invalid: WindowCounter;
-  rate: WindowCounter;
-  chat: TokenBucket;
+  invalidMessages: WindowCounter;
+  messageRate: WindowCounter;
+  chatBucket: TokenBucket;
   /** Zona onde estava no último movimento, para detectar entrada e saída. */
   zoneKey: string;
   /** Sala de mídia para a qual o cliente foi mandado por último. */
@@ -84,23 +90,28 @@ interface Member {
   activity: Activity;
 }
 
+/** Tranca de uma sala de reunião. */
 interface Lock {
   locked: boolean;
   /** Quem estava dentro na hora da tranca mais quem foi aprovado depois. */
   allowed: Set<string>;
 }
 
+/** Batida na porta de uma sala trancada, esperando resposta de quem está dentro. */
 interface Knock {
   zoneKey: string;
+  /** Quem bateu. */
   from: string;
   timer: Timer;
 }
 
+/** Chamada 1x1 entre mesas: toca até ser atendida (active) ou o tempo acabar. */
 interface Call {
   id: string;
   from: string;
   to: string;
   active: boolean;
+  /** Tempo de toque; cancelado quando a chamada é atendida. */
   timer: Timer | null;
 }
 
@@ -108,7 +119,7 @@ export interface RuntimeDeps {
   clock: Clock;
   scheduler: Scheduler;
   media: MediaService;
-  log: { error: (obj: unknown, msg: string) => void };
+  log: { error: (details: unknown, message: string) => void };
   metrics?: Metrics;
 }
 
@@ -116,7 +127,8 @@ export interface RuntimeDeps {
 export class SpaceRuntime {
   private world: WorldState = { players: new Map() };
   private readonly members = new Map<string, Member>();
-  private readonly moved = new Set<string>();
+  /** Jogadores que andaram desde o último tick; só eles vão no próximo. */
+  private readonly movedSinceTick = new Set<string>();
   private ticker: Timer | null = null;
   private readonly desks = new Map<string, DeskState>();
   private readonly locks = new Map<string, Lock>();
@@ -143,16 +155,17 @@ export class SpaceRuntime {
     for (const zone of map.zones) {
       if (zone.type === 'meeting') this.locks.set(zone.key, { locked: false, allowed: new Set() });
     }
+    // A simulação compartilhada pergunta ao runtime se o tile pode ser ocupado (salas trancadas).
     this.rules = { canEnter: (id, x, y) => this.canEnter(id, x, y) };
     this.recorder = new Recorder(MAX_REPLAY_EVENTS, mapVersion, deps.clock.now());
     this.games = new GameRegistry(map.tables, {
       clock: deps.clock,
       scheduler: deps.scheduler,
-      send: (userId, msg) => {
-        const conn = this.members.get(userId)?.conn;
-        if (conn) this.send(conn, msg);
+      send: (userId, message) => {
+        const connection = this.members.get(userId)?.connection;
+        if (connection) this.send(connection, message);
       },
-      broadcast: (msg) => this.broadcast(msg),
+      broadcast: (message) => this.broadcast(message),
       activityChanged: (userId) => this.refresh(userId),
       observeFrame: (seconds) => deps.metrics?.gameFrame.observe(seconds),
     });
@@ -164,6 +177,7 @@ export class SpaceRuntime {
     return { ...current, events: [...current.events] };
   }
 
+  /** Grava no replay; com a gravação cheia, recomeça de um retrato do estado atual. */
   private record(event: ReplayEvent): void {
     if (!this.recorder.push(event)) this.restartRecording();
   }
@@ -195,14 +209,14 @@ export class SpaceRuntime {
 
   /** Mesa do mapa compilado, para conferir a cadeira. */
   mapDesk(deskKey: string): CompiledDesk | undefined {
-    return this.map.desks.find((d) => d.key === deskKey);
+    return this.map.desks.find((desk) => desk.key === deskKey);
   }
 
   /** Posição autoritativa de quem está conectado agora. */
   positionOf(userId: string): { x: number; y: number } | null {
-    if (!this.members.get(userId)?.conn) return null;
-    const p = this.world.players.get(userId);
-    return p ? { x: p.x, y: p.y } : null;
+    if (!this.members.get(userId)?.connection) return null;
+    const player = this.world.players.get(userId);
+    return player ? { x: player.x, y: player.y } : null;
   }
 
   /** Grava o estado da mesa depois do REST e avisa todos. */
@@ -225,16 +239,21 @@ export class SpaceRuntime {
     }
   }
 
-  connect(profile: PlayerProfile, conn: Conn): void {
+  /**
+   * Conexão nova de um membro. Se ele ainda está no mapa (outra aba ou volta dentro da
+   * tolerância), mantém posição e id curto e derruba a conexão anterior; senão entra no spawn.
+   * Em ambos os casos manda o `welcome` com o estado inteiro do coworking.
+   */
+  connect(profile: PlayerProfile, connection: Conn): void {
     const { clock } = this.deps;
     let member = this.members.get(profile.id);
 
     if (member) {
-      const previous = member.conn;
-      if (previous) {
-        member.conn = null;
-        previous.send(JSON.stringify({ t: 'session.replaced' } satisfies ServerMsg));
-        previous.close(CLOSE_SESSION_REPLACED, 'session replaced');
+      const previousConnection = member.connection;
+      if (previousConnection) {
+        member.connection = null;
+        previousConnection.send(JSON.stringify({ t: 'session.replaced' } satisfies ServerMsg));
+        previousConnection.close(CLOSE_SESSION_REPLACED, 'session replaced');
       }
       member.leaveTimer?.cancel();
       member.leaveTimer = null;
@@ -242,26 +261,27 @@ export class SpaceRuntime {
     } else {
       member = {
         profile,
-        short: this.allocateShort(),
-        conn: null,
+        shortId: this.allocateShort(),
+        connection: null,
         lastSeq: 0,
         lastReceived: 0,
         queued: [],
         ackDirty: false,
         leaveTimer: null,
-        invalid: new WindowCounter(clock, INVALID_WINDOW_MS, MAX_INVALID),
-        rate: new WindowCounter(clock, RATE_WINDOW_MS, MAX_MESSAGES_PER_SECOND),
-        chat: new TokenBucket(clock, CHAT_BURST, CHAT_PER_SECOND),
+        invalidMessages: new WindowCounter(clock, INVALID_WINDOW_MS, MAX_INVALID),
+        messageRate: new WindowCounter(clock, RATE_WINDOW_MS, MAX_MESSAGES_PER_SECOND),
+        chatBucket: new TokenBucket(clock, CHAT_BURST, CHAT_PER_SECOND),
         zoneKey: zoneAt(this.map, this.map.spawn.x, this.map.spawn.y).key,
         mediaRoom: null,
         activity: 'idle',
       };
       this.members.set(profile.id, member);
+      // O mundo da simulação é imutável: cada mudança troca o Map inteiro.
       const players = new Map(this.world.players);
-      const sim: SimPlayer = { ...this.map.spawn, dir: 'down', lastStepAt: -Infinity };
-      players.set(profile.id, sim);
+      const spawnedPlayer: SimPlayer = { ...this.map.spawn, dir: 'down', lastStepAt: -Infinity };
+      players.set(profile.id, spawnedPlayer);
       this.world = { players };
-      this.record({ t: clock.now(), type: 'join', id: profile.id, x: sim.x, y: sim.y, dir: sim.dir });
+      this.record({ t: clock.now(), type: 'join', id: profile.id, x: spawnedPlayer.x, y: spawnedPlayer.y, dir: spawnedPlayer.dir });
       member.activity = this.activityOf(profile.id);
       this.broadcast({ t: 'player.join', player: this.player(profile.id) }, profile.id);
     }
@@ -271,10 +291,10 @@ export class SpaceRuntime {
     member.lastReceived = 0;
     member.queued = [];
     member.ackDirty = false;
-    member.conn = conn;
+    member.connection = connection;
     // Conexão nova sempre recebe a sala atual, mesmo que seja a mesma de antes.
     member.mediaRoom = null;
-    this.send(conn, {
+    this.send(connection, {
       t: 'welcome',
       selfId: profile.id,
       mapVersion: this.mapVersion,
@@ -284,35 +304,41 @@ export class SpaceRuntime {
       tables: this.games.states(),
       game: this.games.seatOf(profile.id),
     });
+    // O tick só roda com alguém no mapa; o último a sair o desliga (leave).
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
     this.games.reconnected(profile.id);
     this.syncMedia(profile.id);
   }
 
-  onMessage(userId: string, conn: Conn, raw: string | null): void {
+  /**
+   * Mensagem do cliente. Conexão substituída é ignorada; excesso de mensagens ou de mensagens
+   * inválidas fecha a conexão por política. `rawMessage` null é mensagem binária (inválida).
+   */
+  onMessage(userId: string, connection: Conn, rawMessage: string | null): void {
     const member = this.members.get(userId);
-    if (member?.conn !== conn) return;
-    if (member.rate.hit()) {
-      conn.close(CLOSE_POLICY, 'rate limit');
+    if (member?.connection !== connection) return;
+    if (member.messageRate.hit()) {
+      connection.close(CLOSE_POLICY, 'rate limit');
       return;
     }
 
-    const msg = raw === null ? null : parseClientMsg(raw);
-    if (!msg || (msg.t === 'move' && msg.seq <= member.lastReceived)) {
-      if (member.invalid.hit()) conn.close(CLOSE_POLICY, 'invalid messages');
+    const message = rawMessage === null ? null : parseClientMsg(rawMessage);
+    // `seq` de movimento repetido ou fora de ordem conta como inválido.
+    if (!message || (message.t === 'move' && message.seq <= member.lastReceived)) {
+      if (member.invalidMessages.hit()) connection.close(CLOSE_POLICY, 'invalid messages');
       return;
     }
 
-    switch (msg.t) {
+    switch (message.t) {
       case 'move': {
-        member.lastReceived = msg.seq;
+        member.lastReceived = message.seq;
         // Com a janela do jogo aberta as teclas são da raquete: o passo é confirmado sem andar.
         if (this.games.seatOf(userId)) {
-          member.lastSeq = msg.seq;
+          member.lastSeq = message.seq;
           member.ackDirty = true;
           break;
         }
-        member.queued.push({ seq: msg.seq, dir: msg.dir });
+        member.queued.push({ seq: message.seq, dir: message.dir });
         // Fila cheia: o mais antigo é descartado e confirmado; o cliente corrige pelo ack.
         while (member.queued.length > MAX_QUEUED_MOVES) {
           const dropped = member.queued.shift();
@@ -323,25 +349,25 @@ export class SpaceRuntime {
         break;
       }
       case 'ping':
-        this.send(conn, { t: 'pong', id: msg.id, ts: this.deps.clock.now() });
+        this.send(connection, { t: 'pong', id: message.id, ts: this.deps.clock.now() });
         break;
       case 'chat.say':
-        this.chat(userId, member, conn, msg.text);
+        this.sendChat(userId, member, connection, message.text);
         break;
       case 'zone.lock':
-        this.lock(userId, conn, msg.zoneKey, msg.locked);
+        this.setZoneLock(userId, connection, message.zoneKey, message.locked);
         break;
       case 'zone.knock':
-        this.knock(userId, conn, msg.zoneKey);
+        this.knockOnZone(userId, connection, message.zoneKey);
         break;
       case 'zone.knockReply':
-        this.knockReply(userId, msg.requestId, msg.allow);
+        this.knockReply(userId, message.requestId, message.allow);
         break;
       case 'call.invite':
-        this.invite(userId, conn, msg.userId);
+        this.inviteToCall(userId, connection, message.userId);
         break;
       case 'call.reply':
-        this.reply(userId, msg.callId, msg.accept);
+        this.answerCall(userId, message.callId, message.accept);
         break;
       case 'call.leave': {
         const call = this.callOf(userId);
@@ -350,9 +376,10 @@ export class SpaceRuntime {
         break;
       }
       case 'game.join': {
-        const pos = this.world.players.get(userId);
-        const error = pos ? this.games.join(userId, msg.tableKey, pos, Boolean(this.callOf(userId)?.active)) : 'table_not_at_side';
-        if (error) this.send(conn, { t: 'error', code: error });
+        // Quem está em chamada atendida não senta para jogar.
+        const position = this.world.players.get(userId);
+        const error = position ? this.games.join(userId, message.tableKey, position, Boolean(this.callOf(userId)?.active)) : 'table_not_at_side';
+        if (error) this.send(connection, { t: 'error', code: error });
         break;
       }
       case 'game.bot':
@@ -365,7 +392,7 @@ export class SpaceRuntime {
         this.games.leave(userId);
         break;
       case 'game.input':
-        this.games.input(userId, msg.seq, msg.dir);
+        this.games.input(userId, message.seq, message.dir);
         break;
     }
   }
@@ -376,32 +403,33 @@ export class SpaceRuntime {
    */
   private drainMoves(userId: string, member: Member): void {
     for (;;) {
-      const next = member.queued[0];
+      const nextMove = member.queued[0];
       const player = this.world.players.get(userId);
-      if (!next || !player) return;
+      if (!nextMove || !player) return;
       if (this.deps.clock.now() - player.lastStepAt < MIN_STEP_INTERVAL_MS) return;
       member.queued.shift();
-      member.lastSeq = next.seq;
+      member.lastSeq = nextMove.seq;
       member.ackDirty = true;
-      this.record({ t: this.deps.clock.now(), type: 'step', id: userId, dir: next.dir });
+      this.record({ t: this.deps.clock.now(), type: 'step', id: userId, dir: nextMove.dir });
       const result = step(
         this.world,
-        [{ playerId: userId, seq: next.seq, dir: next.dir }],
+        [{ playerId: userId, seq: nextMove.seq, dir: nextMove.dir }],
         this.deps.clock.now(),
         this.map,
         this.rules,
       );
       this.world = result.state;
-      for (const event of result.events) this.moved.add(event.id);
+      for (const event of result.events) this.movedSinceTick.add(event.id);
       this.afterMove(userId);
       // Passo recusado (parede, sala trancada) também conta: vira o avatar e marca o intervalo.
     }
   }
 
-  onClose(userId: string, conn: Conn): void {
+  /** Conexão fechou: a pessoa fica no mapa até o fim da tolerância de reconexão. */
+  onClose(userId: string, connection: Conn): void {
     const member = this.members.get(userId);
-    if (member?.conn !== conn) return;
-    member.conn = null;
+    if (member?.connection !== connection) return;
+    member.connection = null;
     member.queued = [];
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
@@ -412,33 +440,36 @@ export class SpaceRuntime {
 
   /** Menor id curto livre (u16); o tick binário identifica cada jogador por ele. */
   private allocateShort(): number {
-    const used = new Set([...this.members.values()].map((m) => m.short));
-    for (let n = 1; n <= 0xffff; n++) if (!used.has(n)) return n;
+    const usedShortIds = new Set([...this.members.values()].map((member) => member.shortId));
+    for (let candidate = 1; candidate <= 0xffff; candidate++) if (!usedShortIds.has(candidate)) return candidate;
     throw new Error('ids curtos esgotados');
   }
 
   /** Envia a lista de quem se moveu, montada uma vez em binário; só o `ack` muda por cliente. */
   tick(): void {
     // Relógio de parede só para a métrica: a simulação continua no relógio injetado.
-    const started = this.deps.metrics ? performance.now() : 0;
+    const tickStartedAt = this.deps.metrics ? performance.now() : 0;
+    // Passos que estavam esperando o intervalo mínimo entram antes de montar o quadro.
     for (const [id, member] of this.members) if (member.queued.length > 0) this.drainMoves(id, member);
     const moves: ShortMove[] = [];
-    for (const id of this.moved) {
-      const p = this.world.players.get(id);
-      const short = this.members.get(id)?.short;
-      if (p && short !== undefined) moves.push([short, p.x, p.y, p.dir]);
+    for (const id of this.movedSinceTick) {
+      const player = this.world.players.get(id);
+      const shortId = this.members.get(id)?.shortId;
+      if (player && shortId !== undefined) moves.push([shortId, player.x, player.y, player.dir]);
     }
-    this.moved.clear();
-    const frame = encodeTick(0, this.deps.clock.now(), moves);
+    this.movedSinceTick.clear();
+    const tickFrame = encodeTick(0, this.deps.clock.now(), moves);
 
+    // Sem movimento e sem ack novo, o cliente não recebe nada neste tick.
     for (const member of this.members.values()) {
-      if (!member.conn || (moves.length === 0 && !member.ackDirty)) continue;
+      if (!member.connection || (moves.length === 0 && !member.ackDirty)) continue;
       member.ackDirty = false;
-      member.conn.send(withAck(frame, member.lastSeq));
+      member.connection.send(withAck(tickFrame, member.lastSeq));
     }
-    this.deps.metrics?.tick.observe((performance.now() - started) / 1000);
+    this.deps.metrics?.tick.observe((performance.now() - tickStartedAt) / 1000);
   }
 
+  /** Descarrega o runtime: cancela todos os timers e fecha as conexões (1001). */
   close(): void {
     this.ticker?.cancel();
     this.ticker = null;
@@ -447,7 +478,7 @@ export class SpaceRuntime {
     for (const call of this.calls.values()) call.timer?.cancel();
     for (const member of this.members.values()) {
       member.leaveTimer?.cancel();
-      member.conn?.close(1001, 'server shutdown');
+      member.connection?.close(1001, 'server shutdown');
     }
     this.knocks.clear();
     this.calls.clear();
@@ -469,18 +500,19 @@ export class SpaceRuntime {
    * que sumiram, encerra as salas de mídia delas e avisa todos com map.updated.
    */
   replaceMap(map: CompiledMap, version: number): void {
-    const meetingKeys = new Set(map.zones.filter((z) => z.type === 'meeting').map((z) => z.key));
-    const removed = [...this.locks.keys()].filter((key) => !meetingKeys.has(key));
+    const meetingKeys = new Set(map.zones.filter((zone) => zone.type === 'meeting').map((zone) => zone.key));
+    const removedZoneKeys = [...this.locks.keys()].filter((zoneKey) => !meetingKeys.has(zoneKey));
     for (const [requestId, knock] of this.knocks) {
-      if (removed.includes(knock.zoneKey)) this.resolveKnock(requestId, false);
+      if (removedZoneKeys.includes(knock.zoneKey)) this.resolveKnock(requestId, false);
     }
-    for (const key of removed) this.locks.delete(key);
-    for (const key of meetingKeys) if (!this.locks.has(key)) this.locks.set(key, { locked: false, allowed: new Set() });
+    for (const zoneKey of removedZoneKeys) this.locks.delete(zoneKey);
+    for (const zoneKey of meetingKeys) if (!this.locks.has(zoneKey)) this.locks.set(zoneKey, { locked: false, allowed: new Set() });
 
-    const deskKeys = new Set(map.desks.map((d) => d.key));
-    for (const key of [...this.desks.keys()]) if (!deskKeys.has(key)) this.desks.delete(key);
-    for (const key of deskKeys) {
-      if (!this.desks.has(key)) this.desks.set(key, { deskKey: key, userId: null, ownerName: null, decor: null });
+    // Mesas que sumiram saem; mesas novas entram livres.
+    const deskKeys = new Set(map.desks.map((desk) => desk.key));
+    for (const deskKey of [...this.desks.keys()]) if (!deskKeys.has(deskKey)) this.desks.delete(deskKey);
+    for (const deskKey of deskKeys) {
+      if (!this.desks.has(deskKey)) this.desks.set(deskKey, { deskKey, userId: null, ownerName: null, decor: null });
     }
 
     this.map = map;
@@ -488,33 +520,33 @@ export class SpaceRuntime {
     // Antes do refresh dos jogadores abaixo: quem jogava volta a 'idle'.
     this.games.replaceTables(map.tables);
     const players = new Map(this.world.players);
-    for (const [id, p] of players) {
-      let to = relocate(map, p.x, p.y);
+    for (const [id, player] of players) {
+      let destination = relocate(map, player.x, player.y);
       // Zona redesenhada por cima de alguém não fura a tranca: quem não estava dentro nem foi
       // liberado vai para o spawn (que o compileMap garante fora de sala de reunião).
-      const zone = zoneAt(map, to.x, to.y);
+      const zone = zoneAt(map, destination.x, destination.y);
       const lock = this.locks.get(zone.key);
-      if (lock?.locked && !lock.allowed.has(id) && this.members.get(id)?.zoneKey !== zone.key) to = map.spawn;
-      if (to.x === p.x && to.y === p.y) continue;
-      players.set(id, { ...p, x: to.x, y: to.y });
-      this.moved.add(id);
+      if (lock?.locked && !lock.allowed.has(id) && this.members.get(id)?.zoneKey !== zone.key) destination = map.spawn;
+      if (destination.x === player.x && destination.y === player.y) continue;
+      players.set(id, { ...player, x: destination.x, y: destination.y });
+      this.movedSinceTick.add(id);
     }
     this.world = { players };
 
     this.broadcast({ t: 'map.updated', version });
     for (const [id, member] of this.members) {
-      const p = this.world.players.get(id);
-      if (p) member.zoneKey = zoneAt(map, p.x, p.y).key;
+      const player = this.world.players.get(id);
+      if (player) member.zoneKey = zoneAt(map, player.x, player.y).key;
       this.refresh(id);
     }
     // Sala que ficou vazia com a troca destranca, como quando o último sai andando.
-    for (const key of this.locks.keys()) this.zoneChanged(key);
+    for (const zoneKey of this.locks.keys()) this.zoneChanged(zoneKey);
     // Mapa novo, gravação nova: o replay reproduz sobre um mapa só.
     this.restartRecording();
     // Quem estava numa zona removida já foi mandado para outra sala; a sala antiga fecha.
-    for (const key of removed) {
-      this.deps.media.deleteRoom(zoneRoom(this.spaceId, key)).catch((error: unknown) => {
-        this.deps.log.error({ error, zoneKey: key }, 'falha ao encerrar a sala de mídia da zona removida');
+    for (const zoneKey of removedZoneKeys) {
+      this.deps.media.deleteRoom(zoneRoom(this.spaceId, zoneKey)).catch((error: unknown) => {
+        this.deps.log.error({ error, zoneKey }, 'falha ao encerrar a sala de mídia da zona removida');
       });
     }
   }
@@ -529,12 +561,13 @@ export class SpaceRuntime {
     return lock.allowed.has(userId) || this.members.get(userId)?.zoneKey === zone.key;
   }
 
+  /** Ids de quem está dentro da zona agora, pela posição na simulação. */
   private occupants(zoneKey: string): string[] {
-    const ids: string[] = [];
-    for (const [id, p] of this.world.players) {
-      if (zoneAt(this.map, p.x, p.y).key === zoneKey) ids.push(id);
+    const occupantIds: string[] = [];
+    for (const [id, player] of this.world.players) {
+      if (zoneAt(this.map, player.x, player.y).key === zoneKey) occupantIds.push(id);
     }
-    return ids;
+    return occupantIds;
   }
 
   private zoneState(zoneKey: string): ZoneState {
@@ -543,23 +576,27 @@ export class SpaceRuntime {
   }
 
   private zoneStates(): ZoneState[] {
-    return [...this.locks.keys()].map((key) => this.zoneState(key));
+    return [...this.locks.keys()].map((zoneKey) => this.zoneState(zoneKey));
   }
 
   /** Entrada e saída de zona: estado da sala, destranca automática, atividade e sala de mídia. */
   private afterMove(userId: string): void {
     const member = this.members.get(userId);
-    const p = this.world.players.get(userId);
-    if (!member || !p) return;
-    const zoneKey = zoneAt(this.map, p.x, p.y).key;
+    const player = this.world.players.get(userId);
+    if (!member || !player) return;
+    const zoneKey = zoneAt(this.map, player.x, player.y).key;
     if (zoneKey === member.zoneKey) return;
-    const previous = member.zoneKey;
+    const previousZoneKey = member.zoneKey;
     member.zoneKey = zoneKey;
-    this.zoneChanged(previous);
+    this.zoneChanged(previousZoneKey);
     this.zoneChanged(zoneKey);
     this.refresh(userId);
   }
 
+  /**
+   * Alguém entrou ou saiu da sala: sala trancada que esvaziou destranca sozinha (e as batidas
+   * pendentes são recusadas), e todos recebem o estado novo.
+   */
   private zoneChanged(zoneKey: string): void {
     const lock = this.locks.get(zoneKey);
     if (!lock) return;
@@ -574,10 +611,11 @@ export class SpaceRuntime {
     this.broadcast({ t: 'zone.state', zone: this.zoneState(zoneKey) });
   }
 
-  private lock(userId: string, conn: Conn, zoneKey: string, locked: boolean): void {
+  /** Tranca ou destranca a sala; só quem está dentro. Trancar libera quem já estava lá. */
+  private setZoneLock(userId: string, connection: Conn, zoneKey: string, locked: boolean): void {
     const lock = this.locks.get(zoneKey);
     if (!lock || this.members.get(userId)?.zoneKey !== zoneKey) {
-      this.send(conn, { t: 'error', code: 'not_in_zone' });
+      this.send(connection, { t: 'error', code: 'not_in_zone' });
       return;
     }
     lock.locked = locked;
@@ -586,32 +624,37 @@ export class SpaceRuntime {
     this.broadcast({ t: 'zone.state', zone: this.zoneState(zoneKey) });
   }
 
-  private knock(userId: string, conn: Conn, zoneKey: string): void {
+  /**
+   * Bate na porta: só de fora, num tile vizinho à sala trancada. O pedido vai para todos os
+   * ocupantes e expira sozinho em KNOCK_TIMEOUT_MS.
+   */
+  private knockOnZone(userId: string, connection: Conn, zoneKey: string): void {
     const lock = this.locks.get(zoneKey);
-    const p = this.world.players.get(userId);
-    if (!lock || !p) {
-      this.send(conn, { t: 'error', code: 'not_at_door' });
+    const player = this.world.players.get(userId);
+    if (!lock || !player) {
+      this.send(connection, { t: 'error', code: 'not_at_door' });
       return;
     }
     if (!lock.locked) {
-      this.send(conn, { t: 'error', code: 'not_locked' });
+      this.send(connection, { t: 'error', code: 'not_locked' });
       return;
     }
-    const inside = zoneAt(this.map, p.x, p.y).key === zoneKey;
+    const inside = zoneAt(this.map, player.x, player.y).key === zoneKey;
     const atDoor = Object.values(DIR_DELTA).some(
-      ([dx, dy]) => zoneAt(this.map, p.x + dx, p.y + dy).key === zoneKey,
+      ([dx, dy]) => zoneAt(this.map, player.x + dx, player.y + dy).key === zoneKey,
     );
     if (inside || !atDoor) {
-      this.send(conn, { t: 'error', code: 'not_at_door' });
+      this.send(connection, { t: 'error', code: 'not_at_door' });
       return;
     }
-    if ([...this.knocks.values()].some((k) => k.from === userId && k.zoneKey === zoneKey)) return;
+    // Batida repetida enquanto a anterior espera resposta é ignorada.
+    if ([...this.knocks.values()].some((pendingKnock) => pendingKnock.from === userId && pendingKnock.zoneKey === zoneKey)) return;
 
     const requestId = randomUUID();
     const timer = this.deps.scheduler.setTimeout(() => this.resolveKnock(requestId, false), KNOCK_TIMEOUT_MS);
     this.knocks.set(requestId, { zoneKey, from: userId, timer });
-    const data = JSON.stringify({ t: 'zone.knockRequest', requestId, zoneKey, from: userId } satisfies ServerMsg);
-    for (const id of this.occupants(zoneKey)) this.members.get(id)?.conn?.send(data);
+    const serializedRequest = JSON.stringify({ t: 'zone.knockRequest', requestId, zoneKey, from: userId } satisfies ServerMsg);
+    for (const id of this.occupants(zoneKey)) this.members.get(id)?.connection?.send(serializedRequest);
   }
 
   /** A primeira resposta de um ocupante vale; as seguintes encontram o pedido já resolvido. */
@@ -621,6 +664,7 @@ export class SpaceRuntime {
     this.resolveKnock(requestId, allow);
   }
 
+  /** Fecha o pedido e avisa quem bateu; só libera se a sala continua trancada. */
   private resolveKnock(requestId: string, allow: boolean): void {
     const knock = this.knocks.get(requestId);
     if (!knock) return;
@@ -632,8 +676,8 @@ export class SpaceRuntime {
       lock.allowed.add(knock.from);
       this.recordLock(knock.zoneKey);
     }
-    const conn = this.members.get(knock.from)?.conn;
-    if (conn) this.send(conn, { t: 'zone.knockResult', zoneKey: knock.zoneKey, allowed });
+    const knockerConnection = this.members.get(knock.from)?.connection;
+    if (knockerConnection) this.send(knockerConnection, { t: 'zone.knockResult', zoneKey: knock.zoneKey, allowed });
   }
 
   // ---- chamadas ----
@@ -645,39 +689,44 @@ export class SpaceRuntime {
 
   /** Sentado = no tile da cadeira da própria mesa. */
   private isSeated(userId: string): boolean {
-    const p = this.world.players.get(userId);
-    if (!p) return false;
+    const player = this.world.players.get(userId);
+    if (!player) return false;
     return this.map.desks.some(
-      (d) => d.chairX === p.x && d.chairY === p.y && this.desks.get(d.key)?.userId === userId,
+      (desk) => desk.chairX === player.x && desk.chairY === player.y && this.desks.get(desk.key)?.userId === userId,
     );
   }
 
-  private invite(userId: string, conn: Conn, target: string): void {
+  /**
+   * Liga para outro membro. Quem liga precisa estar sentado na própria mesa; o destino precisa
+   * estar conectado e livre (sem chamada, reunião ou jogo), senão volta `busy`.
+   */
+  private inviteToCall(userId: string, connection: Conn, targetUserId: string): void {
     if (!this.isSeated(userId)) {
-      this.send(conn, { t: 'error', code: 'not_seated' });
+      this.send(connection, { t: 'error', code: 'not_seated' });
       return;
     }
-    if (target === userId || !this.members.get(target)?.conn) {
-      this.send(conn, { t: 'error', code: 'call_unavailable' });
+    if (targetUserId === userId || !this.members.get(targetUserId)?.connection) {
+      this.send(connection, { t: 'error', code: 'call_unavailable' });
       return;
     }
     if (this.callOf(userId)) {
-      this.send(conn, { t: 'error', code: 'already_in_call' });
+      this.send(connection, { t: 'error', code: 'already_in_call' });
       return;
     }
     const id = randomUUID();
-    if (this.callOf(target) || this.activityOf(target) === 'meeting' || this.games.seatOf(target)) {
-      this.send(conn, { t: 'call.ended', callId: id, reason: 'busy' });
+    if (this.callOf(targetUserId) || this.activityOf(targetUserId) === 'meeting' || this.games.seatOf(targetUserId)) {
+      this.send(connection, { t: 'call.ended', callId: id, reason: 'busy' });
       return;
     }
-    const call: Call = { id, from: userId, to: target, active: false, timer: null };
+    const call: Call = { id, from: userId, to: targetUserId, active: false, timer: null };
     call.timer = this.deps.scheduler.setTimeout(() => this.endCall(call, 'timeout'), CALL_RING_TIMEOUT_MS);
     this.calls.set(id, call);
-    const targetConn = this.members.get(target)?.conn;
-    if (targetConn) this.send(targetConn, { t: 'call.incoming', callId: id, from: userId });
+    const targetConnection = this.members.get(targetUserId)?.connection;
+    if (targetConnection) this.send(targetConnection, { t: 'call.incoming', callId: id, from: userId });
   }
 
-  private reply(userId: string, callId: string, accept: boolean): void {
+  /** Resposta de quem recebeu a ligação; atender move os dois para a sala da chamada. */
+  private answerCall(userId: string, callId: string, accept: boolean): void {
     const call = this.calls.get(callId);
     if (call?.to !== userId || call.active) return;
     if (!accept) {
@@ -695,21 +744,22 @@ export class SpaceRuntime {
   private endCall(call: Call, reason: 'declined' | 'left' | 'timeout'): void {
     if (!this.calls.delete(call.id)) return;
     call.timer?.cancel();
-    const msg: ServerMsg = { t: 'call.ended', callId: call.id, reason };
+    const endedMessage: ServerMsg = { t: 'call.ended', callId: call.id, reason };
     for (const id of [call.from, call.to]) {
-      const conn = this.members.get(id)?.conn;
-      if (conn) this.send(conn, msg);
+      const participantConnection = this.members.get(id)?.connection;
+      if (participantConnection) this.send(participantConnection, endedMessage);
       this.refresh(id);
     }
   }
 
   // ---- atividade e mídia ----
 
+  /** Atividade mostrada aos outros, em ordem de prioridade: chamada, jogo, reunião. */
   private activityOf(userId: string): Activity {
     if (this.callOf(userId)?.active) return 'call';
     if (this.games.seatOf(userId)) return 'game';
-    const p = this.world.players.get(userId);
-    if (p && zoneAt(this.map, p.x, p.y).type === 'meeting') return 'meeting';
+    const player = this.world.players.get(userId);
+    if (player && zoneAt(this.map, player.x, player.y).type === 'meeting') return 'meeting';
     return 'idle';
   }
 
@@ -725,11 +775,12 @@ export class SpaceRuntime {
     this.syncMedia(userId);
   }
 
+  /** Sala de mídia em que o jogador deve estar: a da chamada, a da reunião ou a aberta do coworking. */
   private mediaRoomOf(userId: string): string {
     const call = this.callOf(userId);
     if (call?.active) return callRoom(call.id);
-    const p = this.world.players.get(userId);
-    const zone = p ? zoneAt(this.map, p.x, p.y) : undefined;
+    const player = this.world.players.get(userId);
+    const zone = player ? zoneAt(this.map, player.x, player.y) : undefined;
     if (zone?.type === 'meeting') return zoneRoom(this.spaceId, zone.key);
     return spaceRoom(this.spaceId);
   }
@@ -745,11 +796,11 @@ export class SpaceRuntime {
     if (!member) return;
     const room = this.mediaRoomOf(userId);
     if (room === member.mediaRoom) return;
-    const previous = member.mediaRoom;
+    const previousRoom = member.mediaRoom;
     member.mediaRoom = room;
-    if (previous) this.removeFromRoom(previous, userId);
-    const conn = member.conn;
-    if (conn) void this.sendMediaJoin(userId, conn, room);
+    if (previousRoom) this.removeFromRoom(previousRoom, userId);
+    const connection = member.connection;
+    if (connection) void this.sendMediaJoin(userId, connection, room);
   }
 
   private removeFromRoom(room: string, userId: string): void {
@@ -759,15 +810,16 @@ export class SpaceRuntime {
     });
   }
 
-  private async sendMediaJoin(userId: string, conn: Conn, room: string): Promise<void> {
+  /** Assina o token da sala (tela só fora da sala aberta) e manda o `media.join`. */
+  private async sendMediaJoin(userId: string, connection: Conn, room: string): Promise<void> {
     const sources = room === spaceRoom(this.spaceId) ? SPACE_SOURCES : PRIVATE_SOURCES;
     try {
       const token = await this.deps.media.token(userId, room, sources);
       if (this.deps.metrics) this.deps.metrics.mediaTokens++;
       // A sala pode ter mudado de novo, ou a conexão caído, enquanto o token era assinado.
       const member = this.members.get(userId);
-      if (member?.conn !== conn || member.mediaRoom !== room) return;
-      this.send(conn, { t: 'media.join', room, token, url: this.deps.media.url });
+      if (member?.connection !== connection || member.mediaRoom !== room) return;
+      this.send(connection, { t: 'media.join', room, token, url: this.deps.media.url });
     } catch (error) {
       this.deps.log.error({ error, userId, room }, 'falha ao emitir token de mídia');
     }
@@ -776,23 +828,24 @@ export class SpaceRuntime {
   // ---- chat ----
 
   /** Destinatários calculados aqui: o cliente não escolhe quem lê. Nada é guardado. */
-  private chat(userId: string, member: Member, conn: Conn, raw: string): void {
-    const text = raw.trim();
+  private sendChat(userId: string, member: Member, connection: Conn, rawText: string): void {
+    const text = rawText.trim();
+    // Conta caracteres, não unidades UTF-16: emoji vale um.
     const length = Array.from(text).length;
     if (length === 0 || length > CHAT_MAX_CHARS) {
-      this.send(conn, { t: 'error', code: 'chat_invalid' });
+      this.send(connection, { t: 'error', code: 'chat_invalid' });
       return;
     }
-    if (!member.chat.take()) {
-      this.send(conn, { t: 'error', code: 'chat_rate' });
+    if (!member.chatBucket.take()) {
+      this.send(connection, { t: 'error', code: 'chat_rate' });
       return;
     }
     const author = this.world.players.get(userId);
     if (!author) return;
-    const players = [...this.world.players].map(([id, p]) => ({ id, x: p.x, y: p.y }));
-    const data = JSON.stringify({ t: 'chat.said', from: userId, text } satisfies ServerMsg);
+    const players = [...this.world.players].map(([id, player]) => ({ id, x: player.x, y: player.y }));
+    const serializedChat = JSON.stringify({ t: 'chat.said', from: userId, text } satisfies ServerMsg);
     for (const id of chatRecipients(this.map, { id: userId, x: author.x, y: author.y }, players)) {
-      this.members.get(id)?.conn?.send(data);
+      this.members.get(id)?.connection?.send(serializedChat);
     }
   }
 
@@ -806,12 +859,14 @@ export class SpaceRuntime {
     }
     if (!member) return;
     member.leaveTimer?.cancel();
-    const conn = member.conn;
-    member.conn = null;
-    conn?.close(CLOSE_REMOVED, 'removed');
+    // Desliga a conexão do membro antes de fechar, para o onClose dela não abrir uma tolerância.
+    const connection = member.connection;
+    member.connection = null;
+    connection?.close(CLOSE_REMOVED, 'removed');
     this.leave(userId);
   }
 
+  /** Tira a pessoa do mapa de vez: encerra chamada, batidas e jogo, sai da sala de mídia e avisa todos. */
   private leave(userId: string): void {
     const member = this.members.get(userId);
     if (!member) return;
@@ -828,7 +883,7 @@ export class SpaceRuntime {
     players.delete(userId);
     this.world = { players };
     this.record({ t: this.deps.clock.now(), type: 'leave', id: userId });
-    this.moved.delete(userId);
+    this.movedSinceTick.delete(userId);
     this.broadcast({ t: 'player.leave', id: userId });
     this.zoneChanged(member.zoneKey);
     if (this.members.size === 0) {
@@ -837,21 +892,23 @@ export class SpaceRuntime {
     }
   }
 
+  /** Jogador no formato do protocolo: perfil, id curto, posição e atividade. */
   private player(id: string): Player {
     const member = this.members.get(id);
-    const sim = this.world.players.get(id);
-    if (!member || !sim) throw new Error(`jogador ${id} sem estado`);
-    return { ...member.profile, n: member.short, x: sim.x, y: sim.y, dir: sim.dir, activity: member.activity };
+    const simPlayer = this.world.players.get(id);
+    if (!member || !simPlayer) throw new Error(`jogador ${id} sem estado`);
+    return { ...member.profile, n: member.shortId, x: simPlayer.x, y: simPlayer.y, dir: simPlayer.dir, activity: member.activity };
   }
 
-  private send(conn: Conn, msg: ServerMsg): void {
-    conn.send(JSON.stringify(msg));
+  private send(connection: Conn, message: ServerMsg): void {
+    connection.send(JSON.stringify(message));
   }
 
-  private broadcast(msg: ServerMsg, exceptId?: string): void {
-    const data = JSON.stringify(msg);
+  /** Serializa uma vez e manda para todos os conectados, menos `exceptId`. */
+  private broadcast(message: ServerMsg, exceptId?: string): void {
+    const serializedMessage = JSON.stringify(message);
     for (const [id, member] of this.members) {
-      if (id !== exceptId) member.conn?.send(data);
+      if (id !== exceptId) member.connection?.send(serializedMessage);
     }
   }
 }
@@ -863,13 +920,14 @@ function isNotFound(error: unknown): boolean {
   return code === 'not_found' || status === 404;
 }
 
-function parseClientMsg(raw: string): ClientMsg | null {
-  let json: unknown;
+/** Mensagem do cliente validada pelo schema do protocolo; JSON quebrado ou fora do schema dá null. */
+function parseClientMsg(rawMessage: string): ClientMsg | null {
+  let parsedJson: unknown;
   try {
-    json = JSON.parse(raw);
+    parsedJson = JSON.parse(rawMessage);
   } catch {
     return null;
   }
-  const parsed = ClientMsg.safeParse(json);
+  const parsed = ClientMsg.safeParse(parsedJson);
   return parsed.success ? parsed.data : null;
 }

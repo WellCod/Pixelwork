@@ -45,10 +45,15 @@ export function maskUrl(url: string): string {
   return url.replace(/^\/invites\/[^/?#]+/, '/invites/***');
 }
 
+/** Log de requisição sem cabeçalhos (cookie de sessão) e com o convite mascarado. */
 function serializeRequest(request: FastifyRequest): Record<string, unknown> {
   return { method: request.method, url: maskUrl(request.url), host: request.host, remoteAddress: request.ip };
 }
 
+/**
+ * Monta o app inteiro (HTTP e WebSocket) com dependências injetáveis; o index.ts e os testes
+ * usam a mesma função.
+ */
 export function buildApp({
   db,
   config,
@@ -57,13 +62,14 @@ export function buildApp({
   media = liveKitMedia(config.livekit),
   github = githubClient(config.github.clientId, config.github.clientSecret),
   logger = false,
-  rateLimit: limit = true,
+  rateLimit: rateLimitEnabled = true,
 }: AppDeps): FastifyInstance {
   // Atrás do Caddy o IP do cliente vem no X-Forwarded-For; sem isso o limite veria só o proxy.
   const app = Fastify({
     logger: logger ? { serializers: { req: serializeRequest } } : false,
     trustProxy: config.trustProxy,
   });
+  // Cada rota declarada entra na tabela que o teste de isolamento de tenant percorre.
   const routeTable: { method: string; url: string }[] = [];
   app.decorate('routeTable', routeTable);
   app.addHook('onRoute', (route) => {
@@ -96,16 +102,16 @@ export function buildApp({
 
   registerStateGuards(app, config.publicUrl);
   // Escopo filho: o plugin de limite precisa estar carregado antes de as rotas serem declaradas.
-  void app.register(async (api) => {
-    if (limit) await api.register(rateLimit, { max: RATE_LIMIT_PER_MINUTE, timeWindow: '1 minute' });
-    registerAuthRoutes(api, { db, config, clock });
-    registerSpaceRoutes(api, { db, config, clock });
-    registerProfileRoutes(api, { db, config, clock });
-    registerDeskRoutes(api, { db, config, clock });
-    registerGitHubRoutes(api, { db, config, clock, github });
-    registerOrgRoutes(api, { db, config, clock });
-    registerInviteRoutes(api, { db, config, clock });
-    registerMapRoutes(api, { db, config, clock });
+  void app.register(async (scopedApp) => {
+    if (rateLimitEnabled) await scopedApp.register(rateLimit, { max: RATE_LIMIT_PER_MINUTE, timeWindow: '1 minute' });
+    registerAuthRoutes(scopedApp, { db, config, clock });
+    registerSpaceRoutes(scopedApp, { db, config, clock });
+    registerProfileRoutes(scopedApp, { db, config, clock });
+    registerDeskRoutes(scopedApp, { db, config, clock });
+    registerGitHubRoutes(scopedApp, { db, config, clock, github });
+    registerOrgRoutes(scopedApp, { db, config, clock });
+    registerInviteRoutes(scopedApp, { db, config, clock });
+    registerMapRoutes(scopedApp, { db, config, clock });
   });
 
   const gateway = attachGateway(app.server, {

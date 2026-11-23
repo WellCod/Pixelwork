@@ -1,3 +1,4 @@
+/** Relógio injetável: os testes trocam pelo ManualClock e avançam o tempo à mão. */
 export interface Clock {
   now(): number;
 }
@@ -6,19 +7,20 @@ export interface Timer {
   cancel(): void;
 }
 
+/** Agendador injetável, pelo mesmo motivo do Clock. */
 export interface Scheduler {
-  setTimeout(fn: () => void, ms: number): Timer;
-  setInterval(fn: () => void, ms: number): Timer;
+  setTimeout(callback: () => void, delayMs: number): Timer;
+  setInterval(callback: () => void, intervalMs: number): Timer;
 }
 
 export const systemClock: Clock & Scheduler = {
   now: () => Date.now(),
-  setTimeout: (fn, ms) => {
-    const handle = setTimeout(fn, ms);
+  setTimeout: (callback, delayMs) => {
+    const handle = setTimeout(callback, delayMs);
     return { cancel: () => clearTimeout(handle) };
   },
-  setInterval: (fn, ms) => {
-    const handle = setInterval(fn, ms);
+  setInterval: (callback, intervalMs) => {
+    const handle = setInterval(callback, intervalMs);
     return { cancel: () => clearInterval(handle) };
   },
 };
@@ -30,14 +32,15 @@ export class WindowCounter {
   constructor(
     private readonly clock: Clock,
     private readonly windowMs: number,
-    private readonly max: number,
+    private readonly maxHits: number,
   ) {}
 
   hit(): boolean {
     const now = this.clock.now();
+    // Descarta os eventos que já saíram da janela antes de contar o atual.
     while (this.hits.length > 0 && (this.hits[0] ?? 0) <= now - this.windowMs) this.hits.shift();
     this.hits.push(now);
-    return this.hits.length > this.max;
+    return this.hits.length > this.maxHits;
   }
 }
 
@@ -57,6 +60,7 @@ export class TokenBucket {
 
   take(): boolean {
     const now = this.clock.now();
+    // Repõe as fichas proporcionais ao tempo desde a última chamada, sem passar da capacidade.
     this.tokens = Math.min(this.capacity, this.tokens + ((now - this.updatedAt) / 1000) * this.perSecond);
     this.updatedAt = now;
     if (this.tokens < 1) return false;

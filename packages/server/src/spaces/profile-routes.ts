@@ -7,8 +7,13 @@ import { parseBody } from '../http.ts';
 import { isUuid } from '../ids.ts';
 import { requireMember, type SpaceParams } from './access.ts';
 
+/**
+ * Perfil do usuário (avatar e nome, globais) e da participação (status e cargo, por coworking).
+ * Toda alteração gravada também vai para quem está online no mapa.
+ */
 export function registerProfileRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db } = deps;
+  // Lido na hora da requisição: o gateway é decorado no app depois do registro das rotas.
   const gateway = () => app.realtime;
 
   app.put('/me/avatar', async (request, reply) => {
@@ -17,7 +22,7 @@ export function registerProfileRoutes(app: FastifyInstance, deps: AuthDeps): voi
     const avatar = await parseBody(AvatarSpec, request, reply);
     if (!avatar) return reply;
     await db.update(users).set({ avatar }).where(eq(users.id, user.id));
-    gateway().forEachRuntime((r) => r.updateProfile(user.id, { avatar }));
+    gateway().forEachRuntime((runtime) => runtime.updateProfile(user.id, { avatar }));
     return { avatar };
   });
 
@@ -27,7 +32,7 @@ export function registerProfileRoutes(app: FastifyInstance, deps: AuthDeps): voi
     const body = await parseBody(NameBody, request, reply);
     if (!body) return reply;
     await db.update(users).set({ displayName: body.name }).where(eq(users.id, user.id));
-    gateway().forEachRuntime((r) => r.updateProfile(user.id, { name: body.name }));
+    gateway().forEachRuntime((runtime) => runtime.updateProfile(user.id, { name: body.name }));
     return { name: body.name };
   });
 
@@ -67,6 +72,7 @@ export function registerProfileRoutes(app: FastifyInstance, deps: AuthDeps): voi
       const body = await parseBody(TitleBody, request, reply);
       if (!body) return reply;
       const { userId } = request.params;
+      // O update filtra pelo coworking validado: admin de um coworking não mexe em membro de outro.
       if (!isUuid(userId)) return reply.code(404).send({ error: 'not_found' });
       const updated = await db
         .update(spaceMembers)

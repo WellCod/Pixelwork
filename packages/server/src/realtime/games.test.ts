@@ -30,18 +30,18 @@ const nearEnd = (winner: 'left' | 'right') => (now: number): PongState => ({
 
 function setup(starts: ((now: number) => PongState)[] = []) {
   const clock = new ManualClock();
-  const sent: { to: string; msg: ServerMsg }[] = [];
+  const sent: { to: string; message: ServerMsg }[] = [];
   const broadcasts: ServerMsg[] = [];
   const activity: string[] = [];
   const games = new GameRegistry(map.tables, {
     clock,
     scheduler: clock,
-    send: (to, msg) => sent.push({ to, msg }),
-    broadcast: (msg) => broadcasts.push(msg),
+    send: (to, message) => sent.push({ to, message }),
+    broadcast: (message) => broadcasts.push(message),
     activityChanged: (id) => activity.push(id),
   }, { start: (now) => (starts.shift() ?? newPong)(now) });
   const lastState = (to: string) =>
-    sent.filter((s) => s.to === to && s.msg.t === 'game.state').map((s) => s.msg as ServerMsg & { t: 'game.state' }).at(-1);
+    sent.filter((sentMessage) => sentMessage.to === to && sentMessage.message.t === 'game.state').map((sentMessage) => sentMessage.message as ServerMsg & { t: 'game.state' }).at(-1);
   const table = () => games.states()[0];
   return { clock, sent, broadcasts, activity, games, lastState, table };
 }
@@ -121,7 +121,7 @@ describe('GameRegistry', () => {
     games.join('b', KEY, RIGHT, false);
     games.leave('a');
     expect(table()).toMatchObject({ phase: 'waiting', left: null, right: 'b' });
-    expect(sent).toContainEqual({ to: 'b', msg: { t: 'game.events', tableKey: KEY, events: [{ type: 'end', winner: 'right' }] } });
+    expect(sent).toContainEqual({ to: 'b', message: { t: 'game.events', tableKey: KEY, events: [{ type: 'end', winner: 'right' }] } });
     expect(games.activeMatches()).toBe(0);
   });
 
@@ -245,11 +245,11 @@ describe('GameRegistry', () => {
       {
         clock,
         scheduler: clock,
-        send: (_to, msg) => {
-          if (msg.t === 'game.events' && msg.events.some((e) => e.type === 'end')) order.push('end');
+        send: (_to, message) => {
+          if (message.t === 'game.events' && message.events.some((event) => event.type === 'end')) order.push('end');
         },
-        broadcast: (msg) => {
-          if (msg.t === 'table.state' && msg.table.phase === 'ended') order.push('table-ended');
+        broadcast: (message) => {
+          if (message.t === 'table.state' && message.table.phase === 'ended') order.push('table-ended');
         },
         activityChanged: () => undefined,
       },

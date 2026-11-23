@@ -45,7 +45,7 @@ describe('perfil, status, cargo e mesas', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -73,128 +73,128 @@ describe('perfil, status, cargo e mesas', () => {
 
   describe('perfil', () => {
     it('avatar grava e chega aos outros', async () => {
-      const a = await online();
-      const b = await online();
-      expect((await api(server, a.guest, 'PUT', '/me/avatar', AVATAR)).status).toBe(200);
-      const update = await b.bot.next('player.update', (m) => m.id === a.guest.id);
+      const alice = await online();
+      const bob = await online();
+      expect((await api(server, alice.guest, 'PUT', '/me/avatar', AVATAR)).status).toBe(200);
+      const update = await bob.bot.next('player.update', (message) => message.id === alice.guest.id);
       expect(update.patch).toEqual({ avatar: AVATAR });
-      const me = await api(server, a.guest, 'GET', '/me');
+      const me = await api(server, alice.guest, 'GET', '/me');
       expect(me.json).toMatchObject({ avatar: AVATAR });
     });
 
     it('avatar com peça fora do catálogo é recusado', async () => {
-      const a = await online();
-      const result = await api(server, a.guest, 'PUT', '/me/avatar', { ...AVATAR, hair: 'moicano' });
+      const alice = await online();
+      const result = await api(server, alice.guest, 'PUT', '/me/avatar', { ...AVATAR, hair: 'moicano' });
       expect(result.status).toBe(400);
     });
 
     it('nome grava e chega aos outros', async () => {
-      const a = await online();
-      const b = await online();
-      expect((await api(server, a.guest, 'PUT', '/me/name', { name: '  Ana  ' })).status).toBe(200);
-      const update = await b.bot.next('player.update', (m) => m.id === a.guest.id);
+      const alice = await online();
+      const bob = await online();
+      expect((await api(server, alice.guest, 'PUT', '/me/name', { name: '  Ana  ' })).status).toBe(200);
+      const update = await bob.bot.next('player.update', (message) => message.id === alice.guest.id);
       expect(update.patch).toEqual({ name: 'Ana' });
-      expect((await api(server, a.guest, 'PUT', '/me/name', { name: '' })).status).toBe(400);
+      expect((await api(server, alice.guest, 'PUT', '/me/name', { name: '' })).status).toBe(400);
     });
 
     it('status com texto e emoji grava e chega aos outros', async () => {
-      const a = await online();
-      const b = await online();
-      const result = await api(server, a.guest, 'PUT', space('/me/status'), {
+      const alice = await online();
+      const bob = await online();
+      const result = await api(server, alice.guest, 'PUT', space('/me/status'), {
         status: 'focus',
         text: 'Escrevendo testes',
         emoji: '🧪',
       });
       expect(result.status).toBe(200);
-      const update = await b.bot.next('player.update', (m) => m.id === a.guest.id);
+      const update = await bob.bot.next('player.update', (message) => message.id === alice.guest.id);
       expect(update.patch).toEqual({ status: 'focus', statusText: 'Escrevendo testes', statusEmoji: '🧪' });
 
       const again = await online();
-      expect(again.welcome.players.find((p) => p.id === a.guest.id)).toMatchObject({ statusEmoji: '🧪' });
+      expect(again.welcome.players.find((player) => player.id === alice.guest.id)).toMatchObject({ statusEmoji: '🧪' });
     });
 
     it('status com dois emojis ou texto no lugar do emoji é recusado', async () => {
-      const a = await online();
+      const alice = await online();
       for (const emoji of ['🧪🧪', 'ok']) {
-        const result = await api(server, a.guest, 'PUT', space('/me/status'), { status: 'away', text: null, emoji });
+        const result = await api(server, alice.guest, 'PUT', space('/me/status'), { status: 'away', text: null, emoji });
         expect(result.status).toBe(400);
       }
     });
 
     it('cargo próprio grava e chega aos outros', async () => {
-      const a = await online();
-      const b = await online();
-      expect((await api(server, a.guest, 'PUT', space('/me/title'), { title: 'Designer' })).status).toBe(200);
-      const update = await b.bot.next('player.update', (m) => m.id === a.guest.id);
+      const alice = await online();
+      const bob = await online();
+      expect((await api(server, alice.guest, 'PUT', space('/me/title'), { title: 'Designer' })).status).toBe(200);
+      const update = await bob.bot.next('player.update', (message) => message.id === alice.guest.id);
       expect(update.patch).toEqual({ title: 'Designer' });
     });
 
     it('cargo de outro membro só pelo admin', async () => {
-      const a = await online();
-      const b = await online();
-      const path = space(`/members/${b.guest.id}/title`);
-      expect((await api(server, a.guest, 'PUT', path, { title: 'Chefe' })).status).toBe(403);
+      const alice = await online();
+      const bob = await online();
+      const path = space(`/members/${bob.guest.id}/title`);
+      expect((await api(server, alice.guest, 'PUT', path, { title: 'Chefe' })).status).toBe(403);
 
-      await makeAdmin(a.guest);
-      expect((await api(server, a.guest, 'PUT', path, { title: 'Tech lead' })).status).toBe(200);
-      const update = await b.bot.next('player.update', (m) => m.id === b.guest.id);
+      await makeAdmin(alice.guest);
+      expect((await api(server, alice.guest, 'PUT', path, { title: 'Tech lead' })).status).toBe(200);
+      const update = await bob.bot.next('player.update', (message) => message.id === bob.guest.id);
       expect(update.patch).toEqual({ title: 'Tech lead' });
     });
   });
 
   describe('mesas', () => {
     it('welcome traz todas as mesas do mapa', async () => {
-      const a = await online();
-      expect(a.welcome.desks.map((d) => d.deskKey).sort()).toEqual(['mesa-1', 'mesa-2', 'mesa-3']);
+      const alice = await online();
+      expect(alice.welcome.desks.map((desk) => desk.deskKey).sort()).toEqual(['mesa-1', 'mesa-2', 'mesa-3']);
     });
 
     it('ocupar fora da cadeira é recusado', async () => {
-      const a = await online();
-      const result = await api(server, a.guest, 'POST', space('/desks/mesa-1/claim'));
+      const alice = await online();
+      const result = await api(server, alice.guest, 'POST', space('/desks/mesa-1/claim'));
       expect(result).toEqual({ status: 422, json: { error: 'not_on_chair' } });
     });
 
     it('ocupa, decora e libera, sempre avisando os outros', async () => {
-      const a = await online();
-      const b = await online();
-      await a.bot.walk(server.clock, TO_DESK_1);
+      const alice = await online();
+      const bob = await online();
+      await alice.bot.walk(server.clock, TO_DESK_1);
 
-      const claim = await api(server, a.guest, 'POST', space('/desks/mesa-1/claim'));
+      const claim = await api(server, alice.guest, 'POST', space('/desks/mesa-1/claim'));
       expect(claim.status).toBe(201);
-      let updated = await b.bot.next('desk.updated');
-      expect(updated.desk).toMatchObject({ deskKey: 'mesa-1', userId: a.guest.id });
+      let updated = await bob.bot.next('desk.updated');
+      expect(updated.desk).toMatchObject({ deskKey: 'mesa-1', userId: alice.guest.id });
 
-      const decor = await api(server, a.guest, 'PUT', space('/desks/mesa-1/decor'), DECOR);
+      const decor = await api(server, alice.guest, 'PUT', space('/desks/mesa-1/decor'), DECOR);
       expect(decor.status).toBe(200);
-      updated = await b.bot.next('desk.updated');
+      updated = await bob.bot.next('desk.updated');
       expect(updated.desk.decor).toEqual(DECOR);
 
       const late = await online();
-      expect(late.welcome.desks.find((d) => d.deskKey === 'mesa-1')).toMatchObject({
-        userId: a.guest.id,
+      expect(late.welcome.desks.find((desk) => desk.deskKey === 'mesa-1')).toMatchObject({
+        userId: alice.guest.id,
         decor: DECOR,
       });
 
-      expect((await api(server, a.guest, 'DELETE', space('/desks/mesa-1'))).status).toBe(204);
-      updated = await b.bot.next('desk.updated');
+      expect((await api(server, alice.guest, 'DELETE', space('/desks/mesa-1'))).status).toBe(204);
+      updated = await bob.bot.next('desk.updated');
       expect(updated.desk).toEqual({ deskKey: 'mesa-1', userId: null, ownerName: null, decor: null });
     });
 
     it('recusa quem já tem mesa e mesa ocupada', async () => {
-      const a = await online();
-      const b = await online();
-      await a.bot.walk(server.clock, TO_DESK_1);
-      expect((await api(server, a.guest, 'POST', space('/desks/mesa-1/claim'))).status).toBe(201);
+      const alice = await online();
+      const bob = await online();
+      await alice.bot.walk(server.clock, TO_DESK_1);
+      expect((await api(server, alice.guest, 'POST', space('/desks/mesa-1/claim'))).status).toBe(201);
 
-      await a.bot.walk(server.clock, DESK_1_TO_DESK_2);
-      const second = await api(server, a.guest, 'POST', space('/desks/mesa-2/claim'));
+      await alice.bot.walk(server.clock, DESK_1_TO_DESK_2);
+      const second = await api(server, alice.guest, 'POST', space('/desks/mesa-2/claim'));
       expect(second).toEqual({ status: 409, json: { error: 'already_has_desk' } });
 
-      await b.bot.walk(server.clock, TO_DESK_1);
-      const taken = await api(server, b.guest, 'POST', space('/desks/mesa-1/claim'));
+      await bob.bot.walk(server.clock, TO_DESK_1);
+      const taken = await api(server, bob.guest, 'POST', space('/desks/mesa-1/claim'));
       expect(taken).toEqual({ status: 409, json: { error: 'desk_taken' } });
 
-      await api(server, a.guest, 'DELETE', space('/desks/mesa-1'));
+      await api(server, alice.guest, 'DELETE', space('/desks/mesa-1'));
     });
 
     it('decorar e liberar: dono ou admin, mais ninguém', async () => {
@@ -215,16 +215,16 @@ describe('perfil, status, cargo e mesas', () => {
     });
 
     it('trocar o nome atualiza a plaquinha da mesa', async () => {
-      const a = await online();
-      const b = await online();
-      await a.bot.walk(server.clock, TO_DESK_1);
-      await api(server, a.guest, 'POST', space('/desks/mesa-1/claim'));
-      await b.bot.next('desk.updated');
+      const alice = await online();
+      const bob = await online();
+      await alice.bot.walk(server.clock, TO_DESK_1);
+      await api(server, alice.guest, 'POST', space('/desks/mesa-1/claim'));
+      await bob.bot.next('desk.updated');
 
-      await api(server, a.guest, 'PUT', '/me/name', { name: 'Bia' });
-      const updated = await b.bot.next('desk.updated');
+      await api(server, alice.guest, 'PUT', '/me/name', { name: 'Bia' });
+      const updated = await bob.bot.next('desk.updated');
       expect(updated.desk).toMatchObject({ deskKey: 'mesa-1', ownerName: 'Bia' });
-      await api(server, a.guest, 'DELETE', space('/desks/mesa-1'));
+      await api(server, alice.guest, 'DELETE', space('/desks/mesa-1'));
     });
   });
 

@@ -7,10 +7,12 @@ export const SESSION_COOKIE = 'sid';
 export const ACCOUNT_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 export const GUEST_SESSION_MS = 24 * 60 * 60 * 1000;
 
+/** O banco guarda só o SHA-256 do token: um vazamento da tabela não dá sessões válidas. */
 export function hashToken(token: string): Buffer {
   return createHash('sha256').update(token).digest();
 }
 
+/** Cria a sessão e devolve o token em claro, que só existe no cookie. */
 export async function createSession(db: Db | Tx, userId: string, expiresAt: Date): Promise<string> {
   const token = randomBytes(32).toString('base64url');
   await db.insert(sessions).values({ tokenHash: hashToken(token), userId, expiresAt });
@@ -28,6 +30,7 @@ export interface SessionInfo extends SessionUser {
   expiresAt: Date;
 }
 
+/** Usuário dono do token, se a sessão existir e não tiver expirado em `now`. */
 export async function findSessionUser(
   db: Db,
   token: string | undefined,

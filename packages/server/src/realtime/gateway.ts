@@ -19,7 +19,7 @@ export interface GatewayDeps {
   clock: Clock;
   scheduler: Scheduler;
   media: MediaService;
-  log: { error: (obj: unknown, msg: string) => void };
+  log: { error: (details: unknown, message: string) => void };
   metrics?: Metrics;
   /** Intervalo do ping de heartbeat e da varredura de sessões e runtimes ociosos. */
   heartbeatMs?: number;
@@ -27,6 +27,7 @@ export interface GatewayDeps {
   idleUnloadMs?: number;
 }
 
+/** O que o resto do servidor enxerga do tempo real: rotas e jobs empurram mudanças por aqui. */
 export interface Gateway {
   /** Conexões abertas em todos os coworkings; usado pelos testes para sincronizar. */
   connections(): number;
@@ -41,7 +42,7 @@ export interface Gateway {
    * depois de gravar: se o runtime estiver carregando, ele é recarregado para não nascer velho.
    */
   runtime(spaceId: string): SpaceRuntime | undefined;
-  forEachRuntime(fn: (runtime: SpaceRuntime) => void): void;
+  forEachRuntime(callback: (runtime: SpaceRuntime) => void): void;
   /** Fecha as conexões abertas com a sessão (logout). */
   closeSession(tokenHash: Buffer): void;
   /** Uma rodada de heartbeat e varredura; exposta para os testes. */
@@ -55,31 +56,42 @@ const MAX_BUFFERED_BYTES = 1024 * 1024;
 const HEARTBEAT_MS = 30_000;
 const IDLE_UNLOAD_MS = 10 * 60_000;
 
-function reject(socket: Duplex, status: number, text: string): void {
-  if (socket.destroyed) return;
-  socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+/** Recusa o upgrade respondendo HTTP cru no socket, antes de virar WebSocket. */
+function rejectUpgrade(rawSocket: Duplex, status: number, statusText: string): void {
+  if (rawSocket.destroyed) return;
+  rawSocket.end(`HTTP/1.1 ${status} ${statusText}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
 
+/** O que o gateway guarda de cada WebSocket aberto para o heartbeat e o logout. */
 interface SocketInfo {
   spaceId: string;
   tokenHash: Buffer;
   expiresAt: number;
+  /** Respondeu ao último ping; quem passa uma rodada inteira sem responder é derrubado. */
   alive: boolean;
 }
 
+/**
+ * Liga o WebSocket ao servidor HTTP: autoriza o upgrade em /ws, carrega o runtime do coworking
+ * sob demanda, repassa as mensagens e descarrega runtimes ociosos.
+ */
 export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
-  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
-  const runtimes = new Map<string, Promise<SpaceRuntime | null>>();
-  const loaded = new Map<string, SpaceRuntime>();
+  const webSocketServer = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
+  /** Carga do runtime por coworking, em andamento ou concluída; conexões simultâneas esperam a mesma. */
+  const runtimeLoads = new Map<string, Promise<SpaceRuntime | null>>();
+  /** Runtimes já prontos, os únicos que as rotas e a varredura enxergam. */
+  const loadedRuntimes = new Map<string, SpaceRuntime>();
   /** Coworkings que mudaram no banco enquanto o runtime carregava. */
-  const stale = new Set<string>();
+  const staleSpaceIds = new Set<string>();
   /** Upgrades em andamento por coworking: o runtime não é descarregado no meio de um. */
-  const connecting = new Map<string, number>();
+  const upgradesInProgress = new Map<string, number>();
+  /** Desde quando cada runtime carregado está sem ninguém, para o descarregamento por ociosidade. */
   const emptySince = new Map<string, number>();
   const sockets = new Map<WebSocket, SocketInfo>();
   const origin = new URL(deps.publicUrl).origin;
   const idleUnloadMs = deps.idleUnloadMs ?? IDLE_UNLOAD_MS;
 
+  /** Lê mapa e mesas do banco e monta o runtime; null se o coworking sumiu ou o mapa salvo não compila. */
   async function buildRuntime(spaceId: string): Promise<SpaceRuntime | null> {
     const rows = await deps.db
       .select({ map: spaces.map, mapVersion: spaces.mapVersion })
@@ -102,8 +114,9 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
       .from(deskAssignments)
       .innerJoin(users, eq(users.id, deskAssignments.userId))
       .where(eq(deskAssignments.spaceId, spaceId));
+    // Decoração gravada que não passa mais no schema vira mesa sem decoração em vez de derrubar a carga.
     const desks = assignments.map(
-      (a): DeskState => ({ ...a, decor: DeskDecor.safeParse(a.decor).data ?? null }),
+      (assignment): DeskState => ({ ...assignment, decor: DeskDecor.safeParse(assignment.decor).data ?? null }),
     );
     return new SpaceRuntime(spaceId, compiled.map, row.mapVersion, deps, desks);
   }
@@ -111,42 +124,44 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
   async function loadRuntime(spaceId: string): Promise<SpaceRuntime | null> {
     // Mapa ou mesa gravados durante a carga marcam o coworking; carrega de novo até estabilizar.
     for (;;) {
-      stale.delete(spaceId);
+      staleSpaceIds.delete(spaceId);
       const runtime = await buildRuntime(spaceId);
-      if (!stale.has(spaceId)) {
-        if (runtime) loaded.set(spaceId, runtime);
+      if (!staleSpaceIds.has(spaceId)) {
+        if (runtime) loadedRuntimes.set(spaceId, runtime);
         return runtime;
       }
       runtime?.close();
     }
   }
 
+  /** Runtime do coworking, reaproveitando a carga em andamento ou já feita. */
   function runtimeFor(spaceId: string): Promise<SpaceRuntime | null> {
-    let runtime = runtimes.get(spaceId);
-    if (!runtime) {
-      runtime = loadRuntime(spaceId);
-      runtimes.set(spaceId, runtime);
+    let runtimeLoad = runtimeLoads.get(spaceId);
+    if (!runtimeLoad) {
+      runtimeLoad = loadRuntime(spaceId);
+      runtimeLoads.set(spaceId, runtimeLoad);
       // Falha não fica em cache: a próxima conexão tenta de novo.
-      const loading = runtime;
+      const loading = runtimeLoad;
       loading.then(
-        (r) => {
-          if (!r && runtimes.get(spaceId) === loading) runtimes.delete(spaceId);
+        (loadedRuntime) => {
+          if (!loadedRuntime && runtimeLoads.get(spaceId) === loading) runtimeLoads.delete(spaceId);
         },
         () => {
-          if (runtimes.get(spaceId) === loading) runtimes.delete(spaceId);
+          if (runtimeLoads.get(spaceId) === loading) runtimeLoads.delete(spaceId);
         },
       );
     }
-    return runtime;
+    return runtimeLoad;
   }
 
   function unload(spaceId: string): void {
-    loaded.get(spaceId)?.close();
-    loaded.delete(spaceId);
-    runtimes.delete(spaceId);
+    loadedRuntimes.get(spaceId)?.close();
+    loadedRuntimes.delete(spaceId);
+    runtimeLoads.delete(spaceId);
     emptySince.delete(spaceId);
   }
 
+  /** Resultado da autorização do upgrade: o necessário para abrir a conexão, ou o status da recusa. */
   type Authorized =
     | {
         ok: true;
@@ -157,15 +172,19 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
         runtime: SpaceRuntime;
       }
     | { ok: false; status: number; text: string };
-  const deny = (status: number, text: string): Authorized => ({ ok: false, status, text });
+  const deny = (status: number, statusText: string): Authorized => ({ ok: false, status, text: statusText });
 
-  async function authorize(req: IncomingMessage): Promise<Authorized> {
-    const url = new URL(req.url ?? '/', 'http://localhost');
+  /**
+   * Mesma checagem das rotas HTTP, feita antes de aceitar o upgrade: caminho, origem, sessão e
+   * participação no coworking pedido em `?space=`. Não membro recebe 404, como nas rotas.
+   */
+  async function authorize(request: IncomingMessage): Promise<Authorized> {
+    const url = new URL(request.url ?? '/', 'http://localhost');
     if (url.pathname !== '/ws') return deny(404, 'Not Found');
     // Cross-site WebSocket hijacking: o cookie vai junto em qualquer origem.
-    if (req.headers.origin !== origin) return deny(403, 'Forbidden');
+    if (request.headers.origin !== origin) return deny(403, 'Forbidden');
 
-    const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    const token = parseCookies(request.headers.cookie)[SESSION_COOKIE];
     const user = await findSessionUser(deps.db, token, new Date(deps.clock.now()));
     if (!user || !token) return deny(401, 'Unauthorized');
 
@@ -185,108 +204,116 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
     };
   }
 
-  async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
+  async function handleUpgrade(request: IncomingMessage, rawSocket: Duplex, head: Buffer): Promise<void> {
     // O `upgrade` tira o listener de erro do socket; sem este, um ECONNRESET durante as consultas
     // abaixo vira exceção não tratada e derruba o processo.
-    socket.on('error', () => socket.destroy());
-    const auth = await authorize(req);
-    if (!auth.ok) {
-      reject(socket, auth.status, auth.text);
+    rawSocket.on('error', () => rawSocket.destroy());
+    const authorization = await authorize(request);
+    if (!authorization.ok) {
+      rejectUpgrade(rawSocket, authorization.status, authorization.text);
       return;
     }
-    if (socket.destroyed) return;
-    const { userId, spaceId, runtime } = auth;
+    // O cliente pode ter desistido durante as consultas da autorização.
+    if (rawSocket.destroyed) return;
+    const { userId, spaceId, runtime } = authorization;
 
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      connecting.set(spaceId, (connecting.get(spaceId) ?? 0) + 1);
-      const info: SocketInfo = { spaceId, tokenHash: auth.tokenHash, expiresAt: auth.expiresAt, alive: true };
-      sockets.set(ws, info);
-      ws.on('pong', () => {
-        info.alive = true;
+    webSocketServer.handleUpgrade(request, rawSocket, head, (socket) => {
+      upgradesInProgress.set(spaceId, (upgradesInProgress.get(spaceId) ?? 0) + 1);
+      const socketInfo: SocketInfo = { spaceId, tokenHash: authorization.tokenHash, expiresAt: authorization.expiresAt, alive: true };
+      sockets.set(socket, socketInfo);
+      socket.on('pong', () => {
+        socketInfo.alive = true;
       });
-      ws.on('error', () => {
-        ws.terminate();
+      socket.on('error', () => {
+        socket.terminate();
       });
-      const conn: Conn = {
-        send: (data) => {
-          if (ws.readyState !== ws.OPEN) return;
-          if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
-            ws.terminate();
+      // A conexão como o runtime a vê: só enviar e fechar, com o teto de buffer e as métricas aqui.
+      const connection: Conn = {
+        send: (payload) => {
+          if (socket.readyState !== socket.OPEN) return;
+          if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+            socket.terminate();
             return;
           }
           if (deps.metrics) {
             deps.metrics.messagesOut++;
-            deps.metrics.bytesOut += typeof data === 'string' ? Buffer.byteLength(data) : data.byteLength;
+            deps.metrics.bytesOut += typeof payload === 'string' ? Buffer.byteLength(payload) : payload.byteLength;
           }
-          ws.send(data);
+          socket.send(payload);
         },
         close: (code, reason) => {
-          ws.close(code, reason);
+          socket.close(code, reason);
         },
       };
       // A participação é conferida de novo já com o socket aberto: uma remoção gravada durante
       // a carga do runtime não chegou a ele, e o `connect` recolocaria a pessoa no mapa.
       void resolveMembership(deps.db, spaceId, userId)
         .then((membership) => {
-          if (ws.readyState !== ws.OPEN) return;
+          if (socket.readyState !== socket.OPEN) return;
           if (!membership) {
-            ws.close(CLOSE_REMOVED, 'removed');
+            socket.close(CLOSE_REMOVED, 'removed');
             return;
           }
           if (deps.metrics) deps.metrics.connectionsOpened++;
-          ws.on('message', (data, isBinary) => {
+          // Mensagem binária ou fragmentada chega ao runtime como null e é tratada como inválida.
+          socket.on('message', (rawMessage, isBinary) => {
             if (deps.metrics) deps.metrics.messagesIn++;
-            runtime.onMessage(userId, conn, !isBinary && Buffer.isBuffer(data) ? data.toString('utf8') : null);
+            runtime.onMessage(userId, connection, !isBinary && Buffer.isBuffer(rawMessage) ? rawMessage.toString('utf8') : null);
           });
-          ws.on('close', () => {
-            runtime.onClose(userId, conn);
+          socket.on('close', () => {
+            runtime.onClose(userId, connection);
           });
           emptySince.delete(spaceId);
-          runtime.connect(membership.profile, conn);
+          runtime.connect(membership.profile, connection);
         })
         .catch((error: unknown) => {
           deps.log.error(error, 'falha ao conferir participação na conexão');
-          ws.close(1011, 'internal error');
+          socket.close(1011, 'internal error');
         })
         .finally(() => {
-          connecting.set(spaceId, (connecting.get(spaceId) ?? 1) - 1);
+          upgradesInProgress.set(spaceId, (upgradesInProgress.get(spaceId) ?? 1) - 1);
         });
-      ws.on('close', () => {
-        sockets.delete(ws);
+      socket.on('close', () => {
+        sockets.delete(socket);
       });
     });
   }
 
-  server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-    handleUpgrade(req, socket, head).catch((error: unknown) => {
+  server.on('upgrade', (request: IncomingMessage, rawSocket: Duplex, head: Buffer) => {
+    handleUpgrade(request, rawSocket, head).catch((error: unknown) => {
       deps.log.error(error, 'falha no upgrade do websocket');
-      reject(socket, 500, 'Internal Server Error');
+      rejectUpgrade(rawSocket, 500, 'Internal Server Error');
     });
   });
 
+  /**
+   * Rodada periódica: fecha conexões de sessão vencida, derruba as que não responderam ao último
+   * ping e descarrega o runtime que ficou vazio por `idleUnloadMs`.
+   */
   function sweep(): void {
     const now = deps.clock.now();
-    for (const [ws, info] of sockets) {
-      if (info.expiresAt <= now) {
-        ws.close(CLOSE_SESSION_ENDED, 'session ended');
+    for (const [socket, socketInfo] of sockets) {
+      if (socketInfo.expiresAt <= now) {
+        socket.close(CLOSE_SESSION_ENDED, 'session ended');
         continue;
       }
       // Conexão meio aberta (Wi-Fi caiu, notebook dormiu) não dispara close sozinha.
-      if (!info.alive) {
-        ws.terminate();
+      if (!socketInfo.alive) {
+        socket.terminate();
         continue;
       }
-      info.alive = false;
-      ws.ping();
+      socketInfo.alive = false;
+      socket.ping();
     }
-    for (const [spaceId, runtime] of loaded) {
-      if (runtime.memberCount() > 0 || (connecting.get(spaceId) ?? 0) > 0) {
+    // Upgrade em andamento conta como gente: o runtime não sai da memória no meio da entrada.
+    for (const [spaceId, runtime] of loadedRuntimes) {
+      if (runtime.memberCount() > 0 || (upgradesInProgress.get(spaceId) ?? 0) > 0) {
         emptySince.delete(spaceId);
         continue;
       }
-      const since = emptySince.get(spaceId);
-      if (since === undefined) emptySince.set(spaceId, now);
-      else if (now - since >= idleUnloadMs) unload(spaceId);
+      const emptySinceAt = emptySince.get(spaceId);
+      if (emptySinceAt === undefined) emptySince.set(spaceId, now);
+      else if (now - emptySinceAt >= idleUnloadMs) unload(spaceId);
     }
   }
   const heartbeat = setInterval(sweep, deps.heartbeatMs ?? HEARTBEAT_MS);
@@ -294,30 +321,31 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
 
   return {
     connections: () => sockets.size,
-    players: () => [...loaded.values()].reduce((sum, r) => sum + r.memberCount(), 0),
-    games: () => [...loaded.values()].reduce((sum, r) => sum + r.activeGames(), 0),
-    runtimesLoaded: () => loaded.size,
+    players: () => [...loadedRuntimes.values()].reduce((sum, runtime) => sum + runtime.memberCount(), 0),
+    games: () => [...loadedRuntimes.values()].reduce((sum, runtime) => sum + runtime.activeGames(), 0),
+    runtimesLoaded: () => loadedRuntimes.size,
     runtime: (spaceId) => {
-      const runtime = loaded.get(spaceId);
-      if (!runtime && runtimes.has(spaceId)) stale.add(spaceId);
+      const runtime = loadedRuntimes.get(spaceId);
+      // Ainda carregando: a gravação que a rota acabou de fazer pode não ter entrado na leitura.
+      if (!runtime && runtimeLoads.has(spaceId)) staleSpaceIds.add(spaceId);
       return runtime;
     },
-    forEachRuntime: (fn) => {
-      for (const runtime of loaded.values()) fn(runtime);
+    forEachRuntime: (callback) => {
+      for (const runtime of loadedRuntimes.values()) callback(runtime);
     },
     closeSession: (tokenHash) => {
-      for (const [ws, info] of sockets) {
-        if (info.tokenHash.equals(tokenHash)) ws.close(CLOSE_SESSION_ENDED, 'session ended');
+      for (const [socket, socketInfo] of sockets) {
+        if (socketInfo.tokenHash.equals(tokenHash)) socket.close(CLOSE_SESSION_ENDED, 'session ended');
       }
     },
     sweep,
     close: () => {
       clearInterval(heartbeat);
-      for (const runtime of runtimes.values()) {
-        runtime.then((r) => r?.close(), () => undefined);
+      for (const runtimeLoad of runtimeLoads.values()) {
+        runtimeLoad.then((loadedRuntime) => loadedRuntime?.close(), () => undefined);
       }
-      for (const ws of sockets.keys()) ws.terminate();
-      wss.close();
+      for (const socket of sockets.keys()) socket.terminate();
+      webSocketServer.close();
     },
   };
 }

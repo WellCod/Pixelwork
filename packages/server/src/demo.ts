@@ -7,6 +7,7 @@ import { uuidv7 } from './ids.ts';
 
 export const DEMO_ORG_SLUG = 'demo';
 
+/** Mapa modelo de maps/templates (sem validação: quem usa valida com o schema do mapa). */
 export function loadTemplate(name: string): unknown {
   return JSON.parse(readFileSync(join(import.meta.dirname, '../../../maps/templates', `${name}.json`), 'utf8'));
 }
@@ -17,8 +18,9 @@ export async function seedDemo(db: Db, spaceSlug: string, map: unknown): Promise
     .insert(orgs)
     .values({ id: uuidv7(), name: 'Demo', slug: DEMO_ORG_SLUG })
     .onConflictDoNothing({ target: orgs.slug });
-  const org = await db.select({ id: orgs.id }).from(orgs).where(eq(orgs.slug, DEMO_ORG_SLUG));
-  const orgId = org[0]?.id;
+  // O insert pode ter sido ignorado pelo conflito, então o id vem sempre de uma leitura.
+  const orgRows = await db.select({ id: orgs.id }).from(orgs).where(eq(orgs.slug, DEMO_ORG_SLUG));
+  const orgId = orgRows[0]?.id;
   if (!orgId) throw new Error('org Demo não encontrada depois do insert');
 
   await db
@@ -31,6 +33,7 @@ export async function seedDemo(db: Db, spaceSlug: string, map: unknown): Promise
   });
 }
 
+/** Id do coworking de demo pelo slug, sempre dentro da org Demo. */
 export async function findDemoSpaceId(db: Db | Tx, spaceSlug: string): Promise<string | null> {
   const rows = await db
     .select({ id: spaces.id })

@@ -3,6 +3,7 @@ import { monitorEventLoopDelay } from 'node:perf_hooks';
 /** Limites do histograma da duração do tick, em segundos (o tick roda a cada 100 ms). */
 const TICK_BUCKETS = [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1];
 
+/** Histograma no formato do Prometheus: cada balde conta as observações até o seu limite (acumulado). */
 class Histogram {
   readonly counts: number[];
   sum = 0;
@@ -41,29 +42,30 @@ export class Metrics {
   bytesOut = 0;
   mediaTokens = 0;
   connectionsOpened = 0;
-  private readonly loop = monitorEventLoopDelay({ resolution: 10 });
+  private readonly eventLoopDelay = monitorEventLoopDelay({ resolution: 10 });
 
   constructor() {
-    this.loop.enable();
+    this.eventLoopDelay.enable();
   }
 
   stop(): void {
-    this.loop.disable();
+    this.eventLoopDelay.disable();
   }
 
+  /** Texto do GET /metrics; os gauges vêm de fora porque esse estado mora no gateway. */
   render(gauges: Gauges): string {
     const lines: string[] = [];
-    const metric = (name: string, type: string, help: string, value: number | string) => {
+    const writeMetric = (name: string, type: string, help: string, value: number | string) => {
       lines.push(`# HELP ${name} ${help}`, `# TYPE ${name} ${type}`, `${name} ${value}`);
     };
-    metric('pixelwork_ws_connections', 'gauge', 'WebSockets abertos.', gauges.connections);
-    metric('pixelwork_ws_connections_opened_total', 'counter', 'WebSockets aceitos desde o início.', this.connectionsOpened);
-    metric('pixelwork_runtimes_loaded', 'gauge', 'Coworkings com estado em memória.', gauges.runtimes);
-    metric('pixelwork_players', 'gauge', 'Jogadores nos mapas, incluindo a tolerância de reconexão.', gauges.players);
-    metric('pixelwork_ws_messages_received_total', 'counter', 'Mensagens recebidas dos clientes.', this.messagesIn);
-    metric('pixelwork_ws_messages_sent_total', 'counter', 'Mensagens enviadas aos clientes.', this.messagesOut);
-    metric('pixelwork_ws_bytes_sent_total', 'counter', 'Bytes enviados aos clientes.', this.bytesOut);
-    metric('pixelwork_media_tokens_total', 'counter', 'Tokens do LiveKit emitidos.', this.mediaTokens);
+    writeMetric('pixelwork_ws_connections', 'gauge', 'WebSockets abertos.', gauges.connections);
+    writeMetric('pixelwork_ws_connections_opened_total', 'counter', 'WebSockets aceitos desde o início.', this.connectionsOpened);
+    writeMetric('pixelwork_runtimes_loaded', 'gauge', 'Coworkings com estado em memória.', gauges.runtimes);
+    writeMetric('pixelwork_players', 'gauge', 'Jogadores nos mapas, incluindo a tolerância de reconexão.', gauges.players);
+    writeMetric('pixelwork_ws_messages_received_total', 'counter', 'Mensagens recebidas dos clientes.', this.messagesIn);
+    writeMetric('pixelwork_ws_messages_sent_total', 'counter', 'Mensagens enviadas aos clientes.', this.messagesOut);
+    writeMetric('pixelwork_ws_bytes_sent_total', 'counter', 'Bytes enviados aos clientes.', this.bytesOut);
+    writeMetric('pixelwork_media_tokens_total', 'counter', 'Tokens do LiveKit emitidos.', this.mediaTokens);
 
     lines.push(
       '# HELP pixelwork_tick_duration_seconds Duração do tick de um coworking.',
@@ -78,7 +80,7 @@ export class Metrics {
       `pixelwork_tick_duration_seconds_count ${this.tick.count}`,
     );
 
-    metric('pixelwork_games_active', 'gauge', 'Partidas de pingpong em andamento.', gauges.games);
+    writeMetric('pixelwork_games_active', 'gauge', 'Partidas de pingpong em andamento.', gauges.games);
     lines.push(
       '# HELP pixelwork_game_frame_seconds Duração de um quadro de partida de pingpong.',
       '# TYPE pixelwork_game_frame_seconds histogram',
@@ -94,10 +96,10 @@ export class Metrics {
 
     const memory = process.memoryUsage();
     const cpu = process.cpuUsage();
-    metric('process_resident_memory_bytes', 'gauge', 'Memória residente.', memory.rss);
-    metric('nodejs_heap_used_bytes', 'gauge', 'Heap em uso.', memory.heapUsed);
-    metric('process_cpu_seconds_total', 'counter', 'CPU de usuário e sistema.', (cpu.user + cpu.system) / 1e6);
-    metric('nodejs_eventloop_delay_p99_seconds', 'gauge', 'Atraso do event loop, percentil 99.', this.loop.percentile(99) / 1e9);
+    writeMetric('process_resident_memory_bytes', 'gauge', 'Memória residente.', memory.rss);
+    writeMetric('nodejs_heap_used_bytes', 'gauge', 'Heap em uso.', memory.heapUsed);
+    writeMetric('process_cpu_seconds_total', 'counter', 'CPU de usuário e sistema.', (cpu.user + cpu.system) / 1e6);
+    writeMetric('nodejs_eventloop_delay_p99_seconds', 'gauge', 'Atraso do event loop, percentil 99.', this.eventLoopDelay.percentile(99) / 1e9);
     return `${lines.join('\n')}\n`;
   }
 }

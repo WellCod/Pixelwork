@@ -30,7 +30,7 @@ describe('auth de convidado', () => {
 
     const cookie = setCookie.split(';')[0];
     const spaces = (await (await get('/spaces', cookie)).json()) as { id: string }[];
-    expect(spaces.map((s) => s.id)).toEqual([server.spaceId]);
+    expect(spaces.map((space) => space.id)).toEqual([server.spaceId]);
   });
 
   it('GET /me devolve o usuário da sessão e 401 sem ela', async () => {
@@ -53,26 +53,26 @@ describe('auth de convidado', () => {
   });
 
   it('recusa Origin diferente e corpo que não é JSON em rota que altera estado', async () => {
-    const badOrigin = await fetch(`${server.baseUrl}/auth/guest`, {
+    const badOriginResponse = await fetch(`${server.baseUrl}/auth/guest`, {
       method: 'POST',
       headers: { origin: 'http://evil.test', 'content-type': 'application/json' },
       body: '{}',
     });
-    expect(badOrigin.status).toBe(403);
+    expect(badOriginResponse.status).toBe(403);
 
-    const form = await fetch(`${server.baseUrl}/auth/guest`, {
+    const formResponse = await fetch(`${server.baseUrl}/auth/guest`, {
       method: 'POST',
       headers: { origin: TEST_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
       body: 'a=1',
     });
-    expect(form.status).toBe(415);
+    expect(formResponse.status).toBe(415);
   });
 
   it('GET /spaces/:id responde 404 para id inexistente ou malformado', async () => {
     const guest = await loginGuest(server);
-    const ok = await get(`/spaces/${server.spaceId}`, guest.cookie);
-    expect(ok.status).toBe(200);
-    expect(((await ok.json()) as { mapVersion: number }).mapVersion).toBe(1);
+    const spaceResponse = await get(`/spaces/${server.spaceId}`, guest.cookie);
+    expect(spaceResponse.status).toBe(200);
+    expect(((await spaceResponse.json()) as { mapVersion: number }).mapVersion).toBe(1);
     expect((await get('/spaces/0190a000-0000-7000-8000-000000000000', guest.cookie)).status).toBe(404);
     expect((await get('/spaces/nao-e-uuid', guest.cookie)).status).toBe(404);
   });

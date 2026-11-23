@@ -28,7 +28,7 @@ describe('pingpong no runtime', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -46,93 +46,93 @@ describe('pingpong no runtime', () => {
   }
 
   it('partida 1x1 de ponta a ponta', async () => {
-    const a = await online();
-    const b = await online();
-    const c = await online();
-    await a.bot.walk(server.clock, TO_LEFT);
-    await b.bot.walk(server.clock, TO_RIGHT);
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    b.bot.send({ t: 'game.join', tableKey: KEY });
-    await a.bot.flush();
-    await b.bot.flush();
-    const table = await c.bot.next('table.state', (m) => m.table.phase === 'playing');
-    expect(table.table).toMatchObject({ tableKey: KEY, left: a.guest.id, right: b.guest.id });
-    const activity = await c.bot.next('player.update', (m) => m.id === a.guest.id && m.patch.activity === 'game');
+    const alice = await online();
+    const bob = await online();
+    const carol = await online();
+    await alice.bot.walk(server.clock, TO_LEFT);
+    await bob.bot.walk(server.clock, TO_RIGHT);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    bob.bot.send({ t: 'game.join', tableKey: KEY });
+    await alice.bot.flush();
+    await bob.bot.flush();
+    const table = await carol.bot.next('table.state', (message) => message.table.phase === 'playing');
+    expect(table.table).toMatchObject({ tableKey: KEY, left: alice.guest.id, right: bob.guest.id });
+    const activity = await carol.bot.next('player.update', (message) => message.id === alice.guest.id && message.patch.activity === 'game');
     expect(activity.patch.activity).toBe('game');
 
-    a.bot.send({ t: 'game.input', seq: 1, dir: 1 });
-    await a.bot.flush();
+    alice.bot.send({ t: 'game.input', seq: 1, dir: 1 });
+    await alice.bot.flush();
     server.clock.advance(1000);
-    const state = await b.bot.next('game.state', (m) => m.paddles.left > 45);
+    const state = await bob.bot.next('game.state', (message) => message.paddles.left > 45);
     expect(state).toMatchObject({ tableKey: KEY, paddles: { right: 45 } });
   });
 
   it('move de quem está na mesa não anda', async () => {
-    const a = await online();
-    await a.bot.walk(server.clock, TO_LEFT);
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    await a.bot.flush();
-    await a.bot.walk(server.clock, ['up', 'up']);
-    expect(server.app.realtime.runtime(server.spaceId)?.positionOf(a.guest.id)).toEqual({ x: 3, y: 3 });
+    const alice = await online();
+    await alice.bot.walk(server.clock, TO_LEFT);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    await alice.bot.flush();
+    await alice.bot.walk(server.clock, ['up', 'up']);
+    expect(server.app.realtime.runtime(server.spaceId)?.positionOf(alice.guest.id)).toEqual({ x: 3, y: 3 });
   });
 
   it('entrar longe da mesa dá erro', async () => {
-    const a = await online();
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    expect(await a.bot.next('error')).toEqual({ t: 'error', code: 'table_not_at_side' });
+    const alice = await online();
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    expect(await alice.bot.next('error')).toEqual({ t: 'error', code: 'table_not_at_side' });
   });
 
   it('tolerância expirada dá vitória ao outro', async () => {
-    const a = await online();
-    const b = await online();
-    await a.bot.walk(server.clock, TO_LEFT);
-    await b.bot.walk(server.clock, TO_RIGHT);
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    b.bot.send({ t: 'game.join', tableKey: KEY });
-    await a.bot.flush();
-    await b.bot.flush();
-    a.bot.ws.terminate();
-    bots.splice(bots.indexOf(a.bot), 1);
+    const alice = await online();
+    const bob = await online();
+    await alice.bot.walk(server.clock, TO_LEFT);
+    await bob.bot.walk(server.clock, TO_RIGHT);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    bob.bot.send({ t: 'game.join', tableKey: KEY });
+    await alice.bot.flush();
+    await bob.bot.flush();
+    alice.bot.socket.terminate();
+    bots.splice(bots.indexOf(alice.bot), 1);
     await until(() => server.app.realtime.connections() === 1);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
-    const end = await b.bot.next('game.events', (m) => m.events.some((e) => e.type === 'end'));
+    const end = await bob.bot.next('game.events', (message) => message.events.some((event) => event.type === 'end'));
     expect(end.events).toContainEqual({ type: 'end', winner: 'right' });
-    const waiting = await b.bot.next('table.state', (m) => m.table.phase === 'waiting' && m.table.left === null);
-    expect(waiting.table.right).toBe(b.guest.id);
+    const waiting = await bob.bot.next('table.state', (message) => message.table.phase === 'waiting' && message.table.left === null);
+    expect(waiting.table.right).toBe(bob.guest.id);
   });
 
   it('reconexão devolve a mesa no welcome', async () => {
-    const a = await online();
-    await a.bot.walk(server.clock, TO_LEFT);
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    await a.bot.flush();
-    a.bot.ws.terminate();
-    bots.splice(bots.indexOf(a.bot), 1);
+    const alice = await online();
+    await alice.bot.walk(server.clock, TO_LEFT);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    await alice.bot.flush();
+    alice.bot.socket.terminate();
+    bots.splice(bots.indexOf(alice.bot), 1);
     await until(() => server.app.realtime.connections() === 0);
-    const again = await Bot.connect(server, a.guest);
+    const again = await Bot.connect(server, alice.guest);
     bots.push(again);
     expect((await again.next('welcome')).game).toEqual({ tableKey: KEY, side: 'left' });
   });
 
   it('convite para quem joga dá busy', async () => {
-    const a = await online();
-    const b = await online();
-    await a.bot.walk(server.clock, TO_LEFT);
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    await a.bot.flush();
+    const alice = await online();
+    const bob = await online();
+    await alice.bot.walk(server.clock, TO_LEFT);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    await alice.bot.flush();
     // Para ligar é preciso estar sentado à própria mesa.
-    await b.bot.walk(server.clock, ['right', 'down', 'down', 'down', 'down', 'down', 'down', 'left']);
-    expect((await api(server, b.guest, 'POST', `/spaces/${server.spaceId}/desks/mesa-1/claim`)).status).toBe(201);
-    b.bot.send({ t: 'call.invite', userId: a.guest.id });
-    expect(await b.bot.next('call.ended')).toMatchObject({ reason: 'busy' });
+    await bob.bot.walk(server.clock, ['right', 'down', 'down', 'down', 'down', 'down', 'down', 'left']);
+    expect((await api(server, bob.guest, 'POST', `/spaces/${server.spaceId}/desks/mesa-1/claim`)).status).toBe(201);
+    bob.bot.send({ t: 'call.invite', userId: alice.guest.id });
+    expect(await bob.bot.next('call.ended')).toMatchObject({ reason: 'busy' });
   });
 
   it('/metrics mostra partidas ativas', async () => {
-    const a = await online();
-    await a.bot.walk(server.clock, TO_LEFT);
-    a.bot.send({ t: 'game.join', tableKey: KEY });
-    a.bot.send({ t: 'game.bot' });
-    await a.bot.flush();
+    const alice = await online();
+    await alice.bot.walk(server.clock, TO_LEFT);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    alice.bot.send({ t: 'game.bot' });
+    await alice.bot.flush();
     const text = await (await fetch(`${server.baseUrl}/metrics`)).text();
     expect(text).toContain('pixelwork_games_active 1');
     expect(text).toContain('pixelwork_game_frame_seconds_count');

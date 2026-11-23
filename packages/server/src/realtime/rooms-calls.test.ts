@@ -50,7 +50,7 @@ describe('salas de reunião e chamadas', () => {
   });
 
   afterEach(async () => {
-    await Promise.all(bots.splice(0).map((b) => b.close()));
+    await Promise.all(bots.splice(0).map((bot) => bot.close()));
     await until(() => server.app.realtime.connections() === 0);
     server.clock.advance(RECONNECT_GRACE_MS + 1);
   });
@@ -68,40 +68,40 @@ describe('salas de reunião e chamadas', () => {
     return { guest, bot };
   }
 
-  async function enterRoom(u: { bot: Bot }): Promise<void> {
-    await u.bot.walk(server.clock, [...TO_DOOR, 'up']);
+  async function enterRoom(player: { bot: Bot }): Promise<void> {
+    await player.bot.walk(server.clock, [...TO_DOOR, 'up']);
   }
 
-  const joins = (bot: Bot) => bot.inbox.filter((m): m is Extract<ServerMsg, { t: 'media.join' }> => m.t === 'media.join');
+  const joins = (bot: Bot) => bot.inbox.filter((message): message is Extract<ServerMsg, { t: 'media.join' }> => message.t === 'media.join');
 
   async function position(guest: Guest): Promise<[number, number]> {
     const probe = await Bot.connect(server, await loginGuest(server));
     const welcome = await probe.next('welcome');
-    probe.ws.terminate();
+    probe.socket.terminate();
     await until(() => server.app.realtime.connections() === bots.length);
-    const p = welcome.players.find((x) => x.id === guest.id);
-    return [p?.x ?? -1, p?.y ?? -1];
+    const player = welcome.players.find((candidate) => candidate.id === guest.id);
+    return [player?.x ?? -1, player?.y ?? -1];
   }
 
   describe('sala como sala de mídia', () => {
     it('entrar manda para a sala da zona com tela liberada; sair volta para space: e remove da zona', async () => {
-      const a = await online();
-      const b = await online();
-      await enterRoom(a);
-      const join = await a.bot.next('media.join');
-      expect(join).toMatchObject({ room: zoneRoom(), token: `token:${zoneRoom()}:${a.guest.id}` });
-      expect(media.tokens.find((t) => t.identity === a.guest.id && t.room === zoneRoom())?.sources).toContain(
+      const alice = await online();
+      const bob = await online();
+      await enterRoom(alice);
+      const join = await alice.bot.next('media.join');
+      expect(join).toMatchObject({ room: zoneRoom(), token: `token:${zoneRoom()}:${alice.guest.id}` });
+      expect(media.tokens.find((token) => token.identity === alice.guest.id && token.room === zoneRoom())?.sources).toContain(
         'screen_share',
       );
       // Ninguém fica na sala aberta durante a reunião, nem com cliente modificado.
-      await until(() => media.removed.some((r) => r.room === spaceRoom() && r.identity === a.guest.id));
-      const update = await b.bot.next('player.update', (m) => m.id === a.guest.id && m.patch.activity !== undefined);
+      await until(() => media.removed.some((removal) => removal.room === spaceRoom() && removal.identity === alice.guest.id));
+      const update = await bob.bot.next('player.update', (message) => message.id === alice.guest.id && message.patch.activity !== undefined);
       expect(update.patch).toEqual({ activity: 'meeting' });
 
-      await a.bot.walk(server.clock, ['down']);
-      expect((await a.bot.next('media.join')).room).toBe(spaceRoom());
-      expect(media.removed).toContainEqual({ room: zoneRoom(), identity: a.guest.id });
-      expect((await b.bot.next('player.update', (m) => m.id === a.guest.id)).patch).toEqual({ activity: 'idle' });
+      await alice.bot.walk(server.clock, ['down']);
+      expect((await alice.bot.next('media.join')).room).toBe(spaceRoom());
+      expect(media.removed).toContainEqual({ room: zoneRoom(), identity: alice.guest.id });
+      expect((await bob.bot.next('player.update', (message) => message.id === alice.guest.id)).patch).toEqual({ activity: 'idle' });
     });
   });
 
@@ -111,7 +111,7 @@ describe('salas de reunião e chamadas', () => {
       const outside = await online();
       await enterRoom(inside);
       inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      expect((await outside.bot.next('zone.state', (m) => m.zone.locked)).zone.occupants).toEqual([inside.guest.id]);
+      expect((await outside.bot.next('zone.state', (message) => message.zone.locked)).zone.occupants).toEqual([inside.guest.id]);
 
       await outside.bot.walk(server.clock, TO_DOOR);
       outside.bot.send({ t: 'zone.knock', zoneKey: 'sala' });
@@ -124,7 +124,7 @@ describe('salas de reunião e chamadas', () => {
       await outside.bot.walk(server.clock, ['up']);
       expect(await position(outside.guest)).toEqual([7, 5]);
       expect(media.roomsFor(outside.guest.id)).not.toContain(zoneRoom());
-      expect(joins(outside.bot).map((j) => j.room)).not.toContain(zoneRoom());
+      expect(joins(outside.bot).map((join) => join.room)).not.toContain(zoneRoom());
     });
 
     it('batida aprovada deixa entrar e só então emite o token da sala', async () => {
@@ -132,7 +132,7 @@ describe('salas de reunião e chamadas', () => {
       const outside = await online();
       await enterRoom(inside);
       inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await outside.bot.next('zone.state', (m) => m.zone.locked);
+      await outside.bot.next('zone.state', (message) => message.zone.locked);
       await outside.bot.walk(server.clock, TO_DOOR);
 
       outside.bot.send({ t: 'zone.knock', zoneKey: 'sala' });
@@ -142,7 +142,7 @@ describe('salas de reunião e chamadas', () => {
       expect((await outside.bot.next('zone.knockResult')).allowed).toBe(true);
 
       await outside.bot.walk(server.clock, ['up']);
-      expect((await outside.bot.next('media.join', (m) => m.room === zoneRoom())).room).toBe(zoneRoom());
+      expect((await outside.bot.next('media.join', (message) => message.room === zoneRoom())).room).toBe(zoneRoom());
     });
 
     it('batida sem resposta expira em 30 segundos como recusa', async () => {
@@ -150,14 +150,14 @@ describe('salas de reunião e chamadas', () => {
       const outside = await online();
       await enterRoom(inside);
       inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await outside.bot.next('zone.state', (m) => m.zone.locked);
+      await outside.bot.next('zone.state', (message) => message.zone.locked);
       await outside.bot.walk(server.clock, TO_DOOR);
       outside.bot.send({ t: 'zone.knock', zoneKey: 'sala' });
       await inside.bot.next('zone.knockRequest');
 
       server.clock.advance(KNOCK_TIMEOUT_MS - 1);
       await outside.bot.flush();
-      expect(outside.bot.inbox.some((m) => m.t === 'zone.knockResult')).toBe(false);
+      expect(outside.bot.inbox.some((message) => message.t === 'zone.knockResult')).toBe(false);
       server.clock.advance(1);
       expect((await outside.bot.next('zone.knockResult')).allowed).toBe(false);
     });
@@ -170,15 +170,15 @@ describe('salas de reunião e chamadas', () => {
 
       await enterRoom(inside);
       inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await outside.bot.next('zone.state', (m) => m.zone.locked);
+      await outside.bot.next('zone.state', (message) => message.zone.locked);
       outside.bot.send({ t: 'zone.knock', zoneKey: 'sala' });
       expect(await outside.bot.next('error')).toEqual({ t: 'error', code: 'not_at_door' });
     });
 
     it('trancar de fora é recusado', async () => {
-      const a = await online();
-      a.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      expect(await a.bot.next('error')).toEqual({ t: 'error', code: 'not_in_zone' });
+      const alice = await online();
+      alice.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
+      expect(await alice.bot.next('error')).toEqual({ t: 'error', code: 'not_in_zone' });
     });
 
     it('sala vazia destranca e limpa a lista de permitidos', async () => {
@@ -186,16 +186,16 @@ describe('salas de reunião e chamadas', () => {
       const second = await online();
       await enterRoom(first);
       first.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await second.bot.next('zone.state', (m) => m.zone.locked);
+      await second.bot.next('zone.state', (message) => message.zone.locked);
 
       await first.bot.walk(server.clock, ['down', 'down']);
-      const unlocked = await second.bot.next('zone.state', (m) => !m.zone.locked && m.zone.occupants.length === 0);
+      const unlocked = await second.bot.next('zone.state', (message) => !message.zone.locked && message.zone.occupants.length === 0);
       expect(unlocked.zone).toEqual({ zoneKey: 'sala', locked: false, occupants: [] });
 
       // Quem estava na lista antiga não entra numa tranca nova.
       await second.bot.walk(server.clock, [...TO_DOOR, 'up']);
       second.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await first.bot.next('zone.state', (m) => m.zone.locked);
+      await first.bot.next('zone.state', (message) => message.zone.locked);
       await first.bot.walk(server.clock, ['up', 'up']);
       expect(await position(first.guest)).toEqual([7, 5]);
     });
@@ -204,7 +204,7 @@ describe('salas de reunião e chamadas', () => {
       const outside = await online();
       await enterRoom(inside);
       inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await outside.bot.next('zone.state', (m) => m.zone.locked);
+      await outside.bot.next('zone.state', (message) => message.zone.locked);
       await outside.bot.walk(server.clock, ['down', 'right']);
 
       // A sala passa a cobrir de x=2 em diante, incluindo a cadeira onde "outside" está.
@@ -236,7 +236,7 @@ describe('salas de reunião e chamadas', () => {
       const walker = await online();
       await enterRoom(inside);
       inside.bot.send({ t: 'zone.lock', zoneKey: 'sala', locked: true });
-      await knocker.bot.next('zone.state', (m) => m.zone.locked);
+      await knocker.bot.next('zone.state', (message) => message.zone.locked);
       // Quem não foi liberado bate na trancada e não entra; quem foi liberado entra.
       await knocker.bot.walk(server.clock, [...TO_DOOR, 'up']);
       await walker.bot.walk(server.clock, ['down', 'down', 'right', 'right', 'left', 'up']);
@@ -252,11 +252,11 @@ describe('salas de reunião e chamadas', () => {
       const recording = runtime.recording();
       // O mapa do runtime, não o da fixture: um teste anterior troca o mapa deste servidor.
       const replayed = replay(runtime.compiledMap(), recording);
-      for (const u of [inside, knocker, walker]) {
-        const p = replayed.players.get(u.guest.id);
-        expect([p?.x, p?.y]).toEqual(await position(u.guest));
+      for (const participant of [inside, knocker, walker]) {
+        const replayedPlayer = replayed.players.get(participant.guest.id);
+        expect([replayedPlayer?.x, replayedPlayer?.y]).toEqual(await position(participant.guest));
       }
-      expect(recording.events.some((e) => e.type === 'lock' && e.locked)).toBe(true);
+      expect(recording.events.some((event) => event.type === 'lock' && event.locked)).toBe(true);
 
       const admin = await api(server, inside.guest, 'GET', `/spaces/${server.spaceId}/replay`);
       expect(admin.status).toBe(403);
@@ -264,9 +264,9 @@ describe('salas de reunião e chamadas', () => {
   });
 
   describe('chamadas', () => {
-    async function seat(u: { guest: Guest; bot: Bot }, path: Dir[], deskKey: string): Promise<void> {
-      await u.bot.walk(server.clock, path);
-      const claim = await api(server, u.guest, 'POST', `/spaces/${server.spaceId}/desks/${deskKey}/claim`);
+    async function seat(player: { guest: Guest; bot: Bot }, path: Dir[], deskKey: string): Promise<void> {
+      await player.bot.walk(server.clock, path);
+      const claim = await api(server, player.guest, 'POST', `/spaces/${server.spaceId}/desks/${deskKey}/claim`);
       expect(claim.status).toBe(201);
     }
 
@@ -280,94 +280,94 @@ describe('salas de reunião e chamadas', () => {
     });
 
     it('autor fora da própria mesa é recusado', async () => {
-      const a = await online();
-      const b = await online();
-      a.bot.send({ t: 'call.invite', userId: b.guest.id });
-      expect(await a.bot.next('error')).toEqual({ t: 'error', code: 'not_seated' });
-      expect(b.bot.inbox.some((m) => m.t === 'call.incoming')).toBe(false);
+      const alice = await online();
+      const bob = await online();
+      alice.bot.send({ t: 'call.invite', userId: bob.guest.id });
+      expect(await alice.bot.next('error')).toEqual({ t: 'error', code: 'not_seated' });
+      expect(bob.bot.inbox.some((message) => message.t === 'call.incoming')).toBe(false);
     });
 
     it('destino em reunião gera busy', async () => {
-      const a = await online();
-      const b = await online();
-      await seat(a, TO_DESK_1, 'mesa-1');
-      await enterRoom(b);
-      a.bot.send({ t: 'call.invite', userId: b.guest.id });
-      expect((await a.bot.next('call.ended')).reason).toBe('busy');
+      const alice = await online();
+      const bob = await online();
+      await seat(alice, TO_DESK_1, 'mesa-1');
+      await enterRoom(bob);
+      alice.bot.send({ t: 'call.invite', userId: bob.guest.id });
+      expect((await alice.bot.next('call.ended')).reason).toBe('busy');
     });
 
     it('sem resposta em 30 segundos gera timeout para os dois', async () => {
-      const a = await online();
-      const b = await online();
-      await seat(a, TO_DESK_1, 'mesa-1');
-      a.bot.send({ t: 'call.invite', userId: b.guest.id });
-      const incoming = await b.bot.next('call.incoming');
-      expect(incoming.from).toBe(a.guest.id);
+      const alice = await online();
+      const bob = await online();
+      await seat(alice, TO_DESK_1, 'mesa-1');
+      alice.bot.send({ t: 'call.invite', userId: bob.guest.id });
+      const incoming = await bob.bot.next('call.incoming');
+      expect(incoming.from).toBe(alice.guest.id);
 
       server.clock.advance(CALL_RING_TIMEOUT_MS);
-      expect((await a.bot.next('call.ended')).reason).toBe('timeout');
-      expect((await b.bot.next('call.ended')).callId).toBe(incoming.callId);
+      expect((await alice.bot.next('call.ended')).reason).toBe('timeout');
+      expect((await bob.bot.next('call.ended')).callId).toBe(incoming.callId);
     });
 
     it('recusa avisa o autor', async () => {
-      const a = await online();
-      const b = await online();
-      await seat(a, TO_DESK_1, 'mesa-1');
-      a.bot.send({ t: 'call.invite', userId: b.guest.id });
-      const incoming = await b.bot.next('call.incoming');
-      b.bot.send({ t: 'call.reply', callId: incoming.callId, accept: false });
-      expect((await a.bot.next('call.ended')).reason).toBe('declined');
+      const alice = await online();
+      const bob = await online();
+      await seat(alice, TO_DESK_1, 'mesa-1');
+      alice.bot.send({ t: 'call.invite', userId: bob.guest.id });
+      const incoming = await bob.bot.next('call.incoming');
+      bob.bot.send({ t: 'call.reply', callId: incoming.callId, accept: false });
+      expect((await alice.bot.next('call.ended')).reason).toBe('declined');
     });
 
     it('chamada aceita leva os dois para a sala da chamada; ninguém mais recebe token dela', async () => {
-      const a = await online();
-      const b = await online();
-      const c = await online();
-      await seat(a, TO_DESK_1, 'mesa-1');
-      a.bot.send({ t: 'call.invite', userId: b.guest.id });
-      const incoming = await b.bot.next('call.incoming');
+      const alice = await online();
+      const bob = await online();
+      const carol = await online();
+      await seat(alice, TO_DESK_1, 'mesa-1');
+      alice.bot.send({ t: 'call.invite', userId: bob.guest.id });
+      const incoming = await bob.bot.next('call.incoming');
       const room = `call:${incoming.callId}`;
 
       // Terceiro tentando responder pela chamada alheia não entra.
-      c.bot.send({ t: 'call.reply', callId: incoming.callId, accept: true });
-      await c.bot.flush();
-      expect(media.roomsFor(c.guest.id)).not.toContain(room);
+      carol.bot.send({ t: 'call.reply', callId: incoming.callId, accept: true });
+      await carol.bot.flush();
+      expect(media.roomsFor(carol.guest.id)).not.toContain(room);
 
-      b.bot.send({ t: 'call.reply', callId: incoming.callId, accept: true });
-      expect((await a.bot.next('media.join', (m) => m.room === room)).token).toBe(`token:${room}:${a.guest.id}`);
-      expect((await b.bot.next('media.join', (m) => m.room === room)).token).toBe(`token:${room}:${b.guest.id}`);
-      expect((await c.bot.next('player.update', (m) => m.id === b.guest.id)).patch).toEqual({ activity: 'call' });
-      expect(media.roomsFor(c.guest.id)).not.toContain(room);
+      bob.bot.send({ t: 'call.reply', callId: incoming.callId, accept: true });
+      expect((await alice.bot.next('media.join', (message) => message.room === room)).token).toBe(`token:${room}:${alice.guest.id}`);
+      expect((await bob.bot.next('media.join', (message) => message.room === room)).token).toBe(`token:${room}:${bob.guest.id}`);
+      expect((await carol.bot.next('player.update', (message) => message.id === bob.guest.id)).patch).toEqual({ activity: 'call' });
+      expect(media.roomsFor(carol.guest.id)).not.toContain(room);
 
       // Levantar da mesa não encerra a chamada.
-      await a.bot.walk(server.clock, ['left']);
-      await a.bot.flush();
-      expect(a.bot.inbox.some((m) => m.t === 'call.ended')).toBe(false);
+      await alice.bot.walk(server.clock, ['left']);
+      await alice.bot.flush();
+      expect(alice.bot.inbox.some((message) => message.t === 'call.ended')).toBe(false);
 
-      a.bot.send({ t: 'call.leave' });
-      expect((await b.bot.next('call.ended')).reason).toBe('left');
-      expect((await a.bot.next('media.join', (m) => m.room === spaceRoom())).room).toBe(spaceRoom());
-      expect((await b.bot.next('media.join', (m) => m.room === spaceRoom())).room).toBe(spaceRoom());
+      alice.bot.send({ t: 'call.leave' });
+      expect((await bob.bot.next('call.ended')).reason).toBe('left');
+      expect((await alice.bot.next('media.join', (message) => message.room === spaceRoom())).room).toBe(spaceRoom());
+      expect((await bob.bot.next('media.join', (message) => message.room === spaceRoom())).room).toBe(spaceRoom());
       expect(media.removed).toEqual(
         expect.arrayContaining([
-          { room, identity: a.guest.id },
-          { room, identity: b.guest.id },
+          { room, identity: alice.guest.id },
+          { room, identity: bob.guest.id },
         ]),
       );
     });
 
     it('desconexão encerra a chamada', async () => {
-      const a = await online();
-      const b = await online();
-      await seat(b, TO_DESK_2, 'mesa-2');
-      b.bot.send({ t: 'call.invite', userId: a.guest.id });
-      const incoming = await a.bot.next('call.incoming');
-      a.bot.send({ t: 'call.reply', callId: incoming.callId, accept: true });
-      await b.bot.next('media.join', (m) => m.room.startsWith('call:'));
+      const alice = await online();
+      const bob = await online();
+      await seat(bob, TO_DESK_2, 'mesa-2');
+      bob.bot.send({ t: 'call.invite', userId: alice.guest.id });
+      const incoming = await alice.bot.next('call.incoming');
+      alice.bot.send({ t: 'call.reply', callId: incoming.callId, accept: true });
+      await bob.bot.next('media.join', (message) => message.room.startsWith('call:'));
 
-      bots.splice(bots.indexOf(a.bot), 1);
-      await a.bot.close();
-      expect((await b.bot.next('call.ended')).reason).toBe('left');
+      bots.splice(bots.indexOf(alice.bot), 1);
+      await alice.bot.close();
+      expect((await bob.bot.next('call.ended')).reason).toBe('left');
     });
   });
 });
