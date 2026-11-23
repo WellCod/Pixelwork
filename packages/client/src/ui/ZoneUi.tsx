@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useWorld } from './useWorld.ts';
 
-interface Request {
+/** Pedido de entrada (batida na porta) recebido por quem está dentro da sala. */
+interface KnockRequest {
   requestId: string;
   zoneKey: string;
   from: string;
@@ -13,98 +14,117 @@ interface Request {
  * Tranca da sala (para quem está dentro), batida na porta (para quem está num tile vizinho de
  * uma sala trancada) e os pedidos que chegam para quem está dentro.
  */
-export function ZoneUi({ world, send }: { world: ClientWorld; send: (msg: ClientMsg) => void }) {
+export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
   useWorld(world);
-  const [requests, setRequests] = useState<Request[]>([]);
-  const [knocking, setKnocking] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const [requests, setRequests] = useState<KnockRequest[]>([]);
+  // Chave da sala em que se bateu e ainda se espera resposta.
+  const [knockingZoneKey, setKnockingZoneKey] = useState<string | null>(null);
+  const [knockResult, setKnockResult] = useState<string | null>(null);
+  // Timers pendentes, para cancelar todos ao desmontar e não mexer em estado depois disso.
+  const pendingTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
-  const later = (fn: () => void, ms: number) => {
+  /** `setTimeout` registrado em `pendingTimers`, que se remove da lista ao disparar. */
+  const runLater = (callback: () => void, delayMs: number) => {
     const timer = setTimeout(() => {
-      timers.current.delete(timer);
-      fn();
-    }, ms);
-    timers.current.add(timer);
+      pendingTimers.current.delete(timer);
+      callback();
+    }, delayMs);
+    pendingTimers.current.add(timer);
   };
 
+  // Escuta batidas recebidas (quem está dentro) e a resposta da própria batida (quem está fora).
   useEffect(() => {
-    const pending = timers.current;
-    const stop = world.subscribe((event) => {
+    const timersAtMount = pendingTimers.current;
+    const unsubscribe = world.subscribe((event) => {
       if (event.type === 'knockRequest') {
         const request = { requestId: event.requestId, zoneKey: event.zoneKey, from: event.from };
-        setRequests((list) => [...list, request]);
+        setRequests((currentRequests) => [...currentRequests, request]);
         // Sem mensagem de "resolvido" para os outros ocupantes: o pedido some com o prazo.
-        later(() => setRequests((list) => list.filter((r) => r.requestId !== request.requestId)), KNOCK_TIMEOUT_MS);
+        runLater(
+          () =>
+            setRequests((currentRequests) =>
+              currentRequests.filter((queued) => queued.requestId !== request.requestId),
+            ),
+          KNOCK_TIMEOUT_MS,
+        );
       }
       if (event.type === 'knockResult') {
-        setKnocking(null);
-        setResult(event.allowed ? 'Pode entrar.' : 'Não liberaram a entrada.');
-        later(() => setResult(null), 5_000);
+        setKnockingZoneKey(null);
+        setKnockResult(event.allowed ? 'Pode entrar.' : 'Não liberaram a entrada.');
+        runLater(() => setKnockResult(null), 5_000);
       }
     });
     return () => {
-      stop();
-      for (const timer of pending) clearTimeout(timer);
-      pending.clear();
+      unsubscribe();
+      for (const timer of timersAtMount) clearTimeout(timer);
+      timersAtMount.clear();
     };
   }, [world]);
 
   const { map, self } = world;
-  const here = zoneAt(map, self.x, self.y);
-  const inside = here.type === 'meeting' ? world.zones.get(here.key) : undefined;
-  const door = here.type === 'meeting'
+  const currentZone = zoneAt(map, self.x, self.y);
+  // Dentro de uma sala de reunião: o estado dela (trancada ou não).
+  const insideZoneState = currentZone.type === 'meeting' ? world.zones.get(currentZone.key) : undefined;
+  // Fora de sala: a primeira sala trancada num tile vizinho, para oferecer a batida na porta.
+  const lockedDoorZone = currentZone.type === 'meeting'
     ? undefined
     : Object.values(DIR_DELTA)
         .map(([dx, dy]) => zoneAt(map, self.x + dx, self.y + dy))
-        .find((z) => z.type === 'meeting' && world.zones.get(z.key)?.locked);
+        .find((neighborZone) => neighborZone.type === 'meeting' && world.zones.get(neighborZone.key)?.locked);
 
-  const reply = (request: Request, allow: boolean) => {
+  const reply = (request: KnockRequest, allow: boolean) => {
     send({ t: 'zone.knockReply', requestId: request.requestId, allow });
-    setRequests((list) => list.filter((r) => r.requestId !== request.requestId));
+    setRequests((currentRequests) => currentRequests.filter((queued) => queued.requestId !== request.requestId));
   };
 
   return (
     <div className="zone-ui">
-      {inside && (
+      {insideZoneState && (
         <div className="zone-card">
           <span>
-            {here.name} {inside.locked ? '(trancada)' : ''}
+            {currentZone.name} {insideZoneState.locked ? '(trancada)' : ''}
           </span>
-          <button type="button" onClick={() => send({ t: 'zone.lock', zoneKey: here.key, locked: !inside.locked })}>
-            {inside.locked ? 'Destrancar' : 'Trancar'}
-          </button>
-        </div>
-      )}
-      {door && (
-        <div className="zone-card">
-          <span>{door.name} está trancada</span>
           <button
             type="button"
-            disabled={knocking === door.key}
-            onClick={() => {
-              setResult(null);
-              setKnocking(door.key);
-              send({ t: 'zone.knock', zoneKey: door.key });
-              // Se o resultado se perder (queda de conexão), o botão não fica preso em "Aguardando…".
-              later(() => setKnocking((k) => (k === door.key ? null : k)), KNOCK_TIMEOUT_MS + 2_000);
-            }}
+            onClick={() => send({ t: 'zone.lock', zoneKey: currentZone.key, locked: !insideZoneState.locked })}
           >
-            {knocking === door.key ? 'Aguardando…' : 'Bater na porta'}
+            {insideZoneState.locked ? 'Destrancar' : 'Trancar'}
           </button>
         </div>
       )}
-      {result && !inside && <div className="zone-card">{result}</div>}
-      {inside &&
+      {lockedDoorZone && (
+        <div className="zone-card">
+          <span>{lockedDoorZone.name} está trancada</span>
+          <button
+            type="button"
+            disabled={knockingZoneKey === lockedDoorZone.key}
+            onClick={() => {
+              setKnockResult(null);
+              setKnockingZoneKey(lockedDoorZone.key);
+              send({ t: 'zone.knock', zoneKey: lockedDoorZone.key });
+              // Se o resultado se perder (queda de conexão), o botão não fica preso em "Aguardando…".
+              runLater(
+                () => setKnockingZoneKey((zoneKey) => (zoneKey === lockedDoorZone.key ? null : zoneKey)),
+                KNOCK_TIMEOUT_MS + 2_000,
+              );
+            }}
+          >
+            {knockingZoneKey === lockedDoorZone.key ? 'Aguardando…' : 'Bater na porta'}
+          </button>
+        </div>
+      )}
+      {knockResult && !insideZoneState && <div className="zone-card">{knockResult}</div>}
+      {/* Pedidos de entrada só aparecem para quem está dentro da sala a que se referem. */}
+      {insideZoneState &&
         requests
-          .filter((r) => r.zoneKey === here.key)
-          .map((r) => (
-            <div key={r.requestId} className="zone-card request">
-              <span>{world.players.get(r.from)?.name ?? 'Alguém'} quer entrar</span>
-              <button type="button" className="primary" onClick={() => reply(r, true)}>
+          .filter((request) => request.zoneKey === currentZone.key)
+          .map((request) => (
+            <div key={request.requestId} className="zone-card request">
+              <span>{world.players.get(request.from)?.name ?? 'Alguém'} quer entrar</span>
+              <button type="button" className="primary" onClick={() => reply(request, true)}>
                 Deixar entrar
               </button>
-              <button type="button" onClick={() => reply(r, false)}>
+              <button type="button" onClick={() => reply(request, false)}>
                 Recusar
               </button>
             </div>

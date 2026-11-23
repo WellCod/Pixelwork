@@ -90,6 +90,7 @@ const CONTEXT: Record<string, Record<string, string>> = {
   color: { black: 'Preto', dark: 'Escuro' },
 };
 
+/** Nome em português de um ID do catálogo: o do contexto, se houver, senão o geral, senão o próprio ID. */
 export function label(id: string, context?: keyof typeof CONTEXT): string {
   return (context && CONTEXT[context]?.[id]) ?? LABELS[id] ?? id;
 }

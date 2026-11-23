@@ -12,13 +12,16 @@ import { InvitePage } from './ui/InvitePage.tsx';
 import { MapModal } from './ui/MapModal.tsx';
 import { errorMessage } from './ui/useWorld.ts';
 
-type Current = { space: SpaceDetail; map: CompiledMap };
+/** Coworking aberto: o detalhe vindo da API e o mapa já compilado. */
+type CurrentSpace = { space: SpaceDetail; map: CompiledMap };
 
+/** Fase da tela: carregando, login (com erro opcional) ou dentro do app com a lista de coworkings. */
 type State =
   | { kind: 'loading' }
   | { kind: 'login'; error?: string }
-  | { kind: 'ready'; me: Me; spaces: SpaceSummary[]; current: Current | null; notice: string };
+  | { kind: 'ready'; me: Me; spaces: SpaceSummary[]; current: CurrentSpace | null; notice: string };
 
+/** Chave do localStorage com o último coworking aberto, para reabrir nele no próximo acesso. */
 const STORAGE_KEY = 'pixelwork.space';
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connecting: 'Conectando…',
@@ -29,7 +32,7 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
   ended: 'Sessão encerrada',
 };
 
-function remembered(): string | null {
+function rememberedSpaceId(): string | null {
   try {
     return localStorage.getItem(STORAGE_KEY);
   } catch {
@@ -45,12 +48,14 @@ function remember(spaceId: string): void {
   }
 }
 
-function inviteToken(): string | null {
+/** Token do convite quando a página foi aberta pelo link `/invite/<token>`. */
+function inviteTokenFromPath(): string | null {
   const match = /^\/invite\/([\w-]+)$/.exec(location.pathname);
   return match?.[1] ?? null;
 }
 
-async function openSpace(spaceId: string): Promise<Current> {
+/** Busca o coworking, compila o mapa e guarda a escolha para o próximo acesso. */
+async function openSpace(spaceId: string): Promise<CurrentSpace> {
   const space = await api.space(spaceId);
   const compiled = compileMap(space.map);
   if (!compiled.ok) throw new Error('O mapa deste coworking não pôde ser carregado.');
@@ -58,20 +63,31 @@ async function openSpace(spaceId: string): Promise<Current> {
   return { space, map: compiled.map };
 }
 
+/**
+ * Monta o estado `ready` depois do login. O coworking aberto segue a ordem: o pedido
+ * explicitamente (`preferred`), o último lembrado e, por fim, o primeiro da lista.
+ */
 async function loadReady(me: Me, preferred: string | null = null, notice = ''): Promise<State> {
   const spaces = await api.spaces();
-  const pick = spaces.find((s) => s.id === preferred) ?? spaces.find((s) => s.id === remembered()) ?? spaces[0];
-  const current = pick ? await openSpace(pick.id) : null;
+  const chosenSpace =
+    spaces.find((space) => space.id === preferred) ??
+    spaces.find((space) => space.id === rememberedSpaceId()) ??
+    spaces[0];
+  const current = chosenSpace ? await openSpace(chosenSpace.id) : null;
   return { kind: 'ready', me, spaces, current, notice };
 }
 
+/**
+ * Raiz do app: decide entre carregando, login, aceite de convite e o coworking aberto,
+ * e cuida da troca de coworking, dos modais da barra e do modo de edição do mapa.
+ */
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' });
-  const [github, setGithub] = useState(false);
-  const [invite, setInvite] = useState(inviteToken);
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
-  const [modal, setModal] = useState<'create' | 'invite' | 'map' | null>(null);
-  const [switching, setSwitching] = useState(false);
+  const [githubLoginEnabled, setGithubLoginEnabled] = useState(false);
+  const [inviteToken, setInviteToken] = useState(inviteTokenFromPath);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const [openModal, setOpenModal] = useState<'create' | 'invite' | 'map' | null>(null);
+  const [switchingSpace, setSwitchingSpace] = useState(false);
   const [editor, setEditor] = useState<{ controller: EditorController; baseVersion: number } | null>(null);
 
   // Só a resposta do pedido mais recente vale: trocas rápidas de coworking chegam fora de ordem.
@@ -79,19 +95,24 @@ export function App() {
   /** Erro passageiro com a sessão ainda válida vira aviso; não manda para o login. */
   const warn = useCallback((error: unknown) => {
     const text = error instanceof Error ? error.message : 'Não deu para abrir o coworking.';
-    setState((prev) => (prev.kind === 'ready' ? { ...prev, notice: text } : { kind: 'login', error: text }));
+    setState((previous) =>
+      previous.kind === 'ready' ? { ...previous, notice: text } : { kind: 'login', error: text },
+    );
   }, []);
 
+  /** Erro que impede entrar: volta para o login mostrando o motivo. */
   const fail = useCallback((error: unknown) => {
     const text = error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : 'Falha ao entrar.';
     setState({ kind: 'login', error: text });
   }, []);
 
+  // Na montagem: descobre se o login pelo GitHub está ligado e tenta retomar a sessão.
+  // Sem sessão (401) cai no login; `?erro` na URL é o retorno de um OAuth do GitHub que falhou.
   useEffect(() => {
     orgApi
       .providers()
-      .then((p) => setGithub(p.github))
-      .catch(() => setGithub(false));
+      .then((providers) => setGithubLoginEnabled(providers.github))
+      .catch(() => setGithubLoginEnabled(false));
     const githubError = new URLSearchParams(location.search).has('erro');
     if (githubError) history.replaceState(null, '', location.pathname);
     api
@@ -105,6 +126,7 @@ export function App() {
       });
   }, [fail]);
 
+  /** Recarrega a lista de coworkings e abre `preferred` (ou o lembrado), com aviso opcional. */
   const reload = (me: Me, preferred: string | null = null, notice = '') => {
     loadReady(me, preferred, notice).then(setState).catch(fail);
   };
@@ -138,11 +160,11 @@ export function App() {
       <main className="center">
         <h1>Pixelwork</h1>
         <p>Coworking virtual em pixel art.</p>
-        {invite && <p>Entre para aceitar o convite.</p>}
+        {inviteToken && <p>Entre para aceitar o convite.</p>}
         <button type="button" onClick={enterAsGuest}>
           Entrar como convidado
         </button>
-        {github && (
+        {githubLoginEnabled && (
           <a className="button primary" href="/auth/github">
             Entrar com GitHub
           </a>
@@ -155,13 +177,14 @@ export function App() {
 
   const { me, spaces, current } = state;
 
-  if (invite) {
+  // Aberto por link de convite: aceita primeiro e só depois entra no coworking do convite.
+  if (inviteToken) {
     return (
       <InvitePage
-        token={invite}
+        token={inviteToken}
         onDone={(spaceId) => {
           history.replaceState(null, '', '/');
-          setInvite(null);
+          setInviteToken(null);
           // Sem isto o coworking anterior aparece por um instante antes do novo.
           setState({ kind: 'loading' });
           reload(me, spaceId);
@@ -170,18 +193,24 @@ export function App() {
     );
   }
 
-  const select = (spaceId: string) => {
+  /**
+   * Troca de coworking pelo seletor da barra. Pede confirmação se o editor tem mudanças não salvas
+   * e descarta respostas de pedidos antigos (ver `openRequest`).
+   */
+  const selectSpace = (spaceId: string) => {
     if (editor?.controller.dirty && !confirm('Trocar de coworking descarta as mudanças do editor. Continuar?')) return;
     const request = ++openRequest.current;
-    setSwitching(true);
+    setSwitchingSpace(true);
     openSpace(spaceId)
       .finally(() => {
-        if (request === openRequest.current) setSwitching(false);
+        if (request === openRequest.current) setSwitchingSpace(false);
       })
-      .then((next) => {
+      .then((openedSpace) => {
         if (request !== openRequest.current) return;
         setEditor(null);
-        setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next, notice: '' } : prev));
+        setState((previous) =>
+          previous.kind === 'ready' ? { ...previous, current: openedSpace, notice: '' } : previous,
+        );
       })
       .catch((error: unknown) => {
         if (request === openRequest.current) warn(error);
@@ -195,25 +224,27 @@ export function App() {
         {spaces.length > 0 && (
           <select
             aria-label="Coworking"
-            aria-busy={switching}
+            aria-busy={switchingSpace}
             value={current?.space.id ?? ''}
-            onChange={(e) => select(e.target.value)}
+            onChange={(event) => selectSpace(event.target.value)}
           >
-            {spaces.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.orgName} · {s.name}
+            {spaces.map((space) => (
+              <option key={space.id} value={space.id}>
+                {space.orgName} · {space.name}
               </option>
             ))}
           </select>
         )}
         {current && (
-          <span className={`status status-${status}`} role="status">
-            {switching ? 'Abrindo…' : STATUS_TEXT[status]}
+          <span className={`status status-${connectionStatus}`} role="status">
+            {switchingSpace ? 'Abrindo…' : STATUS_TEXT[connectionStatus]}
           </span>
         )}
         <span className="spacer" />
+        {/* Editar mapa, mapa e convite são só de quem administra o coworking aberto. */}
         {current?.space.role === 'admin' && (
           <>
+            {/* O editor trabalha numa cópia do mapa; `baseVersion` detecta conflito ao salvar. */}
             <button
               type="button"
               disabled={editor !== null}
@@ -226,17 +257,17 @@ export function App() {
             >
               Editar mapa
             </button>
-            <button type="button" onClick={() => setModal('map')}>
+            <button type="button" onClick={() => setOpenModal('map')}>
               Mapa
             </button>
-            <button type="button" onClick={() => setModal('invite')}>
+            <button type="button" onClick={() => setOpenModal('invite')}>
               Convidar
             </button>
           </>
         )}
         <a href="/creditos">Créditos</a>
         {!me.isGuest && (
-          <button type="button" onClick={() => setModal('create')}>
+          <button type="button" onClick={() => setOpenModal('create')}>
             Novo coworking
           </button>
         )}
@@ -249,7 +280,10 @@ export function App() {
       {state.notice && (
         <p className="notice-bar">
           {state.notice}{' '}
-          <button type="button" onClick={() => setState((prev) => (prev.kind === 'ready' ? { ...prev, notice: '' } : prev))}>
+          <button
+            type="button"
+            onClick={() => setState((previous) => (previous.kind === 'ready' ? { ...previous, notice: '' } : previous))}
+          >
             Ok
           </button>
         </p>
@@ -260,20 +294,24 @@ export function App() {
           key={current.space.id}
           space={current.space}
           map={current.map}
-          onStatus={(next) => {
-            setStatus(next);
-            if (next === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
-            if (next === 'ended') setState({ kind: 'login', error: 'Sua sessão terminou. Entre de novo.' });
+          // Removido do coworking: recarrega a lista com aviso. Sessão encerrada: volta ao login.
+          onStatus={(nextStatus) => {
+            setConnectionStatus(nextStatus);
+            if (nextStatus === 'removed') reload(me, null, `Você não faz mais parte de ${current.space.name}.`);
+            if (nextStatus === 'ended') setState({ kind: 'login', error: 'Sua sessão terminou. Entre de novo.' });
           }}
           editor={editor}
-          onEditorBaseVersion={(version) => setEditor((e) => (e ? { ...e, baseVersion: version } : e))}
+          onEditorBaseVersion={(version) =>
+            setEditor((currentEditor) => (currentEditor ? { ...currentEditor, baseVersion: version } : currentEditor))
+          }
           onEditorClose={() => setEditor(null)}
+          // O mapa mudou no servidor (`map.updated`): rebusca o coworking e troca o mapa sem mexer no resto.
           onMapUpdated={() => {
             const request = ++openRequest.current;
             openSpace(current.space.id)
-              .then((next) => {
+              .then((reopenedSpace) => {
                 if (request !== openRequest.current) return;
-                setState((prev) => (prev.kind === 'ready' ? { ...prev, current: next } : prev));
+                setState((previous) => (previous.kind === 'ready' ? { ...previous, current: reopenedSpace } : previous));
               })
               .catch((error: unknown) => {
                 if (request === openRequest.current) warn(error);
@@ -286,26 +324,26 @@ export function App() {
           {me.isGuest ? (
             <p>Peça um convite a quem administra um coworking.</p>
           ) : (
-            <button type="button" className="primary" onClick={() => setModal('create')}>
+            <button type="button" className="primary" onClick={() => setOpenModal('create')}>
               Criar empresa e coworking
             </button>
           )}
         </main>
       )}
 
-      {modal === 'create' && (
+      {openModal === 'create' && (
         <CreateSpaceModal
           spaces={spaces}
-          onClose={() => setModal(null)}
+          onClose={() => setOpenModal(null)}
           onCreated={(spaceId) => {
-            setModal(null);
+            setOpenModal(null);
             reload(me, spaceId);
           }}
         />
       )}
-      {modal === 'invite' && current && <InviteModal spaceId={current.space.id} onClose={() => setModal(null)} />}
-      {modal === 'map' && current && (
-        <MapModal spaceId={current.space.id} baseVersion={current.space.mapVersion} onClose={() => setModal(null)} />
+      {openModal === 'invite' && current && <InviteModal spaceId={current.space.id} onClose={() => setOpenModal(null)} />}
+      {openModal === 'map' && current && (
+        <MapModal spaceId={current.space.id} baseVersion={current.space.mapVersion} onClose={() => setOpenModal(null)} />
       )}
     </div>
   );

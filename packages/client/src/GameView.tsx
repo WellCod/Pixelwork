@@ -38,9 +38,15 @@ interface Props {
   onEditorClose: () => void;
 }
 
+/**
+ * Tela do coworking: monta a conexão, a mídia e o canvas do Phaser, e põe a UI em React por cima
+ * (cards do HUD, chat, vídeo, barra lateral). No modo de edição a cena e a lateral viram as do editor.
+ */
 export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorBaseVersion, onEditorClose }: Props) {
-  const container = useRef<HTMLDivElement>(null);
+  const gameContainer = useRef<HTMLDivElement>(null);
   const connection = useRef<Connection | null>(null);
+  // Callbacks do pai guardados em ref: o efeito da conexão chama sempre a versão mais recente
+  // sem recriar a conexão a cada render do pai.
   const statusListener = useRef(onStatus);
   const mapListener = useRef(onMapUpdated);
   useEffect(() => {
@@ -49,52 +55,61 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   });
   const [world] = useState(() => new ClientWorld(map));
   const [media] = useState(() => new MediaManager());
-  const [controller] = useState(() => new ProximityController(world, media));
-  const scene = useRef<WorldScene | null>(null);
-  const positionOf = useCallback((id: string) => scene.current?.screenPosition(id) ?? null, []);
+  const [proximityController] = useState(() => new ProximityController(world, media));
+  // Cena do Phaser em ref: é recriada quando o mapa troca, e os botões leem sempre a atual.
+  const worldScene = useRef<WorldScene | null>(null);
+  const positionOf = useCallback((id: string) => worldScene.current?.screenPosition(id) ?? null, []);
   const [calls] = useState(() => new CallStore(world));
-  const [status, setStatus] = useState<ConnectionStatus>('connecting');
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [netSim] = useState(() => new NetSim());
-  const [following, setFollowing] = useState<string | null>(null);
+  const [followedPlayerId, setFollowedPlayerId] = useState<string | null>(null);
   const [replayOpen, setReplayOpen] = useState(false);
   const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
-  const send = (msg: ClientMsg) => connection.current?.send(msg);
+  // Estável entre renderizações (só lê o ref da conexão): o PongWindow recria o controle da raquete
+  // quando o send muda, e isso soltava as teclas seguradas no meio da partida.
+  const send = useCallback((message: ClientMsg) => connection.current?.send(message), []);
 
   // Conexão, mídia e chamadas vivem enquanto o coworking for o mesmo, mesmo se o mapa trocar.
   useEffect(() => {
-    const conn = new Connection(
+    const spaceConnection = new Connection(
       space.id,
-      (msg) => {
-        if (msg.t === 'media.join') void media.join(msg.url, msg.token, msg.room);
-        else world.handle(msg);
+      // `media.join` vai para a mídia (o servidor decide a sala do LiveKit); o resto é estado do mundo.
+      (message) => {
+        if (message.t === 'media.join') void media.join(message.url, message.token, message.room);
+        else world.handle(message);
       },
-      (next) => {
-        setStatus(next);
-        statusListener.current(next);
+      (nextStatus) => {
+        setConnectionStatus(nextStatus);
+        statusListener.current(nextStatus);
         // Outra aba assumiu ou saiu do coworking: a mídia sai junto.
-        if (next === 'replaced' || next === 'removed' || next === 'ended') void media.close();
+        if (nextStatus === 'replaced' || nextStatus === 'removed' || nextStatus === 'ended') void media.close();
       },
       () => netSim.delay(),
-      (short) => world.idOf(short),
+      (shortId) => world.idOf(shortId),
     );
-    connection.current = conn;
-    const stopMap = world.subscribe((event) => {
+    connection.current = spaceConnection;
+    const stopMapUpdates = world.subscribe((event) => {
       if (event.type === 'mapUpdated') mapListener.current();
     });
-    controller.start();
-    const stopCalls = calls.start((msg) => conn.send(msg));
+    proximityController.start();
+    const stopCalls = calls.start((message) => spaceConnection.send(message));
     // Só em desenvolvimento: estado de assinatura e posição para scripts de verificação.
-    if (import.meta.env.DEV) Object.assign(window, { __pixelwork: { media, world, controller, connection: conn, netSim } });
-    conn.open();
+    if (import.meta.env.DEV) {
+      Object.assign(window, {
+        __pixelwork: { media, world, controller: proximityController, connection: spaceConnection, netSim },
+      });
+    }
+    spaceConnection.open();
+    // Saindo do coworking (ou desmontando): para proximidade e chamadas, fecha a conexão e a mídia.
     return () => {
-      controller.stop();
+      proximityController.stop();
       stopCalls();
-      stopMap();
-      conn.close();
+      stopMapUpdates();
+      spaceConnection.close();
       void media.close();
     };
-  }, [space.id, world, media, controller, calls, netSim]);
+  }, [space.id, world, media, proximityController, calls, netSim]);
 
   // Editando, a cena é a do editor e ignora mapas que chegam de fora (o salvar dá 409).
   const editorController = editor?.controller ?? null;
@@ -103,52 +118,56 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
 
   // A cena é refeita quando o mapa muda; o estado do mundo e a conexão continuam.
   useEffect(() => {
-    const parent = container.current;
-    if (!parent) return;
+    const containerElement = gameContainer.current;
+    if (!containerElement) return;
+    // Modo de edição: monta só a cena do editor, sem ligar o mundo a ela.
     if (editorController || !worldMap) {
       if (!editorController) return;
-      const created = mountGame(parent, new EditorScene(editorController));
-      if (import.meta.env.DEV) Object.assign(window, { __pixelworkEditor: { scene: created.scene, controller: editorController } });
+      const editorGame = mountGame(containerElement, new EditorScene(editorController));
+      if (import.meta.env.DEV) {
+        Object.assign(window, { __pixelworkEditor: { scene: editorGame.scene, controller: editorController } });
+      }
       return () => {
-        created.game.destroy(true);
+        editorGame.game.destroy(true);
       };
     }
     world.setMap(worldMap);
-    const created = createGame(parent, {
+    const worldGame = createGame(containerElement, {
       world,
       mapJson: worldMapJson as Record<string, unknown>,
-      send: (msg) => connection.current?.send(msg),
+      send: (message) => connection.current?.send(message),
       canMove: () => connection.current?.online ?? false,
       isSpeaking: (id) => media.speaking.has(id),
       showGhost: () => netSim.overlay,
-      onFollowChange: setFollowing,
-      hasVideoBubble: (id) => hasVideoBubble(media, controller, id),
+      onFollowChange: setFollowedPlayerId,
+      hasVideoBubble: (id) => hasVideoBubble(media, proximityController, id),
     });
-    scene.current = created.scene;
+    worldScene.current = worldGame.scene;
     return () => {
-      scene.current = null;
-      created.game.destroy(true);
+      worldScene.current = null;
+      worldGame.game.destroy(true);
     };
-  }, [editorController, worldMap, worldMapJson, world, media, controller, netSim]);
+  }, [editorController, worldMap, worldMapJson, world, media, proximityController, netSim]);
 
   return (
       <div className="main">
         <div className="stage">
-          <div ref={container} className="game" />
-          {!editor && <VideoBubbles media={media} world={world} controller={controller} positionOf={positionOf} />}
+          <div ref={gameContainer} className="game" />
+          {!editor && <VideoBubbles media={media} world={world} controller={proximityController} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
           <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
           {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
           <div className="hud">
             <CallUi calls={calls} world={world} />
-            {following && (
+            {followedPlayerId && (
               <div className="hud-card">
-                <span>Seguindo {world.players.get(following)?.name ?? 'alguém'}</span>
-                <button type="button" onClick={() => scene.current?.stopFollowing()}>
+                <span>Seguindo {world.players.get(followedPlayerId)?.name ?? 'alguém'}</span>
+                <button type="button" onClick={() => worldScene.current?.stopFollowing()}>
                   Parar
                 </button>
               </div>
             )}
+            {/* No modo de edição os cards do jogo somem; ficam só a chamada e o "seguindo". */}
             {!editor && (
               <>
                 <Welcome />
@@ -177,15 +196,15 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           )}
           {!editor && (
             <div className="zoom-controls" aria-label="Zoom do mapa">
-              <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => scene.current?.zoom(-1)}>
+              <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => worldScene.current?.zoom(-1)}>
                 −
               </button>
-              <button type="button" title="Aproximar (+)" aria-label="Aproximar" onClick={() => scene.current?.zoom(1)}>
+              <button type="button" title="Aproximar (+)" aria-label="Aproximar" onClick={() => worldScene.current?.zoom(1)}>
                 +
               </button>
             </div>
           )}
-          {status === 'replaced' && (
+          {connectionStatus === 'replaced' && (
             <div className="stage-overlay" role="alert">
               <p>Este coworking foi aberto em outra aba.</p>
               <button type="button" className="primary" onClick={() => connection.current?.reconnect()}>

@@ -1,5 +1,6 @@
 import { CREDITS } from '@pixelwork/shared';
 
+/** Título de cada seção pelo tipo de asset do catálogo; tipo sem rótulo aparece cru. */
 const KIND_LABEL: Record<string, string> = {
   tileset: 'Tilesets',
   'character/body': 'Personagem: corpo',
@@ -14,8 +15,9 @@ const KIND_LABEL: Record<string, string> = {
 
 /** Gerada do catálogo, a mesma fonte do CREDITS.txt do export. */
 export function CreditsPage() {
-  const groups = new Map<string, (typeof CREDITS)[number][]>();
-  for (const credit of CREDITS) groups.set(credit.kind, [...(groups.get(credit.kind) ?? []), credit]);
+  // Agrupa os créditos por tipo, mantendo a ordem em que aparecem no catálogo.
+  const creditsByKind = new Map<string, (typeof CREDITS)[number][]>();
+  for (const credit of CREDITS) creditsByKind.set(credit.kind, [...(creditsByKind.get(credit.kind) ?? []), credit]);
 
   return (
     <main className="credits">
@@ -24,17 +26,17 @@ export function CreditsPage() {
         Arte usada no Pixelwork. Só entram no projeto assets próprios, CC0 ou CC-BY, que podem ser
         redistribuídos.
       </p>
-      {[...groups].map(([kind, credits]) => (
+      {[...creditsByKind].map(([kind, credits]) => (
         <section key={kind}>
           <h2>{KIND_LABEL[kind] ?? kind}</h2>
           <ul>
-            {credits.map((c) => (
-              <li key={c.id}>
-                <strong>{c.id}</strong>: {c.author}, {c.license}
-                {c.source && (
+            {credits.map((credit) => (
+              <li key={credit.id}>
+                <strong>{credit.id}</strong>: {credit.author}, {credit.license}
+                {credit.source && (
                   <>
                     {' '}
-                    (<a href={c.source}>origem</a>)
+                    (<a href={credit.source}>origem</a>)
                   </>
                 )}
               </li>

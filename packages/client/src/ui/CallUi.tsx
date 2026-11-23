@@ -3,6 +3,7 @@ import type { CallStore } from '../net/call-store.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useWorld } from './useWorld.ts';
 
+/** Re-renderiza o componente a cada mudança da `CallStore` (ela avisa pelo `version`). */
 export function useCalls(calls: CallStore): CallStore {
   useSyncExternalStore(
     (onChange) => calls.subscribe(onChange),
@@ -15,14 +16,14 @@ export function useCalls(calls: CallStore): CallStore {
 export function CallUi({ calls, world }: { calls: CallStore; world: ClientWorld }) {
   useCalls(calls);
   useWorld(world);
-  const name = (id: string) => world.players.get(id)?.name ?? 'alguém';
+  const playerName = (id: string) => world.players.get(id)?.name ?? 'alguém';
   const { state } = calls;
 
   return (
     <div className="call-ui">
       {state.kind === 'ringing' && (
         <div className="call-card ringing" role="alertdialog" aria-label="Chamada recebida">
-          <span>{name(state.from)} está ligando</span>
+          <span>{playerName(state.from)} está ligando</span>
           <button type="button" className="primary" onClick={() => calls.answer(true)}>
             Atender
           </button>
@@ -33,7 +34,7 @@ export function CallUi({ calls, world }: { calls: CallStore; world: ClientWorld 
       )}
       {state.kind === 'calling' && (
         <div className="call-card">
-          <span>Chamando {name(state.to)}…</span>
+          <span>Chamando {playerName(state.to)}…</span>
           <button type="button" onClick={() => calls.hangUp()}>
             Cancelar
           </button>
@@ -41,7 +42,7 @@ export function CallUi({ calls, world }: { calls: CallStore; world: ClientWorld 
       )}
       {state.kind === 'active' && (
         <div className="call-card active">
-          <span>Em chamada com {name(state.peer)}</span>
+          <span>Em chamada com {playerName(state.peer)}</span>
           <button type="button" onClick={() => calls.hangUp()}>
             Encerrar
           </button>

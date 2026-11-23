@@ -10,6 +10,7 @@ export function useWorld(world: ClientWorld): ClientWorld {
   return world;
 }
 
+/** Códigos de erro comuns da API REST (mesa, membros, limite de taxa) traduzidos. */
 const MESSAGES: Record<string, string> = {
   not_on_chair: 'Vá até a cadeira da mesa para ocupá-la.',
   desk_taken: 'Esta mesa já tem dono.',
@@ -21,6 +22,7 @@ const MESSAGES: Record<string, string> = {
   invalid_body: 'Confira os campos: algum valor não é aceito.',
 };
 
+/** Texto para o usuário a partir de um erro da API; código desconhecido vira mensagem genérica. */
 export function errorMessage(error: unknown): string {
   const code = (error as { code?: unknown }).code;
   return (typeof code === 'string' && MESSAGES[code]) || 'Não deu certo. Tente de novo.';
