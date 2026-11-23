@@ -166,6 +166,7 @@ describe('GameRegistry', () => {
     const { games, clock, lastState, table } = setup();
     games.join('a', KEY, LEFT, false);
     games.join('b', KEY, RIGHT, false);
+    games.input('a', 5, 0);
     clock.advance(PONG.COUNTDOWN_MS + 500);
     games.disconnected('a');
     expect(clock.pending()).toBe(0);
@@ -175,6 +176,11 @@ describe('GameRegistry', () => {
     expect(clock.pending()).toBe(1);
     clock.advance(100);
     expect(lastState('a')).toMatchObject({ phase: 'countdown', ball: { x: 80, y: 45 } });
+    // O cliente recomeça a contagem de seq a cada welcome: o input 1 de novo vale.
+    games.input('a', 1, 1);
+    clock.advance(100);
+    expect(lastState('a')).toMatchObject({ ack: 1 });
+    expect(lastState('a')?.paddles.left).toBeGreaterThan(45);
   });
 
   it('reconectar sem partida pausada não cria intervalo', () => {

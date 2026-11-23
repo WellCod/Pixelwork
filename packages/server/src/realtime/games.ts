@@ -161,6 +161,8 @@ export class GameRegistry {
   reconnected(userId: string): void {
     this.offline.delete(userId);
     const table = this.tableOf(userId);
+    // O cliente recomeça a contagem de seq a cada welcome, como no movimento.
+    if (table) table.acks.set(userId, 0);
     const match = table?.match;
     if (!table || !match || match.state.phase !== 'paused') return;
     if ([table.left, table.right].some((id) => isHuman(id) && this.offline.has(id))) return;
