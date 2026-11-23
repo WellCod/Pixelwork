@@ -19,7 +19,7 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
   const [decorating, setDecorating] = useState<{ desk: CompiledDesk; decor: DeskDecor } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const editor = decorating && (
+  const decorEditor = decorating && (
     <DecorEditor
       spaceId={spaceId}
       desk={decorating.desk}
@@ -28,47 +28,50 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
     />
   );
   const desk = deskAtChair(world.map, world.self.x, world.self.y);
-  const state = desk ? world.desks.get(desk.key) : undefined;
-  if (!desk || !state) return editor || null;
+  const deskState = desk ? world.desks.get(desk.key) : undefined;
+  // Fora de uma cadeira de mesa a barra some, mas o editor de decoração continua se estiver aberto.
+  if (!desk || !deskState) return decorEditor || null;
 
-  const mine = state.userId === world.selfId;
-  const run = (task: Promise<unknown>) => {
+  const isMyDesk = deskState.userId === world.selfId;
+  /** Roda uma ação REST da mesa e mostra o erro; o estado novo chega depois pelo WebSocket. */
+  const runDeskAction = (task: Promise<unknown>) => {
     setError(null);
-    task.catch((e: unknown) => setError(errorMessage(e)));
+    task.catch((actionError: unknown) => setError(errorMessage(actionError)));
   };
 
-  let content;
-  if (!state.userId) {
-    content = (
+  // As ações dependem de quem ocupa a mesa: ninguém, você ou outra pessoa (só admin libera a dos outros).
+  let deskActions;
+  if (!deskState.userId) {
+    deskActions = (
       <>
         <span>Mesa livre</span>
-        <button type="button" className="primary" onClick={() => run(profileApi.claimDesk(spaceId, desk.key))}>
+        <button type="button" className="primary" onClick={() => runDeskAction(profileApi.claimDesk(spaceId, desk.key))}>
           Ocupar esta mesa
         </button>
       </>
     );
-  } else if (mine) {
-    content = (
+  } else if (isMyDesk) {
+    deskActions = (
       <>
         <span>Sua mesa</span>
         <button
           type="button"
-          disabled={!state.decor}
-          onClick={() => state.decor && setDecorating({ desk, decor: state.decor })}
+          disabled={!deskState.decor}
+          onClick={() => deskState.decor && setDecorating({ desk, decor: deskState.decor })}
         >
           Decorar
         </button>
-        <button type="button" onClick={() => run(profileApi.releaseDesk(spaceId, desk.key))}>
+        <button type="button" onClick={() => runDeskAction(profileApi.releaseDesk(spaceId, desk.key))}>
           Liberar
         </button>
       </>
     );
   } else {
-    content = (
+    deskActions = (
       <>
-        <span>Mesa de {state.ownerName}</span>
+        <span>Mesa de {deskState.ownerName}</span>
         {isAdmin && (
-          <button type="button" onClick={() => run(profileApi.releaseDesk(spaceId, desk.key))}>
+          <button type="button" onClick={() => runDeskAction(profileApi.releaseDesk(spaceId, desk.key))}>
             Liberar mesa
           </button>
         )}
@@ -78,9 +81,9 @@ export function DeskBar({ world, spaceId, isAdmin }: Props) {
 
   return (
     <div className="desk-bar">
-      {content}
+      {deskActions}
       {error && <span className="error">{error}</span>}
-      {editor}
+      {decorEditor}
     </div>
   );
 }

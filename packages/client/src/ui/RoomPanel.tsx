@@ -12,14 +12,14 @@ export function RoomPanel({ media, world }: { media: MediaManager; world: Client
   if (!media.isPrivate) return null;
   const screens = media.remoteScreens();
   const cameras = media.remoteCameras();
-  const name = (id: string) => world.players.get(id)?.name ?? '';
+  const playerName = (id: string) => world.players.get(id)?.name ?? '';
 
   return (
     <div className="room-panel">
       {screens.map(({ identity, track }) => (
         <figure key={`screen:${identity}`} className="screen">
           <Video track={track} />
-          <figcaption>Tela de {name(identity)}</figcaption>
+          <figcaption>Tela de {playerName(identity)}</figcaption>
         </figure>
       ))}
       <div className="room-grid">
@@ -28,7 +28,7 @@ export function RoomPanel({ media, world }: { media: MediaManager; world: Client
           return track ? (
             <figure key={id}>
               <Video track={track} />
-              <figcaption>{name(id)}</figcaption>
+              <figcaption>{playerName(id)}</figcaption>
             </figure>
           ) : null;
         })}
@@ -37,15 +37,16 @@ export function RoomPanel({ media, world }: { media: MediaManager; world: Client
   );
 }
 
+/** Um `<video>` ligado a uma trilha remota do LiveKit; solta a trilha ao trocar ou desmontar. */
 function Video({ track }: { track: RemoteVideoTrack }) {
-  const ref = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    track.attach(element);
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+    track.attach(videoElement);
     return () => {
-      track.detach(element);
+      track.detach(videoElement);
     };
   }, [track]);
-  return <video ref={ref} muted playsInline autoPlay />;
+  return <video ref={videoRef} muted playsInline autoPlay />;
 }

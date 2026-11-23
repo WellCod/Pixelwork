@@ -26,24 +26,32 @@ interface SidebarProps {
   isAdmin: boolean;
 }
 
+/**
+ * Barra lateral: lista de pessoas do coworking (status, fala, ligar, remover) e, embaixo, o
+ * painel recolhível com o próprio perfil e status.
+ */
 export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps) {
   useWorld(world);
   useCalls(calls);
   useMedia(media);
   const [error, setError] = useState<string | null>(null);
   // Chamada só sai da própria mesa (o servidor confere de novo).
-  const seated =
+  const seatedAtOwnDesk =
     world.selfId !== null && seatedFacing(world.map, world.desks, world.selfId, world.self.x, world.self.y) !== null;
-  const callable = (p: Player) => p.id !== world.selfId && p.activity !== 'call' && calls.state.kind === 'idle';
-  const me = world.selfId ? world.players.get(world.selfId) : undefined;
+  // Dá para ligar para outra pessoa que não está em chamada, e só sem chamada própria em curso.
+  const canCall = (player: Player) =>
+    player.id !== world.selfId && player.activity !== 'call' && calls.state.kind === 'idle';
+  const selfPlayer = world.selfId ? world.players.get(world.selfId) : undefined;
+  // Você primeiro, depois os outros em ordem alfabética.
   const people = [...world.players.values()].sort(
-    (a, b) => Number(b.id === world.selfId) - Number(a.id === world.selfId) || a.name.localeCompare(b.name),
+    (playerA, playerB) =>
+      Number(playerB.id === world.selfId) - Number(playerA.id === world.selfId) || playerA.name.localeCompare(playerB.name),
   );
 
-  const remove = (p: Player) => {
-    if (!confirm(`Remover ${p.name} deste coworking? A mesa dele fica livre.`)) return;
+  const removeMember = (player: Player) => {
+    if (!confirm(`Remover ${player.name} deste coworking? A mesa dele fica livre.`)) return;
     setError(null);
-    orgApi.removeMember(spaceId, p.id).catch((e: unknown) => setError(errorMessage(e)));
+    orgApi.removeMember(spaceId, player.id).catch((removeError: unknown) => setError(errorMessage(removeError)));
   };
 
   return (
@@ -52,16 +60,16 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
         <h3>Pessoas ({people.length})</h3>
         {error && <p className="error">{error}</p>}
         <ul className="people">
-          {people.map((p) => {
-            const speaking = media.speaking.has(p.id);
+          {people.map((player) => {
+            const speaking = media.speaking.has(player.id);
             return (
-              <li key={p.id} className={speaking ? 'speaking' : undefined}>
-                <span className={`dot dot-${p.status}`} role="img" aria-label={STATUS_LABEL[p.status]} />
+              <li key={player.id} className={speaking ? 'speaking' : undefined}>
+                <span className={`dot dot-${player.status}`} role="img" aria-label={STATUS_LABEL[player.status]} />
                 <div className="person">
                   <div className="person-name">
-                    {p.name}
-                    {p.statusEmoji && <span className="emoji"> {p.statusEmoji}</span>}
-                    {p.id === world.selfId && <span className="you"> (você)</span>}
+                    {player.name}
+                    {player.statusEmoji && <span className="emoji"> {player.statusEmoji}</span>}
+                    {player.id === world.selfId && <span className="you"> (você)</span>}
                     {speaking && (
                       <span className="speaking-badge" title="Falando">
                         <MicIcon />
@@ -69,32 +77,40 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
                       </span>
                     )}
                   </div>
-                  {p.title && <div className="person-title">{p.title}</div>}
+                  {player.title && <div className="person-title">{player.title}</div>}
+                  {/* Linha de detalhes: status (se não for disponível), atividade e texto livre. */}
                   <div className="person-status">
                     {[
-                      p.status !== 'available' ? STATUS_LABEL[p.status] : null,
-                      p.activity === 'call' ? 'Em chamada' : p.activity === 'meeting' ? 'Em reunião' : p.activity === 'game' ? 'Jogando' : null,
-                      p.statusText,
+                      player.status !== 'available' ? STATUS_LABEL[player.status] : null,
+                      player.activity === 'call'
+                        ? 'Em chamada'
+                        : player.activity === 'meeting'
+                          ? 'Em reunião'
+                          : player.activity === 'game'
+                            ? 'Jogando'
+                            : null,
+                      player.statusText,
                     ]
                       .filter(Boolean)
                       .join(' · ')}
                   </div>
                 </div>
                 <div className="person-actions">
-                  {callable(p) && (
+                  {canCall(player) && (
                     <button
                       type="button"
                       className="call-button"
-                      disabled={!seated}
-                      title={seated ? `Ligar para ${p.name}` : 'Sente na sua mesa para ligar'}
-                      onClick={() => calls.call(p.id)}
+                      disabled={!seatedAtOwnDesk}
+                      title={seatedAtOwnDesk ? `Ligar para ${player.name}` : 'Sente na sua mesa para ligar'}
+                      onClick={() => calls.call(player.id)}
                     >
                       <PhoneIcon />
                       <span>Ligar</span>
                     </button>
                   )}
-                  {isAdmin && p.id !== world.selfId && (
-                    <button type="button" className="call-button subtle" onClick={() => remove(p)}>
+                  {/* Admin remove qualquer outra pessoa; a própria saída fica no painel de perfil. */}
+                  {isAdmin && player.id !== world.selfId && (
+                    <button type="button" className="call-button subtle" onClick={() => removeMember(player)}>
                       Remover
                     </button>
                   )}
@@ -103,50 +119,56 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
             );
           })}
         </ul>
-        {!seated && people.length > 1 && <p className="muted">Para ligar, sente na cadeira da sua mesa.</p>}
+        {!seatedAtOwnDesk && people.length > 1 && <p className="muted">Para ligar, sente na cadeira da sua mesa.</p>}
       </section>
-      {me && (
+      {selfPlayer && (
         <details className="me-details">
           <summary>
-            <AvatarPreview spec={me.avatar} scale={1} />
+            <AvatarPreview spec={selfPlayer.avatar} scale={1} />
             <span>Seu perfil e status</span>
           </summary>
-          <MePanel key={me.id} me={me} spaceId={spaceId} />
+          <MePanel key={selfPlayer.id} me={selfPlayer} spaceId={spaceId} />
         </details>
       )}
     </aside>
   );
 }
 
+/**
+ * Formulários do próprio perfil (nome, cargo, avatar) e status. Os campos começam com os valores
+ * de `me`; o `key` no pai remonta o painel se o jogador mudar.
+ */
 function MePanel({ me, spaceId }: { me: Player; spaceId: string }) {
   const [editingAvatar, setEditingAvatar] = useState(false);
   const [name, setName] = useState(me.name);
   const [title, setTitle] = useState(me.title ?? '');
   const [status, setStatus] = useState<Status>(me.status);
-  const [text, setText] = useState(me.statusText ?? '');
-  const [emoji, setEmoji] = useState(me.statusEmoji ?? '');
-  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [statusText, setStatusText] = useState(me.statusText ?? '');
+  const [statusEmoji, setStatusEmoji] = useState(me.statusEmoji ?? '');
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
-  const emojiInvalid = emoji !== '' && !isSingleEmoji(emoji);
+  const emojiInvalid = statusEmoji !== '' && !isSingleEmoji(statusEmoji);
 
-  const run = (task: Promise<unknown>, ok: string) => {
+  /** Roda a gravação e mostra `successText` ou o erro abaixo dos formulários. */
+  const runAndReport = (task: Promise<unknown>, successText: string) => {
     task
-      .then(() => setMessage({ kind: 'ok', text: ok }))
-      .catch((e: unknown) => setMessage({ kind: 'error', text: errorMessage(e) }));
+      .then(() => setFeedback({ kind: 'ok', text: successText }))
+      .catch((saveError: unknown) => setFeedback({ kind: 'error', text: errorMessage(saveError) }));
   };
 
-  const saveProfile = (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const tasks: Promise<unknown>[] = [];
-    if (name.trim() !== me.name) tasks.push(profileApi.setName(name));
-    if ((title.trim() || null) !== me.title) tasks.push(profileApi.setTitle(spaceId, title));
-    run(Promise.all(tasks), 'Perfil salvo.');
+  // Só manda o que mudou: o nome é global, o cargo vale só neste coworking.
+  const saveProfile = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const profileUpdates: Promise<unknown>[] = [];
+    if (name.trim() !== me.name) profileUpdates.push(profileApi.setName(name));
+    if ((title.trim() || null) !== me.title) profileUpdates.push(profileApi.setTitle(spaceId, title));
+    runAndReport(Promise.all(profileUpdates), 'Perfil salvo.');
   };
 
-  const saveStatus = (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const saveStatus = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (emojiInvalid) return;
-    run(profileApi.setStatus(spaceId, { status, text, emoji }), 'Status salvo.');
+    runAndReport(profileApi.setStatus(spaceId, { status, text: statusText, emoji: statusEmoji }), 'Status salvo.');
   };
 
   return (
@@ -161,11 +183,11 @@ function MePanel({ me, spaceId }: { me: Player; spaceId: string }) {
       <form onSubmit={saveProfile} className="fields">
         <label>
           Nome
-          <input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+          <input value={name} maxLength={40} onChange={(event) => setName(event.target.value)} />
         </label>
         <label>
           Cargo neste coworking
-          <input value={title} maxLength={40} placeholder="ex.: Designer" onChange={(e) => setTitle(e.target.value)} />
+          <input value={title} maxLength={40} placeholder="ex.: Designer" onChange={(event) => setTitle(event.target.value)} />
         </label>
         <button type="submit">Salvar perfil</button>
       </form>
@@ -173,10 +195,10 @@ function MePanel({ me, spaceId }: { me: Player; spaceId: string }) {
       <form onSubmit={saveStatus} className="fields">
         <label>
           Status
-          <select value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-            {(Object.keys(STATUS_LABEL) as Status[]).map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
+          <select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
+            {(Object.keys(STATUS_LABEL) as Status[]).map((statusOption) => (
+              <option key={statusOption} value={statusOption}>
+                {STATUS_LABEL[statusOption]}
               </option>
             ))}
           </select>
@@ -185,15 +207,20 @@ function MePanel({ me, spaceId }: { me: Player; spaceId: string }) {
           <label className="emoji-field">
             Emoji
             <input
-              value={emoji}
+              value={statusEmoji}
               placeholder="🙂"
               aria-invalid={emojiInvalid}
-              onChange={(e) => setEmoji(e.target.value)}
+              onChange={(event) => setStatusEmoji(event.target.value)}
             />
           </label>
           <label className="grow">
             Texto
-            <input value={text} maxLength={80} placeholder="Em reunião até 15h" onChange={(e) => setText(e.target.value)} />
+            <input
+              value={statusText}
+              maxLength={80}
+              placeholder="Em reunião até 15h"
+              onChange={(event) => setStatusText(event.target.value)}
+            />
           </label>
         </div>
         {emojiInvalid && <p className="error">Use um emoji só.</p>}
@@ -202,13 +229,13 @@ function MePanel({ me, spaceId }: { me: Player; spaceId: string }) {
         </button>
       </form>
 
-      {message && <p className={message.kind === 'ok' ? 'ok' : 'error'}>{message.text}</p>}
+      {feedback && <p className={feedback.kind === 'ok' ? 'ok' : 'error'}>{feedback.text}</p>}
       <button
         type="button"
         className="link-button"
         onClick={() => {
           // A saída chega pelo tempo real (conexão fechada com o código de removido).
-          if (confirm('Sair deste coworking? Sua mesa fica livre.')) run(orgApi.removeMember(spaceId, me.id), '');
+          if (confirm('Sair deste coworking? Sua mesa fica livre.')) runAndReport(orgApi.removeMember(spaceId, me.id), '');
         }}
       >
         Sair do coworking

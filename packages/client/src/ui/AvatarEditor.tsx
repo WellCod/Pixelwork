@@ -15,8 +15,10 @@ import { label } from './labels.ts';
 import { Modal } from './Modal.tsx';
 import { errorMessage } from './useWorld.ts';
 
+/** Valor da opção "Nenhum" no select: o `<select>` não aceita `null`, então vira este marcador. */
 const NONE = '__none';
 
+/** Um select do editor: qual campo do avatar altera, as opções e o contexto do rótulo. */
 interface Field {
   key: keyof AvatarSpec;
   label: string;
@@ -35,6 +37,7 @@ const FIELDS: Field[] = [
   { key: 'accessory', label: 'Acessório', options: ACCESSORY_IDS, optional: true },
 ];
 
+/** Modal para montar o avatar com prévia ao vivo; salva no perfil e fecha. */
 export function AvatarEditor({ initial, onClose }: { initial: AvatarSpec; onClose: () => void }) {
   const [spec, setSpec] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -45,8 +48,8 @@ export function AvatarEditor({ initial, onClose }: { initial: AvatarSpec; onClos
     profileApi
       .setAvatar(spec)
       .then(onClose)
-      .catch((e: unknown) => {
-        setError(errorMessage(e));
+      .catch((saveError: unknown) => {
+        setError(errorMessage(saveError));
         setSaving(false);
       });
   };
@@ -61,8 +64,8 @@ export function AvatarEditor({ initial, onClose }: { initial: AvatarSpec; onClos
               {field.label}
               <select
                 value={spec[field.key] ?? NONE}
-                onChange={(e) => {
-                  const value = e.target.value === NONE ? null : e.target.value;
+                onChange={(event) => {
+                  const value = event.target.value === NONE ? null : event.target.value;
                   setSpec({ ...spec, [field.key]: value });
                 }}
               >

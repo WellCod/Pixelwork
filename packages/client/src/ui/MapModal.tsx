@@ -63,47 +63,54 @@ interface Props {
   onClose: () => void;
 }
 
-type Check = { map: unknown; errors: MapError[]; orphanDesks: string[] };
+/** Mapa lido do arquivo e o resultado da validação no servidor (erros e mesas que deixariam de existir). */
+type MapCheck = { map: unknown; errors: MapError[]; orphanDesks: string[] };
 
+/**
+ * Troca o mapa do coworking por um JSON do Tiled: valida no servidor antes, mostra os erros ou as
+ * mesas que serão liberadas e só então deixa salvar. Também exporta o mapa atual.
+ */
 export function MapModal({ spaceId, baseVersion, onClose }: Props) {
-  const [check, setCheck] = useState<Check | null>(null);
-  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [mapCheck, setMapCheck] = useState<MapCheck | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const pick = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    setCheck(null);
-    setMessage(null);
+  // Escolher um arquivo descarta a validação anterior; JSON inválido nem chega ao servidor.
+  const pickFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setMapCheck(null);
+    setFeedback(null);
     if (!file) return;
     void file.text().then(async (text) => {
       let map: unknown;
       try {
         map = JSON.parse(text);
       } catch {
-        setMessage({ kind: 'error', text: 'O arquivo não é um JSON válido. Exporte o mapa do Tiled como JSON.' });
+        setFeedback({ kind: 'error', text: 'O arquivo não é um JSON válido. Exporte o mapa do Tiled como JSON.' });
         return;
       }
       try {
-        const result = await mapApi.validate(spaceId, map);
-        setCheck({ map, ...result });
+        const validation = await mapApi.validate(spaceId, map);
+        setMapCheck({ map, ...validation });
       } catch {
-        setMessage({ kind: 'error', text: 'Não deu para validar o mapa.' });
+        setFeedback({ kind: 'error', text: 'Não deu para validar o mapa.' });
       }
     });
   };
 
+  // `baseVersion` faz o servidor recusar (`stale_map`) se alguém salvou o mapa nesse meio-tempo.
   const save = () => {
-    if (!check) return;
+    if (!mapCheck) return;
     setBusy(true);
     mapApi
-      .save(spaceId, check.map, baseVersion)
+      .save(spaceId, mapCheck.map, baseVersion)
       .then(() => {
-        setMessage({ kind: 'ok', text: 'Mapa salvo. Quem está online já vê o mapa novo.' });
-        setCheck(null);
+        setFeedback({ kind: 'ok', text: 'Mapa salvo. Quem está online já vê o mapa novo.' });
+        setMapCheck(null);
       })
       .catch((error: unknown) => {
         const code = (error as { code?: unknown }).code;
-        setMessage({
+        setFeedback({
           kind: 'error',
           text:
             code === 'stale_map'
@@ -119,21 +126,21 @@ export function MapModal({ spaceId, baseVersion, onClose }: Props) {
       <div className="fields">
         <label>
           Mapa do Tiled (JSON, tilesets externos do catálogo)
-          <input type="file" accept="application/json,.json,.tmj" onChange={pick} />
+          <input type="file" accept="application/json,.json,.tmj" onChange={pickFile} />
         </label>
-        {check && check.errors.length > 0 && (
+        {mapCheck && mapCheck.errors.length > 0 && (
           <ul className="map-errors">
-            {check.errors.map((error, i) => (
+            {mapCheck.errors.map((error, i) => (
               <li key={i}>{describeMapError(error)}</li>
             ))}
           </ul>
         )}
-        {check && check.errors.length === 0 && (
+        {mapCheck && mapCheck.errors.length === 0 && (
           <>
             <p className="ok">O mapa é válido.</p>
-            {check.orphanDesks.length > 0 && (
+            {mapCheck.orphanDesks.length > 0 && (
               <p className="error">
-                Estas mesas ocupadas deixam de existir e serão liberadas: {check.orphanDesks.join(', ')}.
+                Estas mesas ocupadas deixam de existir e serão liberadas: {mapCheck.orphanDesks.join(', ')}.
               </p>
             )}
             <button type="button" className="primary" disabled={busy} onClick={save}>
@@ -141,7 +148,7 @@ export function MapModal({ spaceId, baseVersion, onClose }: Props) {
             </button>
           </>
         )}
-        {message && <p className={message.kind}>{message.text}</p>}
+        {feedback && <p className={feedback.kind}>{feedback.text}</p>}
         <a className="button" href={`/spaces/${encodeURIComponent(spaceId)}/map/export`} download>
           Exportar mapa atual (zip para o Tiled)
         </a>

@@ -29,35 +29,39 @@ export function hasVideoBubble(media: MediaManager, controller: ProximityControl
 export function VideoBubbles({ media, world, controller, positionOf }: Props) {
   useMedia(media);
   useWorld(world);
-  const elements = useRef(new Map<string, HTMLDivElement>());
-  const ids = media.isPrivate ? [] : controller.bubbles.filter((id) => media.remoteVideo(id));
+  // Elementos dos balões montados, por id do jogador, preenchidos pelo ref de cada `Bubble`.
+  const bubbleElements = useRef(new Map<string, HTMLDivElement>());
+  const bubbleIds = media.isPrivate ? [] : controller.bubbles.filter((id) => media.remoteVideo(id));
 
+  // Laço por quadro que segue o avatar; o balão ampliado fica parado onde o CSS o põe.
   useEffect(() => {
-    let frame = 0;
+    let animationFrameId = 0;
     const loop = () => {
-      for (const [id, element] of elements.current) {
+      for (const [id, bubbleElement] of bubbleElements.current) {
         if (media.expandedId === id) continue;
-        const pos = positionOf(id);
-        if (pos) element.style.transform = `translate(${Math.round(pos.x)}px, ${Math.round(pos.y)}px)`;
+        const screenPosition = positionOf(id);
+        if (screenPosition) {
+          bubbleElement.style.transform = `translate(${Math.round(screenPosition.x)}px, ${Math.round(screenPosition.y)}px)`;
+        }
       }
-      frame = requestAnimationFrame(loop);
+      animationFrameId = requestAnimationFrame(loop);
     };
-    frame = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frame);
+    animationFrameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [media, positionOf]);
 
   return (
     <div className="bubbles">
-      {ids.map((id) => (
+      {bubbleIds.map((id) => (
         <Bubble
           key={id}
           id={id}
           media={media}
           name={world.players.get(id)?.name ?? ''}
           expanded={media.expandedId === id}
-          register={(el) => {
-            if (el) elements.current.set(id, el);
-            else elements.current.delete(id);
+          register={(bubbleElement) => {
+            if (bubbleElement) bubbleElements.current.set(id, bubbleElement);
+            else bubbleElements.current.delete(id);
           }}
         />
       ))}
@@ -70,19 +74,21 @@ interface BubbleProps {
   name: string;
   media: MediaManager;
   expanded: boolean;
-  register: (el: HTMLDivElement | null) => void;
+  register: (bubbleElement: HTMLDivElement | null) => void;
 }
 
+/** Um balão de vídeo; clique, Enter ou espaço ampliam e reduzem, Esc reduz. */
 function Bubble({ id, name, media, expanded, register }: BubbleProps) {
   const video = useRef<HTMLVideoElement>(null);
   const track = media.remoteVideo(id);
 
+  // Liga a trilha remota ao <video> e solta ao trocar de trilha ou desmontar.
   useEffect(() => {
-    const element = video.current;
-    if (!element || !track) return;
-    track.attach(element);
+    const videoElement = video.current;
+    if (!videoElement || !track) return;
+    track.attach(videoElement);
     return () => {
-      track.detach(element);
+      track.detach(videoElement);
     };
   }, [track]);
 
@@ -96,12 +102,12 @@ function Bubble({ id, name, media, expanded, register }: BubbleProps) {
       aria-label={`Vídeo de ${name}. ${expanded ? 'Reduzir' : 'Ampliar'}`}
       title={expanded ? 'Clique para reduzir' : 'Clique para ampliar'}
       onClick={() => media.setExpanded(expanded ? null : id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
           media.setExpanded(expanded ? null : id);
         }
-        if (e.key === 'Escape' && expanded) media.setExpanded(null);
+        if (event.key === 'Escape' && expanded) media.setExpanded(null);
       }}
     >
       <video ref={video} muted playsInline autoPlay />

@@ -9,7 +9,8 @@ interface Props {
   stats: () => NetStats | null;
 }
 
-const ms = (value: number | null | undefined) => (value === null || value === undefined ? '—' : `${Math.round(value)} ms`);
+/** Milissegundos arredondados para exibir; sem medida ainda, um travessão. */
+const formatMs = (value: number | null | undefined) => (value === null || value === undefined ? '—' : `${Math.round(value)} ms`);
 
 /**
  * Overlay de netcode (tecla F3 ou botão "Rede"): RTT, jitter, latência do tick, passos ainda não
@@ -21,23 +22,25 @@ export function NetOverlay({ sim, world, stats }: Props) {
     (onChange) => sim.subscribe(onChange),
     () => sim.version,
   );
+  // Contador só para forçar render periódico enquanto o overlay está aberto.
   const [, setFrame] = useState(0);
 
+  // F3 liga e desliga o overlay de qualquer lugar da página.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'F3') {
-        e.preventDefault();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'F3') {
+        event.preventDefault();
         sim.set({ overlay: !sim.overlay });
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [sim]);
 
   // Os números mudam fora do React (pong, tick): redesenha algumas vezes por segundo.
   useEffect(() => {
     if (!sim.overlay) return;
-    const timer = setInterval(() => setFrame((f) => f + 1), 250);
+    const timer = setInterval(() => setFrame((frame) => frame + 1), 250);
     return () => clearInterval(timer);
   }, [sim.overlay]);
 
@@ -49,10 +52,11 @@ export function NetOverlay({ sim, world, stats }: Props) {
     );
   }
 
-  const s = stats();
+  const netStats = stats();
   const tick = world.lastTick;
   // Latência do tick: hora local convertida para a do servidor menos a hora de envio do tick.
-  const tickLatency = tick && s?.clockOffset != null ? tick.receivedAt + s.clockOffset - tick.serverTs : null;
+  const tickLatency =
+    tick && netStats?.clockOffset != null ? tick.receivedAt + netStats.clockOffset - tick.serverTs : null;
 
   return (
     <section className="net-overlay" aria-label="Overlay de rede">
@@ -65,12 +69,12 @@ export function NetOverlay({ sim, world, stats }: Props) {
       <dl>
         <dt>RTT</dt>
         <dd>
-          {ms(s?.rtt)} <span className="muted">(média {ms(s?.rttAvg)})</span>
+          {formatMs(netStats?.rtt)} <span className="muted">(média {formatMs(netStats?.rttAvg)})</span>
         </dd>
         <dt>Jitter</dt>
-        <dd>{ms(s?.jitter)}</dd>
+        <dd>{formatMs(netStats?.jitter)}</dd>
         <dt>Tick → aqui</dt>
-        <dd>{ms(tickLatency)}</dd>
+        <dd>{formatMs(tickLatency)}</dd>
         <dt>Passos pendentes</dt>
         <dd>{world.pendingCount}</dd>
         <dt>Correções</dt>
@@ -86,7 +90,7 @@ export function NetOverlay({ sim, world, stats }: Props) {
             max={600}
             step={20}
             value={sim.latencyMs}
-            onChange={(e) => sim.set({ latencyMs: Number(e.target.value) })}
+            onChange={(event) => sim.set({ latencyMs: Number(event.target.value) })}
           />
         </label>
         <label>
@@ -97,7 +101,7 @@ export function NetOverlay({ sim, world, stats }: Props) {
             max={300}
             step={10}
             value={sim.jitterMs}
-            onChange={(e) => sim.set({ jitterMs: Number(e.target.value) })}
+            onChange={(event) => sim.set({ jitterMs: Number(event.target.value) })}
           />
         </label>
       </fieldset>

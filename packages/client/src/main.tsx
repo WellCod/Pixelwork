@@ -4,10 +4,10 @@ import '@fontsource-variable/inter';
 import { App } from './App.tsx';
 import './styles.css';
 
-const root = document.getElementById('root');
-if (!root) throw new Error('#root ausente no index.html');
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error('#root ausente no index.html');
 
-createRoot(root).render(
+createRoot(rootElement).render(
   <StrictMode>
     <App />
   </StrictMode>,

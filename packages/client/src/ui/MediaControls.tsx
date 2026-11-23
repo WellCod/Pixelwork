@@ -2,6 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { MediaManager } from '../media/media-manager.ts';
 import { CamIcon, MicIcon, ScreenIcon } from './icons.tsx';
 
+/** Re-renderiza o componente a cada mudança do `MediaManager` (ele avisa pelo `version`). */
 export function useMedia(media: MediaManager): MediaManager {
   useSyncExternalStore(
     (onChange) => media.subscribe(onChange),
@@ -14,16 +15,17 @@ export function useMedia(media: MediaManager): MediaManager {
 export function MediaControls({ media, onReconnect }: { media: MediaManager; onReconnect: () => void }) {
   useMedia(media);
   const preview = useRef<HTMLVideoElement>(null);
-  const local = media.localVideo();
+  const localVideoTrack = media.localVideo();
 
+  // Liga a trilha da própria câmera ao <video> da prévia e solta ao trocar de trilha ou desmontar.
   useEffect(() => {
-    const element = preview.current;
-    if (!element || !local) return;
-    local.attach(element);
+    const videoElement = preview.current;
+    if (!videoElement || !localVideoTrack) return;
+    localVideoTrack.attach(videoElement);
     return () => {
-      local.detach(element);
+      localVideoTrack.detach(videoElement);
     };
-  }, [local]);
+  }, [localVideoTrack]);
 
   return (
     <div className="media-controls">
@@ -47,6 +49,7 @@ export function MediaControls({ media, onReconnect }: { media: MediaManager; onR
         <CamIcon off={!media.camOn} />
         <span>{media.camOn ? 'Câmera' : 'Sem câmera'}</span>
       </button>
+      {/* Compartilhar tela só existe em sala privada (reunião ou chamada). */}
       {media.isPrivate && (
         <button
           type="button"

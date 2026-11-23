@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
+/** Chave do localStorage que marca o card de boas-vindas como visto. */
 const KEY = 'pixelwork.welcome.v1';
 
-function seen(): boolean {
+function welcomeSeen(): boolean {
   try {
     return localStorage.getItem(KEY) === '1';
   } catch {
@@ -12,7 +13,7 @@ function seen(): boolean {
 
 /** Primeira visita: os comandos que não dá para adivinhar olhando a tela. */
 export function Welcome() {
-  const [open, setOpen] = useState(() => !seen());
+  const [open, setOpen] = useState(() => !welcomeSeen());
   if (!open) return null;
 
   const dismiss = () => {
