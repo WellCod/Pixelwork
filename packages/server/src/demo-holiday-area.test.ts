@@ -1,5 +1,5 @@
 import { compileMap, findPath, frameOf, isWalkable } from '@pixelwork/shared';
-import { apply, objectLayer, placeFurniture, type TiledDoc, type TilesetRef } from '@pixelwork/shared/editor';
+import { apply, objectLayer, placeFurniture, rugMask, type TiledDoc, type TilesetRef } from '@pixelwork/shared/editor';
 import { describe, expect, it } from 'vitest';
 import { loadDemoTemplate, loadTemplate } from './demo.ts';
 import { withDemoHolidayArea } from './demo-holiday-area.ts';
@@ -30,6 +30,20 @@ describe('área Natal do Grinch', () => {
       if (!ref) throw new Error('tileset de Natal ausente');
       expect(placements).toContainEqual(expect.objectContaining({ gid: ref.firstgid + frameOf(tileset, item), x: x * 16, y: (y + 1) * 16 }));
     }
+  });
+
+  it('restaura o tapete lavanda de Halloween com uma passagem de madeira entre as fileiras', () => {
+    const template = loadDemoTemplate();
+    const base = loadTemplate('small-office') as TiledDoc;
+    const floor = template.layers.find(({ name }) => name === 'floor');
+    const baseFloor = base.layers.find(({ name }) => name === 'floor');
+    const ref = (template.tilesets as TilesetRef[]).find(({ source }) => source === 'floors.tsj');
+    if (floor?.type !== 'tilelayer' || baseFloor?.type !== 'tilelayer' || !ref) throw new Error('piso de teste ausente');
+    const tileAt = (x: number, y: number) => y * template.width + x;
+    const lavender = ref.firstgid + frameOf('floors', 'rug-lavender');
+    expect(floor.data[tileAt(1, 8)]).toBe(lavender + rugMask(0, 0, 11, 3));
+    expect(floor.data[tileAt(11, 10)]).toBe(lavender + rugMask(10, 2, 11, 3));
+    expect(floor.data[tileAt(6, 7)]).toBe(baseFloor.data[tileAt(6, 7)]);
   });
 
   it('preserva o móvel que já ocupa o local da árvore', () => {

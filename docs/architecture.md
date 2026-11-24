@@ -275,7 +275,8 @@ Restrições (o servidor rejeita com código de erro):
 - A propriedade opcional `default_decor` no objeto da estação é uma string JSON validada como
   `DeskDecor`. Ela define a decoração vista com a mesa livre e a decoração inicial ao ocupá-la.
   A demo aplica `maps/templates/demo-desk-decor.json` ao carregar o mapa para criação ou reset.
-  Na mesma etapa, a fileira superior da área Produto recebe a montagem Natal do Grinch.
+  Na mesma etapa, a fileira superior da área Produto recebe a montagem Natal do Grinch e a
+  fileira inferior recebe um tapete lavanda de Halloween, separado por uma passagem de madeira.
 - `CompiledDesk.wallBehind`: todos os tiles logo atrás da pegada (do lado oposto à cadeira) têm
   parede. Sem parede atrás, o item do slot "fundo" fica pendurado numa divisória baixa desenhada
   pelo cliente (`dividerLayout`), em vez de flutuar.

@@ -8,7 +8,7 @@ const DECOR = [
   { tileset: 'furniture-christmas', item: 'christmas-room-gifts', dx: 10, dy: 4 },
 ] as const;
 
-/** Decora a primeira fileira de Produto, usando o mesmo formato e comandos do editor. */
+/** Decora as fileiras temáticas de Produto usando os comandos do editor. */
 export function withDemoHolidayArea(map: TiledDoc): TiledDoc {
   const zone = objectLayer(map, 'zones').objects.find((object) => propertyValue(object, 'zone_key') === 'produto');
   if (!zone || zone.width < 11 * TILE_PX || zone.height < 5 * TILE_PX) return map;
@@ -19,6 +19,11 @@ export function withDemoHolidayArea(map: TiledDoc): TiledDoc {
   const top = zone.y / TILE_PX;
   const rug = paintRug(map, 'sage', left, top, left + 10, top + 4);
   let decorated = rug ? apply(map, rug).doc : map;
+  // Uma faixa de madeira separa os tapetes e marca a passagem entre as duas fileiras.
+  if (zone.height >= 9 * TILE_PX) {
+    const halloweenRug = paintRug(decorated, 'lavender', left, top + 6, left + 10, top + 8);
+    if (halloweenRug) decorated = apply(decorated, halloweenRug).doc;
+  }
   if (propertyValue(zone, 'name') !== TITLE) {
     const properties = (zone.properties ?? []).filter((property) => property.name !== 'name');
     decorated = apply(decorated, {
