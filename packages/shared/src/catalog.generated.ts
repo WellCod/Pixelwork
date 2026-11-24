@@ -1,17 +1,17 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3', 'desk-decor-halloween', 'furniture-halloween', 'furniture-2x1-halloween'] as const;
 export const BODY_IDS = ['base'] as const;
 export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'] as const;
-export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan'] as const;
-export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip'] as const;
-export const DESK_VARIANTS = ['basic', 'dark', 'white'] as const;
-export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck', 'mechanical-keyboard', 'terrarium', 'drawing-tablet', 'tea-set', 'handheld'] as const;
-export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo', 'wall-vinyl', 'moon-print', 'wall-pennant'] as const;
-export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat', 'woven-basket', 'floor-corgi'] as const;
+export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan', 'halloween-witch-robe', 'halloween-vampire-cape'] as const;
+export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip', 'halloween-witch-hat', 'halloween-pumpkin-mask', 'halloween-bat-ears'] as const;
+export const DESK_VARIANTS = ['basic', 'dark', 'white', 'halloween-twilight'] as const;
+export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck', 'mechanical-keyboard', 'terrarium', 'drawing-tablet', 'tea-set', 'handheld', 'halloween-pumpkin-lamp', 'halloween-potion', 'halloween-spellbook', 'halloween-skull'] as const;
+export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo', 'wall-vinyl', 'moon-print', 'wall-pennant', 'halloween-cobweb', 'halloween-garland'] as const;
+export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat', 'woven-basket', 'floor-corgi', 'halloween-black-cat', 'halloween-candy-bucket'] as const;
 export const SKIN_PALETTES = ['light', 'medium', 'dark', 'pale', 'tan', 'deep'] as const;
 export const HAIR_PALETTES = ['brown', 'black', 'blond', 'red', 'gray', 'pink', 'blue', 'green'] as const;
-export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gray', 'black', 'cream'] as const;
+export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gray', 'black', 'cream', 'orange'] as const;
 
 export const RAMPS = {
   "skin": {
@@ -150,6 +150,12 @@ export const RAMPS = {
       "#ab947a",
       "#fdcbb0",
       "#ffffff"
+    ],
+    "orange": [
+      "#6e2727",
+      "#cd683d",
+      "#fb6b1d",
+      "#fbb954"
     ]
   }
 } as const;
@@ -453,6 +459,68 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "0": "ping-pong-vertical",
       "1": "foosball-vertical"
     }
+  },
+  "desk-decor-halloween": {
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 16,
+    "collides": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "items": {
+      "0": "halloween-twilight",
+      "1": "halloween-twilight-wide-l",
+      "2": "halloween-twilight-wide-r",
+      "3": "halloween-twilight-tall-t",
+      "4": "halloween-twilight-tall-b",
+      "5": "halloween-pumpkin-lamp",
+      "6": "halloween-potion",
+      "7": "halloween-spellbook",
+      "8": "halloween-skull",
+      "9": "halloween-cobweb",
+      "10": "halloween-garland",
+      "11": "halloween-black-cat",
+      "12": "halloween-candy-bucket"
+    }
+  },
+  "furniture-halloween": {
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2
+    ],
+    "items": {
+      "0": "halloween-cauldron",
+      "1": "halloween-candelabra",
+      "2": "halloween-tombstone",
+      "3": "halloween-ghost-mat",
+      "4": "halloween-familiar-cushion"
+    }
+  },
+  "furniture-2x1-halloween": {
+    "tileWidth": 32,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1,
+      2
+    ],
+    "items": {
+      "0": "halloween-pumpkin-pair",
+      "1": "halloween-vampire-sofa",
+      "2": "halloween-treat-table"
+    }
   }
 };
 
@@ -524,6 +592,27 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "furniture-2x3",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "desk-decor-halloween",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-halloween",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-2x1-halloween",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -662,6 +751,20 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/outfit",
+    "id": "halloween-witch-robe",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "halloween-vampire-cape",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/accessory",
     "id": "glasses",
     "license": "own",
@@ -718,6 +821,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/accessory",
+    "id": "halloween-witch-hat",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "halloween-pumpkin-mask",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "halloween-bat-ears",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/variants",
     "id": "basic",
     "license": "own",
@@ -734,6 +858,13 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "desk/variants",
     "id": "white",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/variants",
+    "id": "halloween-twilight",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -865,6 +996,34 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/decorItems",
+    "id": "halloween-pumpkin-lamp",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "halloween-potion",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "halloween-spellbook",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "halloween-skull",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/wallItems",
     "id": "poster",
     "license": "own",
@@ -921,6 +1080,20 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/wallItems",
+    "id": "halloween-cobweb",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "halloween-garland",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/floorItems",
     "id": "plant-small",
     "license": "own",
@@ -965,6 +1138,20 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "desk/floorItems",
     "id": "floor-corgi",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "halloween-black-cat",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "halloween-candy-bucket",
     "license": "own",
     "author": "Pixelwork",
     "source": null

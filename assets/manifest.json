@@ -53,6 +53,24 @@
       "license": "own",
       "author": "Pixelwork",
       "source": null
+    },
+    {
+      "id": "desk-decor-halloween",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "furniture-halloween",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "furniture-2x1-halloween",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
     }
   ],
   "characters": {
@@ -174,6 +192,18 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "halloween-witch-robe",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-vampire-cape",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "accessory": [
@@ -224,6 +254,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "halloween-witch-hat",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-pumpkin-mask",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-bat-ears",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ]
   },
@@ -243,6 +291,12 @@
       },
       {
         "id": "white",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-twilight",
         "license": "own",
         "author": "Pixelwork",
         "source": null
@@ -356,6 +410,30 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "halloween-pumpkin-lamp",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-potion",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-spellbook",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-skull",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "wallItems": [
@@ -406,6 +484,18 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "halloween-cobweb",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-garland",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "floorItems": [
@@ -447,6 +537,18 @@
       },
       {
         "id": "floor-corgi",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-black-cat",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "halloween-candy-bucket",
         "license": "own",
         "author": "Pixelwork",
         "source": null

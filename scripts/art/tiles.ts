@@ -2,6 +2,7 @@
 // tileset: só acrescentar no fim (os mapas salvos referenciam os tiles pela posição).
 import type { Pixels } from '../lib/pixels.ts';
 import * as deskDecor from './desk-decor.ts';
+import * as halloween from './halloween.ts';
 import * as smallFurniture from './furniture-small.ts';
 import * as surfaces from './surfaces.ts';
 
@@ -107,6 +108,7 @@ const halves = {
   basic: deskDecor.deskHalves(deskDecor.DESK_STYLES.basic),
   dark: deskDecor.deskHalves(deskDecor.DESK_STYLES.dark),
   white: deskDecor.deskHalves(deskDecor.DESK_STYLES.white),
+  'halloween-twilight': deskDecor.deskHalves(deskDecor.DESK_STYLES.twilight),
 };
 /** Metades da mesa larga de uma variante: `-wide-l`/`-wide-r` (32x16) e `-tall-t`/`-tall-b` (16x32). */
 const halvesOf = (variant: keyof typeof halves): TileArt[] => [
@@ -174,4 +176,31 @@ export const DESK_DECOR_EXTRAS: TileArt[] = [
   { pixels: deskDecor.monitorSingleSide, itemId: 'monitor-single-side' },
   { pixels: deskDecor.monitorDualSide, itemId: 'monitor-dual-side' },
   { pixels: deskDecor.laptopSide, itemId: 'monitor-laptop-side' },
+];
+
+export const DESK_DECOR_HALLOWEEN: TileArt[] = [
+  { pixels: deskDecor.twilightDesk, collides: true, itemId: 'halloween-twilight' },
+  ...halvesOf('halloween-twilight'),
+  { pixels: halloween.deskPumpkin, itemId: 'halloween-pumpkin-lamp' },
+  { pixels: halloween.potion, itemId: 'halloween-potion' },
+  { pixels: halloween.spellbook, itemId: 'halloween-spellbook' },
+  { pixels: halloween.skull, itemId: 'halloween-skull' },
+  { pixels: halloween.cobweb, itemId: 'halloween-cobweb' },
+  { pixels: halloween.garland, itemId: 'halloween-garland' },
+  { pixels: halloween.blackCat, itemId: 'halloween-black-cat' },
+  { pixels: halloween.candyBucket, itemId: 'halloween-candy-bucket' },
+];
+
+export const FURNITURE_HALLOWEEN: TileArt[] = [
+  { pixels: halloween.cauldron, collides: true, itemId: 'halloween-cauldron' },
+  { pixels: halloween.candelabra, collides: true, itemId: 'halloween-candelabra' },
+  { pixels: halloween.tombstone, collides: true, itemId: 'halloween-tombstone' },
+  { pixels: halloween.ghostMat, itemId: 'halloween-ghost-mat' },
+  { pixels: halloween.familiarCushion, itemId: 'halloween-familiar-cushion' },
+];
+
+export const FURNITURE_2X1_HALLOWEEN: TileArt[] = [
+  { pixels: halloween.pumpkinPair, collides: true, itemId: 'halloween-pumpkin-pair' },
+  { pixels: halloween.vampireSofa, collides: true, itemId: 'halloween-vampire-sofa' },
+  { pixels: halloween.treatTable, collides: true, itemId: 'halloween-treat-table' },
 ]

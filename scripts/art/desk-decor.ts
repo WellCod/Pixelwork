@@ -26,6 +26,10 @@ export const DESK_STYLES = {
   basic: { top: RAMPS.woodLight, apron: 'peach', legs: 'clay', outline: 'clay' },
   dark: { top: RAMPS.woodDark, apron: 'bark', legs: 'ink', outline: 'ink' },
   white: { top: WHITE_TOP, apron: 'mist', legs: 'gray', outline: 'dusk' },
+  twilight: {
+    top: { outline: 'grape', dark: 'violet', base: 'purple', light: 'lavender' },
+    apron: 'honey', legs: 'shadow', outline: 'grape',
+  },
 } as const satisfies Record<string, DeskStyle>;
 
 /** Mesa larga (32x16) com gaveteiro à direita, ou lateral (16x32) com gaveteiro embaixo. */
@@ -62,13 +66,18 @@ export function deskHalves(style: DeskStyle): { wide: Pixels[]; tall: Pixels[] }
   return { wide: cells(wideDesk(style, false)), tall: cells(wideDesk(style, true)) };
 }
 
-/** Mesa de 1 tile na variante branca (as outras vêm de furniture-small). */
-export const whiteDesk = item((canvas) => {
-  canvas.box(1, 3, 14, 8, WHITE_TOP);
-  canvas.rect(1, 10, 14, 2, 'mist');
-  canvas.rect(2, 12, 1, 3, 'gray').rect(13, 12, 1, 3, 'gray');
-  canvas.outline('dusk');
-});
+/** Versão da mesa para os mapas antigos com estações de um tile. */
+function singleDesk(style: DeskStyle): Pixels {
+  return item((canvas) => {
+    canvas.box(1, 3, 14, 8, style.top);
+    canvas.rect(1, 10, 14, 2, style.apron);
+    canvas.rect(2, 12, 1, 3, style.legs).rect(13, 12, 1, 3, style.legs);
+    canvas.outline(style.outline);
+  });
+}
+
+export const whiteDesk = singleDesk(DESK_STYLES.white);
+export const twilightDesk = singleDesk(DESK_STYLES.twilight);
 
 // ---- monitores ----
 
