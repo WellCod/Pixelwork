@@ -8,6 +8,10 @@ Objetivo: projeto de portfólio, rodando localmente e depois numa única VPS par
 Não há billing nem planos. O núcleo de tempo real é o que importa; prefira profundidade
 técnica nele a amplitude de features.
 
+## Continuidade entre sessões
+
+@AGENTS.md
+
 ## Documentação
 
 - `docs/architecture.md`: contratos e decisões (schema, protocolo, contrato do mapa, mídia,

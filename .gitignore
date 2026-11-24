@@ -11,3 +11,6 @@ playwright-report/
 !.env.production.example
 # Dumps do serviço de backup (docker-compose.prod.yml)
 backups/
+
+# Registro local de continuidade entre sessões
+/CONTINUIDADE.md
