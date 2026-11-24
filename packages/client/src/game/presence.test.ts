@@ -90,6 +90,22 @@ describe('deskSprites', () => {
     expect(at(sprites, 'cat')).toMatchObject({ dx: 2, dy: 14 });
   });
 
+  it('renderiza o tampo Crepúsculo e os enfeites de Halloween em todas as orientações', () => {
+    const halloween: DeskDecor = {
+      variant: 'halloween-twilight', monitor: 'single',
+      slots: { left: 'halloween-pumpkin-lamp', right: 'halloween-potion', back: 'halloween-cobweb', floor: 'halloween-black-cat' },
+    };
+    const desks = [
+      desk({ width: 1 }), desk({}), desk({ orientation: 'up' }),
+      desk({ width: 1, height: 2, orientation: 'left' }), desk({ width: 1, height: 2, orientation: 'right' }),
+    ];
+    for (const candidate of desks) {
+      const pieces = deskSprites(candidate, halloween).filter(({ item }) => item.startsWith('halloween-'));
+      expect(pieces).toHaveLength(candidate.width * candidate.height + 4);
+      for (const { item } of pieces) expect(deskDecorFrame(item)?.tileset).toBe('desk-decor-halloween');
+    }
+  });
+
   it('na fileira oposta inverte os tampos, troca o lado do gaveteiro e desenha as costas do monitor', () => {
     const sprites = deskSprites(desk({ orientation: 'up' }), decor);
     expect(at(sprites, 'white-wide-l')).toMatchObject({ dx: 16, flip: true, flipY: true });

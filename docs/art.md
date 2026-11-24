@@ -173,6 +173,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 | `furniture-3x2` | 48x32 | 601 | mesa de reunião, bancada de copa, pingue-pongue, sofá em L, recepção, pebolim |
 | `desk-decor-extras` | 16x16 | 701 | 10 itens de tampo, parede e chão e 6 vistas de monitores, em tileset separado |
 | `furniture-2x3` | 32x48 | 801 | pingue-pongue e pebolim na vertical |
+| `desk-decor-halloween` | 16x16 | 901 | Estação Crepúsculo e decoração de Halloween para tampo, parede e chão |
+| `furniture-halloween` | 16x16 | 1001 | Móveis e enfeites de Halloween de um tile |
+| `furniture-2x1-halloween` | 32x16 | 1101 | Sofá, mesa de doces e dupla de abóboras |
 
 - Tapete: 16 tiles por tapete, um para cada combinação de bordas (máscara N=1, S=2, O=4, L=8),
   pintados pela ferramenta Tapete do editor (`paintRug`). Qualquer retângulo, até 1x1, fecha a borda.

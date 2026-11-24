@@ -6,5 +6,6 @@
   "yellow": ["#9e4539", "#f79617", "#f9c22b", "#fbff86"],
   "gray": ["#3e3546", "#625565", "#9babb2", "#c7dcd0"],
   "black": ["#2e222f", "#313638", "#3e3546", "#625565"],
-  "cream": ["#966c6c", "#ab947a", "#fdcbb0", "#ffffff"]
+  "cream": ["#966c6c", "#ab947a", "#fdcbb0", "#ffffff"],
+  "orange": ["#6e2727", "#cd683d", "#fb6b1d", "#fbb954"]
 }

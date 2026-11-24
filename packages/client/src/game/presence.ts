@@ -158,7 +158,7 @@ export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSp
   return sprites;
 }
 
-const DESK_DECOR_TILESETS = ['desk-decor', 'desk-decor-extras'] as const;
+const DESK_DECOR_TILESETS = ['desk-decor', 'desk-decor-extras', 'desk-decor-halloween'] as const;
 const DESK_DECOR_FRAMES = new Map(DESK_DECOR_TILESETS.flatMap((tileset) =>
   Object.entries(TILESETS[tileset].items).map(([frame, item]) => [item, { tileset, frame: Number(frame) }] as const),
 ));

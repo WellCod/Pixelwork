@@ -24,6 +24,10 @@ export const CATEGORIES: { label: string; items: readonly string[] }[] = [
   { label: 'Plantas', items: ['plant', 'plant-tall', 'cactus', 'monstera', 'snake-plant', 'flowers', 'ficus', 'succulent', 'tree', 'planter'] },
   { label: 'Lazer', items: ['ping-pong', 'foosball', 'arcade'] },
   { label: 'Decoração', items: ['aquarium', 'rug', 'sideboard'] },
+  { label: 'Halloween', items: [
+    'halloween-cauldron', 'halloween-candelabra', 'halloween-tombstone', 'halloween-ghost-mat',
+    'halloween-familiar-cushion', 'halloween-pumpkin-pair', 'halloween-vampire-sofa', 'halloween-treat-table',
+  ] },
 ];
 
 export interface FurnitureOption {
