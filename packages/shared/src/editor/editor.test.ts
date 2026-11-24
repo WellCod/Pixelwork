@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileMap, type MapError } from '../map.ts';
+import { frameOf } from '../assets.ts';
 import { TILESETS } from '../catalog.generated.ts';
 import { DIRS } from '../protocol.ts';
 import { FIRSTGID, FURNITURE, buildTestMap } from '../testing.ts';
@@ -7,6 +8,8 @@ import { apply, objectLayer, propertyValue, type EditorCommand, type ObjectLayer
 import { CommandStack } from './history.ts';
 import {
   addDesk,
+  addDeskGroup,
+  deskGroupLayout,
   adoptDocument,
   addZone,
   moveObject,
@@ -17,6 +20,7 @@ import {
   removeObject,
   resizeZone,
   rotateDesk,
+  rotateGameTable,
   setZoneProps,
 } from './operations.ts';
 
@@ -385,5 +389,80 @@ describe('mesa de 2 tiles no editor', () => {
     const result = compileMap(stack.doc);
     const key = propertyValue(lastDesk(stack.doc) ?? {}, 'desk_key');
     expect(result.ok ? [] : result.errors).toContainEqual({ code: 'chair_blocked', deskKey: key });
+  });
+});
+
+describe('rotação de mesas de jogos', () => {
+  it.each(['ping-pong', 'foosball'])('gira %s, preserva âncora e id e desfaz a adição do tileset', (item) => {
+    const doc = baseDoc();
+    const refs = doc.tilesets as { firstgid: number; source: string }[];
+    doc.tilesets = refs.filter((ref) => ref.source !== 'furniture-2x3.tsj');
+    const stack = new CommandStack(doc);
+    stack.execute(placeFurniture(stack.doc, 'furniture-3x2', frameOf('furniture-3x2', item), 9, 7));
+    const id = objectId(stack.doc, 'furniture', 1);
+    const before = json(stack.doc);
+    stack.execute(rotateGameTable(stack.doc, id));
+    const rotated = objectLayer(stack.doc, 'furniture').objects[1];
+    expect(rotated).toMatchObject({ id, x: 144, y: 144, width: 32, height: 48, rotation: 0 });
+    expect(stack.doc.tilesets).toContainEqual({ firstgid: FIRSTGID['furniture-2x3'], source: 'furniture-2x3.tsj' });
+    expect(objectAt(stack.doc, 'furniture', 9, 8)?.id).toBe(id);
+    expect(compileMap(stack.doc).ok).toBe(true);
+    const after = json(stack.doc);
+    stack.undo();
+    expect(json(stack.doc)).toBe(before);
+    stack.redo();
+    expect(json(stack.doc)).toBe(after);
+    stack.execute(rotateGameTable(stack.doc, id));
+    expect(objectLayer(stack.doc, 'furniture').objects[1]).toMatchObject({ id, x: 144, y: 128, width: 48, height: 32 });
+  });
+
+  it('recusa a rotação que colocaria a mesa para fora do mapa', () => {
+    const stack = new CommandStack(baseDoc());
+    stack.execute(placeFurniture(stack.doc, 'furniture-3x2', frameOf('furniture-3x2', 'ping-pong'), 9, 9));
+    expect(rotateGameTable(stack.doc, objectId(stack.doc, 'furniture', 1))).toBeNull();
+  });
+});
+
+describe('bancadas de trabalho', () => {
+  it.each(['down', 'right'] as const)('cria uma espinha %s com chaves e cadeiras individuais, e desfaz o conjunto', (direction) => {
+    const doc = buildTestMap({ width: 14, height: 12, spawns: [[1, 1]] }) as unknown as TiledDoc;
+    const placements = deskGroupLayout(3, 3, direction, 'spine', 3);
+    const stack = new CommandStack(doc);
+    stack.execute(addDeskGroup(stack.doc, 3, 3, direction, 'spine', 3));
+    const result = compileMap(stack.doc);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    const { desks, walkable, width } = result.map;
+    expect(desks).toHaveLength(6);
+    expect(new Set(desks.map((desk) => desk.key)).size).toBe(6);
+    expect(desks).toMatchObject(placements);
+    for (const desk of desks) {
+      expect(walkable[desk.chairY * width + desk.chairX]).toBe(1);
+      for (let y = desk.y; y < desk.y + desk.height; y++) {
+        for (let x = desk.x; x < desk.x + desk.width; x++) expect(walkable[y * width + x]).toBe(0);
+      }
+    }
+    expect(desks.map((desk) => desk.orientation)).toEqual(direction === 'down' ? ['up', 'up', 'up', 'down', 'down', 'down'] : ['left', 'left', 'left', 'right', 'right', 'right']);
+    const saved = json(stack.doc);
+    stack.undo();
+    expect(json(stack.doc)).toBe(json(doc));
+    stack.redo();
+    expect(json(stack.doc)).toBe(saved);
+  });
+
+  it('fileira mantém as cadeiras do mesmo lado e não bloqueia mesas, paredes nem spawn existentes', () => {
+    const doc = buildTestMap({
+      width: 14,
+      height: 12,
+      spawns: [[1, 1]],
+      walls: [[3, 4]],
+      desks: [{ key: 'mesa-1', x: 8, y: 4, orientation: 'down' }],
+    }) as unknown as TiledDoc;
+    expect(deskGroupLayout(2, 2, 'down', 'row', 3).map((desk) => [desk.x, desk.y, desk.chairX, desk.chairY]))
+      .toEqual([[2, 2, 2, 3], [4, 2, 4, 3], [6, 2, 6, 3]]);
+    expect(addDeskGroup(doc, 2, 2, 'down', 'row', 3)).not.toBeNull();
+    expect(addDeskGroup(doc, 3, 3, 'down', 'row', 2)).toBeNull();
+    expect(addDeskGroup(doc, 8, 5, 'down', 'row', 2)).toBeNull();
+    expect(addDeskGroup(doc, 1, 1, 'down', 'row', 2)).toBeNull();
+    expect(addDeskGroup(doc, 12, 10, 'down', 'spine', 3)).toBeNull();
   });
 });

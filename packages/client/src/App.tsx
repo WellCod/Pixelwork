@@ -241,22 +241,22 @@ export function App() {
           </span>
         )}
         <span className="spacer" />
-        {/* Editar mapa, mapa e convite são só de quem administra o coworking aberto. */}
+        {current?.space.canEditMap && (
+          <button
+            type="button"
+            disabled={editor !== null}
+            onClick={() =>
+              setEditor({
+                controller: new EditorController(structuredClone(current.space.map) as TiledDoc),
+                baseVersion: current.space.mapVersion,
+              })
+            }
+          >
+            Editar mapa
+          </button>
+        )}
         {current?.space.role === 'admin' && (
           <>
-            {/* O editor trabalha numa cópia do mapa; `baseVersion` detecta conflito ao salvar. */}
-            <button
-              type="button"
-              disabled={editor !== null}
-              onClick={() =>
-                setEditor({
-                  controller: new EditorController(structuredClone(current.space.map) as TiledDoc),
-                  baseVersion: current.space.mapVersion,
-                })
-              }
-            >
-              Editar mapa
-            </button>
             <button type="button" onClick={() => setOpenModal('map')}>
               Mapa
             </button>

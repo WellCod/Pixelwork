@@ -1,6 +1,6 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3'] as const;
 export const BODY_IDS = ['base'] as const;
 export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'] as const;
 export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan'] as const;
@@ -201,7 +201,8 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "11": "wall-corkboard",
       "12": "wall-plant",
       "13": "wall-tv",
-      "14": "wall-window-curtain"
+      "14": "wall-window-curtain",
+      "15": "wall-divider"
     }
   },
   "furniture": {
@@ -430,7 +431,27 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "6": "moon-print",
       "7": "wall-pennant",
       "8": "woven-basket",
-      "9": "floor-corgi"
+      "9": "floor-corgi",
+      "10": "monitor-single-back",
+      "11": "monitor-dual-back",
+      "12": "monitor-laptop-back",
+      "13": "monitor-single-side",
+      "14": "monitor-dual-side",
+      "15": "monitor-laptop-side"
+    }
+  },
+  "furniture-2x3": {
+    "tileWidth": 32,
+    "tileHeight": 48,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0,
+      1
+    ],
+    "items": {
+      "0": "ping-pong-vertical",
+      "1": "foosball-vertical"
     }
   }
 };
@@ -496,6 +517,13 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "desk-decor-extras",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-2x3",
     "license": "own",
     "author": "Pixelwork",
     "source": null

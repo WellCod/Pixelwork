@@ -1,7 +1,7 @@
 import { compileMap, type CompiledDesk, type CompiledMap, type DeskDecor, type DeskState } from '@pixelwork/shared';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { describe, expect, it } from 'vitest';
-import { deskSprites, dividerLayout, isNear, seatedFacing } from './presence.ts';
+import { deskDecorFrame, deskSprites, dividerLayout, isNear, seatedPose } from './presence.ts';
 
 function testMap(): CompiledMap {
   const result = compileMap(buildTestMap({ desks: [{ key: 'mesa', x: 3, y: 1, orientation: 'down' }] }));
@@ -13,15 +13,26 @@ const map = testMap();
 const owned = (userId: string | null) =>
   new Map<string, DeskState>([['mesa', { deskKey: 'mesa', userId, ownerName: null, decor: null }]]);
 
-describe('seatedFacing', () => {
+describe('seatedPose', () => {
   it('dono na cadeira olha para a mesa', () => {
-    expect(seatedFacing(map, owned('a'), 'a', 3, 2)).toBe('up');
+    expect(seatedPose(map, owned('a'), 'a', 3, 2)).toEqual({ facing: 'up', dx: 0, dy: 0 });
+  });
+
+  it.each([
+    { orientation: 'down', chairX: 3, chairY: 4, facing: 'up', dx: 8, dy: 0 },
+    { orientation: 'up', chairX: 3, chairY: 2, facing: 'down', dx: 8, dy: 0 },
+    { orientation: 'left', chairX: 2, chairY: 3, facing: 'right', dx: 0, dy: 8 },
+    { orientation: 'right', chairX: 4, chairY: 3, facing: 'left', dx: 0, dy: 8 },
+  ] as const)('centraliza o assento da mesa virada para $orientation', ({ orientation, chairX, chairY, facing, dx, dy }) => {
+    const result = compileMap(buildTestMap({ desks: [{ key: 'mesa', x: 3, y: 3, orientation, size: 2 }] }));
+    if (!result.ok) throw new Error('fixture inválida');
+    expect(seatedPose(result.map, owned('a'), 'a', chairX, chairY)).toEqual({ facing, dx, dy });
   });
 
   it('outra pessoa na cadeira, mesa livre ou fora da cadeira não está sentada', () => {
-    expect(seatedFacing(map, owned('a'), 'b', 3, 2)).toBeNull();
-    expect(seatedFacing(map, owned(null), 'a', 3, 2)).toBeNull();
-    expect(seatedFacing(map, owned('a'), 'a', 4, 2)).toBeNull();
+    expect(seatedPose(map, owned('a'), 'b', 3, 2)).toBeNull();
+    expect(seatedPose(map, owned(null), 'a', 3, 2)).toBeNull();
+    expect(seatedPose(map, owned('a'), 'a', 4, 2)).toBeNull();
   });
 });
 
@@ -75,8 +86,27 @@ describe('deskSprites', () => {
     const sprites = deskSprites(desk({ width: 1, height: 2, orientation: 'left' }), decor);
     expect(at(sprites, 'white-tall-t')).toMatchObject({ dx: 0, dy: -16 });
     expect(at(sprites, 'white-tall-b')).toMatchObject({ dx: 0, dy: 0 });
-    expect(at(sprites, 'monitor-dual')).toMatchObject({ dx: 0, dy: -17 });
+    expect(at(sprites, 'monitor-dual-side')).toMatchObject({ dx: 2, dy: -17, flip: false });
     expect(at(sprites, 'cat')).toMatchObject({ dx: 2, dy: 14 });
+  });
+
+  it('na fileira oposta inverte os tampos, troca o lado do gaveteiro e desenha as costas do monitor', () => {
+    const sprites = deskSprites(desk({ orientation: 'up' }), decor);
+    expect(at(sprites, 'white-wide-l')).toMatchObject({ dx: 16, flip: true, flipY: true });
+    expect(at(sprites, 'white-wide-r')).toMatchObject({ dx: 0, flip: true, flipY: true });
+    expect(at(sprites, 'monitor-dual-back')).toMatchObject({ dx: 8, dy: -1 });
+  });
+
+  it('usa perfil espelhado à direita e todas as vistas existem no catálogo', () => {
+    const sprites = deskSprites(desk({ width: 1, height: 2, orientation: 'right' }), decor);
+    expect(at(sprites, 'monitor-dual-side')).toMatchObject({ dx: -2, flip: true, flipY: false });
+    for (const monitor of ['single', 'dual', 'laptop'] as const) {
+      for (const orientation of ['down', 'up', 'left', 'right'] as const) {
+        const parts = deskSprites(desk({ orientation }), { ...decor, monitor });
+        const sprite = parts.find((candidate) => candidate.item.startsWith('monitor-'));
+        expect(sprite && deskDecorFrame(sprite.item)).toBeDefined();
+      }
+    }
   });
 
   it('sem parede atrás o item de parede vai na divisória, que fica atrás dele', () => {

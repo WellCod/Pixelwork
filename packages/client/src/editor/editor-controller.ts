@@ -1,8 +1,12 @@
-import { TILESETS, TILESET_IDS, compileMap, frameOf, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
+import { TILESETS, TILESET_IDS, compileMap, frameOf, type CompileResult, type Dir, type MapError, type TilesetId } from '@pixelwork/shared';
 import {
   CommandStack,
   addDesk,
+  addDeskGroup,
+  canPlaceDeskGroup,
+  deskGroupLayout,
   addZone,
+  gameTableOf,
   moveObject,
   moveSpawn,
   objectAt,
@@ -11,7 +15,9 @@ import {
   placeFurniture,
   removeObject,
   rotateDesk,
+  rotateGameTable,
   setZoneProps,
+  type DeskArrangement,
   type ObjectLayerName,
   type RugId,
   type TileRect,
@@ -54,6 +60,7 @@ export const WALL_OPTIONS = [
   { item: 'wall-cream', label: 'Parede creme' },
   { item: 'wall-lilac', label: 'Parede lilás' },
   { item: 'wall-top', label: 'Topo da parede' },
+  { item: 'wall-divider', label: 'Divisória vertical' },
   { item: 'wall-window', label: 'Janela' },
   { item: 'wall-window-curtain', label: 'Janela com cortina' },
   { item: 'wall-painting', label: 'Quadro' },
@@ -82,7 +89,7 @@ function firstGid(doc: TiledDoc, id: TilesetId): number | null {
 }
 
 /** Tilesets de móveis colocáveis: o `furniture` (16x16) e os de várias células. */
-export const FURNITURE_TILESETS = TILESET_IDS.filter((id) => id.startsWith('furniture'));
+export const FURNITURE_TILESETS = TILESET_IDS.filter((id) => id.startsWith('furniture') && id !== 'furniture-2x3');
 
 export const FURNITURE_OPTIONS = FURNITURE_TILESETS.flatMap((tileset) =>
   Object.entries(TILESETS[tileset].items).map(([frame, item]) => ({ tileset, frame: Number(frame), item })),
@@ -103,10 +110,13 @@ export class EditorController {
   furniture: FurnitureChoice = FURNITURE_OPTIONS[0] ?? { tileset: 'furniture', frame: 0 };
   eraseLayer: 'walls' | 'floor' = 'walls';
   deskOrientation: Dir = 'down';
+  deskArrangement: DeskArrangement = 'single';
+  deskCount = 3;
+  deskPlacementBlocked = false;
   selection: Selection | null = null;
   version = 0;
   private readonly listeners = new Set<() => void>();
-  private errorsCache: { version: number; errors: MapError[] } | null = null;
+  private compiledCache: { version: number; result: CompileResult } | null = null;
 
   /** Documento salvo de referência, para saber se há edição a perder ao sair. */
   private baseline: string;
@@ -130,25 +140,31 @@ export class EditorController {
     return () => this.listeners.delete(listener);
   }
 
-  /** Erros do contrato no mapa em edição, recalculados só quando o documento muda. */
-  errors(): MapError[] {
-    if (this.errorsCache?.version !== this.stack.version) {
-      const result = compileMap(this.doc);
-      this.errorsCache = { version: this.stack.version, errors: result.ok ? [] : result.errors };
+  /** Recompila somente quando o documento muda. */
+  compiled(): CompileResult {
+    if (this.compiledCache?.version !== this.stack.version) {
+      this.compiledCache = { version: this.stack.version, result: compileMap(this.doc) };
     }
-    return this.errorsCache.errors;
+    return this.compiledCache.result;
+  }
+
+  errors(): MapError[] {
+    const result = this.compiled();
+    return result.ok ? [] : result.errors;
   }
 
   setTool(tool: Tool): void {
     this.tool = tool;
+    this.deskPlacementBlocked = false;
     if (tool !== 'select') this.selection = null;
     this.changed();
   }
 
   setOption(
-    patch: Partial<Pick<EditorController, 'floorFrame' | 'wallFrame' | 'rug' | 'furniture' | 'eraseLayer' | 'deskOrientation'>>,
+    patch: Partial<Pick<EditorController, 'floorFrame' | 'wallFrame' | 'rug' | 'furniture' | 'eraseLayer' | 'deskOrientation' | 'deskArrangement' | 'deskCount'>>,
   ): void {
     Object.assign(this, patch);
+    this.deskPlacementBlocked = false;
     this.changed();
   }
 
@@ -185,8 +201,17 @@ export class EditorController {
         break;
       }
       case 'desk': {
-        this.stack.execute(addDesk(doc, tx, ty, this.deskOrientation));
-        this.selectLast('desks');
+        const command = this.deskArrangement === 'single'
+          ? addDesk(doc, tx, ty, this.deskOrientation)
+          : addDeskGroup(doc, tx, ty, this.deskOrientation, this.deskArrangement, this.deskCount);
+        this.deskPlacementBlocked = !command;
+        if (command) {
+          if (this.deskArrangement !== 'single') this.selection = null;
+          this.stack.execute(command);
+          if (this.deskArrangement === 'single') this.selectLast('desks');
+        } else {
+          this.changed();
+        }
         break;
       }
       case 'spawn':
@@ -199,6 +224,14 @@ export class EditorController {
       default:
         break;
     }
+  }
+
+  /** Prévia da bancada no tile sob o cursor, com validade para a área e as cadeiras. */
+  deskGroupPreview(x: number, y: number) {
+    if (this.deskArrangement === 'single') return null;
+    const placements = deskGroupLayout(x, y, this.deskOrientation, this.deskArrangement, this.deskCount);
+    const result = this.compiled();
+    return { placements, valid: result.ok && canPlaceDeskGroup(result.map, placements) };
   }
 
   /** Fim do arrasto da ferramenta de tapete: pinta o retângulo com o tapete escolhido. */
@@ -229,9 +262,15 @@ export class EditorController {
     this.changed();
   }
 
+  selectedGameTable(): ReturnType<typeof gameTableOf> {
+    const object = this.selection?.layer === 'furniture' ? this.selected() : undefined;
+    return object ? gameTableOf(this.doc, object) : undefined;
+  }
+
   rotateSelected(): void {
-    if (this.selection?.layer !== 'desks') return;
-    this.stack.execute(rotateDesk(this.doc, this.selection.id));
+    const selection = this.selection;
+    if (selection?.layer === 'desks') this.stack.execute(rotateDesk(this.doc, selection.id));
+    if (selection?.layer === 'furniture') this.stack.execute(rotateGameTable(this.doc, selection.id));
   }
 
   setZone(values: { name?: string; type?: ZoneType }): void {

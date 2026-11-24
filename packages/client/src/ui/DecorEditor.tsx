@@ -114,7 +114,7 @@ function DeskPreview({ desk, decor }: { desk: CompiledDesk; decor: DeskDecor }) 
             left: (sprite.dx - left) * PREVIEW_SCALE,
             top: (sprite.dy - TILE_PX - top) * PREVIEW_SCALE,
             zIndex: i + 1,
-            transform: sprite.flip ? 'scaleX(-1)' : undefined,
+            transform: 'scale(' + [sprite.flip ? -1 : 1, sprite.flipY ? -1 : 1].join(',') + ')',
           }}
         />
       ))}

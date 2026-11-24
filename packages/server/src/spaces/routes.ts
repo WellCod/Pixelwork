@@ -2,6 +2,7 @@ import { orgMembers, orgs, spaceMembers, spaces } from '@pixelwork/shared/schema
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { requireUser, type AuthDeps } from '../auth/routes.ts';
+import { canEditSpaceMap } from './access.ts';
 import { resolveMembership } from './members.ts';
 
 export function registerSpaceRoutes(app: FastifyInstance, deps: AuthDeps): void {
@@ -41,6 +42,6 @@ export function registerSpaceRoutes(app: FastifyInstance, deps: AuthDeps): void 
       .where(eq(spaces.id, membership.spaceId));
     const space = rows[0];
     if (!space) return reply.code(404).send({ error: 'not_found' });
-    return { ...space, role: membership.role };
+    return { ...space, role: membership.role, canEditMap: await canEditSpaceMap(deps, membership) };
   });
 }

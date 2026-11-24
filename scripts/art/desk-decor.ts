@@ -99,6 +99,38 @@ export const laptop = item((canvas) => {
   canvas.outline('dusk');
 });
 
+// Costas e perfil dos monitores mantêm a base alinhada ao tampo quando a estação gira.
+export const monitorSingleBack = item((canvas) => {
+  canvas.box(3, 3, 10, 7, RAMPS.charcoal).hline(5, 5, 6, 'dusk').px(8, 8, 'gray');
+  canvas.rect(7, 10, 2, 2, 'dusk').hline(5, 12, 6, 'dusk');
+});
+
+export const monitorDualBack = item((canvas) => {
+  canvas.box(0, 4, 8, 6, RAMPS.charcoal).box(8, 4, 8, 6, RAMPS.charcoal);
+  canvas.hline(2, 6, 4, 'dusk').hline(10, 6, 4, 'dusk');
+  canvas.rect(7, 10, 2, 2, 'dusk').hline(4, 12, 8, 'dusk');
+});
+
+export const laptopBack = item((canvas) => {
+  canvas.box(4, 5, 8, 6, RAMPS.metal).px(8, 8, 'white').hline(3, 11, 10, 'dusk');
+});
+
+export const monitorSingleSide = item((canvas) => {
+  canvas.box(7, 3, 4, 7, RAMPS.charcoal).vline(7, 4, 5, 'sky');
+  canvas.rect(8, 10, 2, 2, 'dusk').hline(6, 12, 6, 'dusk');
+});
+
+export const monitorDualSide = item((canvas) => {
+  canvas.box(8, 3, 4, 6, RAMPS.charcoal).vline(8, 4, 4, 'sky');
+  canvas.box(5, 5, 5, 6, RAMPS.charcoal).vline(5, 6, 4, 'ice');
+  canvas.rect(8, 10, 2, 2, 'dusk').hline(5, 12, 8, 'dusk');
+});
+
+export const laptopSide = item((canvas) => {
+  canvas.rect(9, 6, 2, 5, 'dusk').px(9, 6, 'ice').vline(9, 7, 3, 'sky');
+  canvas.hline(5, 10, 6, 'mist').hline(5, 11, 6, 'dusk');
+});
+
 // ---- itens sobre a mesa ----
 
 export const mug = item((canvas) => {

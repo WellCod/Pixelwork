@@ -1,5 +1,6 @@
 import {
   PROXIMITY_ENTER_TILES,
+  TILE_PX,
   TILESETS,
   type TilesetId,
   type CompiledDesk,
@@ -16,20 +17,21 @@ export function deskAtChair(map: CompiledMap, x: number, y: number): CompiledDes
   return map.desks.find((desk) => desk.chairX === x && desk.chairY === y);
 }
 
-/**
- * Sentado = na cadeira da própria mesa. Devolve para onde a pessoa olha (para a mesa),
- * ou null se não estiver sentada.
- */
-export function seatedFacing(
+/** Pose na cadeira da própria mesa, com deslocamento em pixels até o meio da borda. */
+export function seatedPose(
   map: CompiledMap,
   desks: ReadonlyMap<string, DeskState>,
   userId: string,
   x: number,
   y: number,
-): Dir | null {
+): { facing: Dir; dx: number; dy: number } | null {
   const desk = deskAtChair(map, x, y);
   if (!desk || desks.get(desk.key)?.userId !== userId) return null;
-  return OPPOSITE[desk.orientation];
+  return {
+    facing: OPPOSITE[desk.orientation],
+    dx: ((desk.width - 1) * TILE_PX) / 2,
+    dy: ((desk.height - 1) * TILE_PX) / 2,
+  };
 }
 
 /** Distância euclidiana entre centros de tile, no raio de entrada da proximidade. */
@@ -46,9 +48,9 @@ export type Slot = 'left' | 'right' | 'back' | 'floor';
  */
 export const SLOT_OFFSET_WIDE: Record<Dir, Record<Slot | 'monitor', [x: number, y: number]>> = {
   down: { monitor: [8, -2], left: [-3, -3], right: [19, -3], back: [8, -14], floor: [30, 2] },
-  up: { monitor: [8, -2], left: [19, -3], right: [-3, -3], back: [8, 14], floor: [-14, -2] },
-  left: { monitor: [0, -17], left: [0, -3], right: [0, -27], back: [-14, -8], floor: [2, 14] },
-  right: { monitor: [0, -17], left: [0, -27], right: [0, -3], back: [14, -8], floor: [-2, -30] },
+  up: { monitor: [8, -1], left: [19, -3], right: [-3, -3], back: [8, 14], floor: [-14, -2] },
+  left: { monitor: [2, -17], left: [0, -3], right: [0, -27], back: [-14, -8], floor: [2, 14] },
+  right: { monitor: [-2, -17], left: [0, -27], right: [0, -3], back: [14, -8], floor: [-2, -30] },
 };
 
 /**
@@ -107,6 +109,7 @@ export interface DeskSprite {
   /** Ordem de desenho relativa à base da mesa (somada à profundidade da base no jogo). */
   z: number;
   flip: boolean;
+  flipY: boolean;
 }
 
 const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
@@ -119,24 +122,28 @@ const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
 export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSprite[] {
   const TILE = 16;
   const sprites: DeskSprite[] = [];
-  const add = (item: string | null, dx: number, dy: number, z: number, flip = false) => {
-    if (item) sprites.push({ item, dx, dy, z, flip });
+  const add = (item: string | null, dx: number, dy: number, z: number, flip = false, flipY = false) => {
+    if (item) sprites.push({ item, dx, dy, z, flip, flipY });
   };
   const variant = decor?.variant ?? 'basic';
   const wide = desk.width === 2;
   const tall = desk.height === 2;
-  // Mesa de 2 tiles: o desenho é cortado em metades no tileset e remontado aqui.
+  const up = desk.orientation === 'up';
+  const right = desk.orientation === 'right';
+  // Na fileira oposta, o tampo gira 180° e o gaveteiro muda de lado.
   if (wide) {
-    add(`${variant}-wide-l`, 0, 0, 0);
-    add(`${variant}-wide-r`, TILE, 0, 0);
+    add(`${variant}-wide-l`, up ? TILE : 0, 0, 0, up, up);
+    add(`${variant}-wide-r`, up ? 0 : TILE, 0, 0, up, up);
   } else if (tall) {
-    add(`${variant}-tall-t`, 0, -TILE, 0);
-    add(`${variant}-tall-b`, 0, 0, 0);
+    add(`${variant}-tall-t`, 0, -TILE, 0, right);
+    add(`${variant}-tall-b`, 0, 0, 0, right);
   } else {
-    add(variant, 0, 0, 0);
+    add(variant, 0, 0, 0, up || right, up);
   }
-  const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, -2] as const };
-  add(`monitor-${decor?.monitor ?? 'single'}`, offsets.monitor[0], offsets.monitor[1], 0.1);
+  const offsets = wide || tall ? SLOT_OFFSET_WIDE[desk.orientation] : { ...SLOT_OFFSET[desk.orientation], monitor: [0, up ? -1 : -2] as const };
+  const angle = up ? '-back' : desk.orientation === 'left' || right ? '-side' : '';
+  const monitor = `monitor-${decor?.monitor ?? 'single'}${angle}`;
+  add(monitor, offsets.monitor[0], offsets.monitor[1], 0.1, right);
   if (!decor) return sprites;
   // Sem parede atrás, a decoração "de parede" vai presa numa divisória em vez de flutuar.
   const divider = decor.slots.back ? dividerLayout(desk) : null;

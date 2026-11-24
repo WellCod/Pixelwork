@@ -1,7 +1,7 @@
 import { isSingleEmoji, type Player, type Status } from '@pixelwork/shared';
 import { useState, type SubmitEvent } from 'react';
 import { orgApi, profileApi } from '../api.ts';
-import { seatedFacing } from '../game/presence.ts';
+import { seatedPose } from '../game/presence.ts';
 import type { CallStore } from '../net/call-store.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useCalls } from './CallUi.tsx';
@@ -37,7 +37,7 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
   const [error, setError] = useState<string | null>(null);
   // Chamada só sai da própria mesa (o servidor confere de novo).
   const seatedAtOwnDesk =
-    world.selfId !== null && seatedFacing(world.map, world.desks, world.selfId, world.self.x, world.self.y) !== null;
+    world.selfId !== null && seatedPose(world.map, world.desks, world.selfId, world.self.x, world.self.y) !== null;
   // Dá para ligar para outra pessoa que não está em chamada, e só sem chamada própria em curso.
   const canCall = (player: Player) =>
     player.id !== world.selfId && player.activity !== 'call' && calls.state.kind === 'idle';

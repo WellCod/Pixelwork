@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { requireUser, type AuthDeps } from '../auth/routes.ts';
 import type { SessionUser } from '../auth/sessions.ts';
+import { findDemoSpaceId } from '../demo.ts';
 import { resolveMembership, type Membership } from './members.ts';
 
 export interface SpaceParams {
@@ -25,4 +26,10 @@ export async function requireMember(
   }
   // O id que segue para as consultas é o validado pela resolução, nunca o parâmetro cru.
   return { user, membership, spaceId: membership.spaceId };
+}
+
+/** Membros da demo podem editar seu mapa sem ganhar permissões de administrador. */
+export async function canEditSpaceMap(deps: AuthDeps, membership: Membership): Promise<boolean> {
+  if (membership.role === 'admin') return true;
+  return membership.spaceId === await findDemoSpaceId(deps.db, deps.config.demoSpaceSlug);
 }

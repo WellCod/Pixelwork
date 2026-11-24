@@ -12,14 +12,20 @@ const GAMES_MAP = buildTestMap({
   width: 12,
   height: 9,
   desks: [{ key: 'mesa-1', x: 1, y: 6, orientation: 'down' }],
-  furniture: [{ tileset: 'furniture-3x2', tile: frameOf('furniture-3x2', 'ping-pong'), x: 4, y: 4, w: 3, h: 2 }],
+  furniture: [
+    { tileset: 'furniture-3x2', tile: frameOf('furniture-3x2', 'ping-pong'), x: 4, y: 4, w: 3, h: 2 },
+    { tileset: 'furniture-3x2', tile: frameOf('furniture-3x2', 'foosball'), x: 8, y: 5, w: 3, h: 2 },
+  ],
   spawns: [[1, 1]],
 });
 const KEY = 'ping-pong@4,3';
+const FOOSBALL_KEY = 'foosball@8,4';
+const TO_FOOSBALL_LEFT: Dir[] = ['right', 'right', 'right', 'right', 'right', 'right', 'right', 'down', 'down'];
+const TO_FOOSBALL_RIGHT: Dir[] = ['right', 'right', 'right', 'right', 'right', 'right', 'down', 'down', 'down', 'down', 'down', 'right'];
 const TO_LEFT: Dir[] = ['right', 'right', 'down', 'down'];
 const TO_RIGHT: Dir[] = ['right', 'right', 'right', 'right', 'right', 'right', 'down', 'down'];
 
-describe('pingpong no runtime', () => {
+describe('mesas de jogo no runtime', () => {
   let server: TestServer;
   const bots: Bot[] = [];
 
@@ -63,8 +69,45 @@ describe('pingpong no runtime', () => {
     alice.bot.send({ t: 'game.input', seq: 1, dir: 1 });
     await alice.bot.flush();
     server.clock.advance(1000);
-    const state = await bob.bot.next('game.state', (message) => message.paddles.left > 45);
+    const state = await bob.bot.next('game.state', (message) => (message.paddles?.left ?? 0) > 45);
     expect(state).toMatchObject({ tableKey: KEY, paddles: { right: 45 } });
+  });
+
+  it('pebolim contra o bot sincroniza hastes e aceita o comando de chute', async () => {
+    const alice = await online();
+    await alice.bot.walk(server.clock, TO_FOOSBALL_LEFT);
+    alice.bot.send({ t: 'game.join', tableKey: FOOSBALL_KEY });
+    alice.bot.send({ t: 'game.bot' });
+    await alice.bot.flush();
+    expect((await alice.bot.next('table.state', (message) => message.table.right === 'bot')).table.tableKey).toBe(FOOSBALL_KEY);
+    alice.bot.send({ t: 'game.input', seq: 1, dir: 1 });
+    await alice.bot.flush();
+    server.clock.advance(3050);
+    const state = await alice.bot.next('game.state', (message) => message.phase === 'playing');
+    expect(state).toMatchObject({ tableKey: FOOSBALL_KEY, ack: 1, foosball: { rods: { left: 62 } } });
+    alice.bot.send({ t: 'game.kick' });
+    await alice.bot.flush();
+    server.clock.advance(100);
+    const kicked = await alice.bot.next('game.state', (message) => typeof message.foosball?.kickAt.left === 'number');
+    expect(kicked.tableKey).toBe(FOOSBALL_KEY);
+  });
+
+  it('pebolim entre duas pessoas ativa a mesma mesa e encerra por desistência', async () => {
+    const alice = await online();
+    const bob = await online();
+    await alice.bot.walk(server.clock, TO_FOOSBALL_LEFT);
+    await bob.bot.walk(server.clock, TO_FOOSBALL_RIGHT);
+    alice.bot.send({ t: 'game.join', tableKey: FOOSBALL_KEY });
+    bob.bot.send({ t: 'game.join', tableKey: FOOSBALL_KEY });
+    await alice.bot.flush();
+    await bob.bot.flush();
+    expect((await bob.bot.next('table.state', (message) => message.table.phase === 'playing')).table)
+      .toMatchObject({ tableKey: FOOSBALL_KEY, left: alice.guest.id, right: bob.guest.id });
+    server.clock.advance(100);
+    expect(await bob.bot.next('game.state')).toMatchObject({ tableKey: FOOSBALL_KEY, foosball: { rods: { left: 45, right: 45 } } });
+    alice.bot.send({ t: 'game.leave' });
+    const end = await bob.bot.next('game.events', (message) => message.events.some((event) => event.type === 'end'));
+    expect(end.events).toContainEqual({ type: 'end', winner: 'right' });
   });
 
   it('move de quem está na mesa não anda', async () => {
@@ -139,3 +182,40 @@ describe('pingpong no runtime', () => {
   });
 });
 
+
+it('inicia partida de pingpong acima e abaixo da mesa girada', async () => {
+  const tileset = 'furniture-2x3';
+  const map = buildTestMap({
+    width: 12,
+    height: 9,
+    furniture: [{ tileset, tile: frameOf(tileset, 'ping-pong-vertical'), x: 4, y: 5, w: 2, h: 3 }],
+    spawns: [[1, 1]],
+  });
+  const server = await startTestServer({ map, media: new FakeMedia() });
+  const connected: Bot[] = [];
+  const connect = async () => {
+    const guest = await loginGuest(server);
+    const bot = await Bot.connect(server, guest);
+    connected.push(bot);
+    await bot.next('welcome');
+    return { guest, bot };
+  };
+  try {
+    const alice = await connect();
+    const bob = await connect();
+    await alice.bot.walk(server.clock, ['right', 'right', 'right', 'down']);
+    await bob.bot.walk(server.clock, ['right', 'right', 'down', 'down', 'down']);
+    alice.bot.send({ t: 'game.join', tableKey: KEY });
+    bob.bot.send({ t: 'game.join', tableKey: KEY });
+    expect(await bob.bot.next('error')).toEqual({ t: 'error', code: 'table_not_at_side' });
+    await bob.bot.walk(server.clock, ['down', 'down', 'right']);
+    bob.bot.send({ t: 'game.join', tableKey: KEY });
+    const state = await alice.bot.next('table.state', (message) => message.table.phase === 'playing');
+    expect(state.table).toMatchObject({ tableKey: KEY, left: alice.guest.id, right: bob.guest.id });
+    expect(server.app.realtime.runtime(server.spaceId)?.positionOf(alice.guest.id)).toEqual({ x: 4, y: 2 });
+    expect(server.app.realtime.runtime(server.spaceId)?.positionOf(bob.guest.id)).toEqual({ x: 4, y: 6 });
+  } finally {
+    await Promise.all(connected.map((bot) => bot.close()));
+    await server.stop();
+  }
+});

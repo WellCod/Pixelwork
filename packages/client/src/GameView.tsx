@@ -14,7 +14,7 @@ import { Connection, type ConnectionStatus } from './net/connection.ts';
 import { CallUi } from './ui/CallUi.tsx';
 import { ChatBox } from './ui/ChatBox.tsx';
 import { DeskBar } from './ui/DeskBar.tsx';
-import { PongWindow } from './ui/PongWindow.tsx';
+import { GameWindow } from './ui/GameWindow.tsx';
 import { TableBar } from './ui/TableBar.tsx';
 import { MediaControls } from './ui/MediaControls.tsx';
 import { RoomPanel } from './ui/RoomPanel.tsx';
@@ -66,7 +66,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const [replayOpen, setReplayOpen] = useState(false);
   const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
-  // Estável entre renderizações (só lê o ref da conexão): o PongWindow recria o controle da raquete
+  // Estável entre renderizações (só lê o ref da conexão): o GameWindow recria os controles
   // quando o send muda, e isso soltava as teclas seguradas no meio da partida.
   const send = useCallback((message: ClientMsg) => connection.current?.send(message), []);
 
@@ -178,7 +178,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             )}
           </div>
           {!editor && <ChatBox world={world} send={send} />}
-          {!editor && <PongWindow world={world} send={send} />}
+          {!editor && <GameWindow world={world} send={send} />}
           {!editor && <NetOverlay sim={netSim} world={world} stats={netStats} />}
           {!editor && space.role === 'admin' && (
             <button type="button" className="replay-toggle" title="Replay da simulação" onClick={() => setReplayOpen(true)}>

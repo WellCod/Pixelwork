@@ -84,8 +84,8 @@ describe('GameRegistry', () => {
     games.input('a', 1, 1);
     clock.advance(1000);
     const state = lastState('b');
-    expect(state?.paddles.left).toBe(81);
-    expect(state?.paddles.right).toBe(45);
+    expect(state?.paddles?.left).toBe(81);
+    expect(state?.paddles?.right).toBe(45);
     expect(lastState('a')?.ack).toBe(1);
   });
 
@@ -111,7 +111,7 @@ describe('GameRegistry', () => {
     games.bot('a');
     games.input('x', 1, 1);
     clock.advance(500);
-    expect(lastState('a')?.paddles.left).toBe(45);
+    expect(lastState('a')?.paddles?.left).toBe(45);
     expect(lastState('x')).toBeUndefined();
   });
 
@@ -180,7 +180,7 @@ describe('GameRegistry', () => {
     games.input('a', 1, 1);
     clock.advance(100);
     expect(lastState('a')).toMatchObject({ ack: 1 });
-    expect(lastState('a')?.paddles.left).toBeGreaterThan(45);
+    expect(lastState('a')?.paddles?.left).toBeGreaterThan(45);
   });
 
   it('reconectar sem partida pausada não cria intervalo', () => {
@@ -276,11 +276,11 @@ describe('GameRegistry', () => {
     games.join('b', KEY, RIGHT, false);
     games.input('a', 1, 1);
     clock.advance(100);
-    const before = lastState('b')?.paddles.left;
+    const before = lastState('b')?.paddles?.left;
     games.disconnected('a');
     games.reconnected('a');
     clock.advance(PONG.COUNTDOWN_MS + 200);
-    expect(lastState('b')?.paddles.left).toBe(before);
+    expect(lastState('b')?.paddles?.left).toBe(before);
   });
 });
 

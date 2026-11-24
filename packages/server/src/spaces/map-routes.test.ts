@@ -1,9 +1,10 @@
 import { CREDITS, RECONNECT_GRACE_MS, TILESET_IDS, compileMap, type Dir, type ServerMsg } from '@pixelwork/shared';
-import { deskAssignments, spaceMembers, spaces } from '@pixelwork/shared/schema';
+import { deskAssignments, orgs, spaceMembers, spaces } from '@pixelwork/shared/schema';
 import { buildTestMap, type TestMapOptions } from '@pixelwork/shared/testing';
 import { and, eq, sql } from 'drizzle-orm';
 import { strFromU8, unzipSync } from 'fflate';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { uuidv7 } from '../ids.ts';
 import { FakeMedia } from '../test/fake-media.ts';
 import { Bot, api, loginGuest, startTestServer, until, type Guest, type TestServer } from '../test/harness.ts';
 
@@ -88,7 +89,30 @@ describe('mapas: upload, troca ao vivo e export', () => {
       errors: [{ code: 'not_orthogonal' }],
       orphanDesks: [],
     });
-    expect((await api(server, player.guest, 'POST', space('/map/validate'), { map: withoutDesk3 })).status).toBe(403);
+    expect((await api(server, player.guest, 'POST', space('/map/validate'), { map: withoutDesk3 })).json).toEqual({ errors: [], orphanDesks: ['mesa-3'] });
+  });
+
+  it('membro da demo pode salvar o mapa sem virar administrador', async () => {
+    const guest = await loginGuest(server);
+    const before = await version();
+    expect((await api(server, guest, 'GET', space(''))).json).toMatchObject({ role: 'member', canEditMap: true });
+    expect((await api(server, guest, 'PUT', space('/map'), { map: MAP_V1, baseVersion: before })).json)
+      .toEqual({ version: before + 1, orphanDesks: [] });
+    expect((await api(server, guest, 'GET', space('/replay'))).status).toBe(403);
+    expect((await api(server, guest, 'GET', space('/map/export'))).status).toBe(403);
+  });
+
+  it('membro de outro coworking com slug demo não pode editar o mapa', async () => {
+    const guest = await loginGuest(server);
+    const orgId = uuidv7();
+    const spaceId = uuidv7();
+    await server.db.insert(orgs).values({ id: orgId, slug: 'outra-empresa', name: 'Outra empresa' });
+    await server.db.insert(spaces).values({ id: spaceId, orgId, name: 'Outra demo', slug: 'demo', map: MAP_V1 });
+    await server.db.insert(spaceMembers).values({ spaceId, userId: guest.id, role: 'member' });
+    const root = '/spaces/' + spaceId;
+    expect((await api(server, guest, 'GET', root)).json).toMatchObject({ role: 'member', canEditMap: false });
+    expect((await api(server, guest, 'POST', root + '/map/validate', { map: MAP_V1 })).status).toBe(403);
+    expect((await api(server, guest, 'PUT', root + '/map', { map: MAP_V1, baseVersion: 1 })).status).toBe(403);
   });
 
   it('409 com baseVersion antiga', async () => {

@@ -103,7 +103,7 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Mapa editado no Tiled pode vir com firstgid compactado; o editor do app, ao acrescentar um
   tileset que o mapa ainda não referencia, usa o bloco de 100 do catálogo se estiver livre, senão
   o primeiro bloco livre depois de todos.
-- Tilesets: ver seção 9. Os de móveis grandes têm célula maior (32x16, 32x32, 48x32); o tamanho
+- Tilesets: ver seção 9. Os de móveis grandes têm célula maior (32x16, 32x32, 48x32, 32x48); o tamanho
   vem do próprio `.tsj` e o catálogo o expõe como `tileWidth`/`tileHeight`.
 
 ## 6. Manifesto e catálogo
@@ -165,13 +165,14 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 | Tileset | Célula | firstgid | Conteúdo |
 |---------|--------|---------:|----------|
 | `floors` | 16x16 | 1 | 12 pisos (madeira clara e escura, taco, ladrilhos creme, sálvia e névoa para a copa, carpetes cinza, lavanda e azul, cimento, calçada, grama) e 3 tapetes de 16 tiles |
-| `walls` | 16x16 | 101 | 15 tiles: topo, faces clara, sálvia, creme e lilás, janelas, quadro, pôster, relógio, lousa, prateleira, mural, planta pendurada, TV |
+| `walls` | 16x16 | 101 | 16 tiles: topo, divisória vertical, faces clara, sálvia, creme e lilás, janelas, quadro, pôster, relógio, lousa, prateleira, mural, planta pendurada, TV |
 | `furniture` | 16x16 | 201 | 33 móveis pequenos (cadeiras em 4 direções, pufes, 9 plantas, luminária, impressora, extintor etc.) |
 | `desk-decor` | 16x16 | 301 | mesas de 1 tile e metades da mesa larga em 3 variantes, 3 monitores e 23 itens de decoração |
 | `furniture-2x1` | 32x16 | 401 | sofás em 3 cores, mesa de centro, aquário, banco, aparador |
 | `furniture-2x2` | 32x32 | 501 | mesa redonda, estante alta, geladeira, árvore, máquina de lanches, fliperama, vaso grande, lousa de pé |
 | `furniture-3x2` | 48x32 | 601 | mesa de reunião, bancada de copa, pingue-pongue, sofá em L, recepção, pebolim |
-| `desk-decor-extras` | 16x16 | 701 | 10 itens de tampo, parede e chão em tileset próprio para preservar os GIDs do conjunto anterior |
+| `desk-decor-extras` | 16x16 | 701 | 10 itens de tampo, parede e chão e 6 vistas de monitores, em tileset separado |
+| `furniture-2x3` | 32x48 | 801 | pingue-pongue e pebolim na vertical |
 
 - Tapete: 16 tiles por tapete, um para cada combinação de bordas (máscara N=1, S=2, O=4, L=8),
   pintados pela ferramenta Tapete do editor (`paintRug`). Qualquer retângulo, até 1x1, fecha a borda.

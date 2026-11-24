@@ -1,7 +1,9 @@
-import { TILESETS, TILESET_IDS, TILE_PX, tilesetImageUrl } from '@pixelwork/shared';
+import { TILESETS, TILESET_IDS, TILE_PX, gameTableLayout, gameTableSides, isWalkable, tilesetImageUrl, type CompiledDesk } from '@pixelwork/shared';
 import { propertyValue, textProp, type TiledObject } from '@pixelwork/shared/editor';
 import * as Phaser from 'phaser';
 import { isTyping, releaseFocus } from '../input-focus.ts';
+import { drawDeskJoins } from '../game/desk-joins.ts';
+import { deskDecorFrame, deskSprites } from '../game/presence.ts';
 import { baseZoom } from '../game/scale.ts';
 import { embedTilesets, resolveGid } from '../game/tiled.ts';
 import type { EditorController } from './editor-controller.ts';
@@ -29,6 +31,7 @@ export class EditorScene extends Phaser.Scene {
   private stroke: [number, number][] = [];
   private dragStart: { x: number; y: number } | null = null;
   private hover: { x: number; y: number } | null = null;
+  private deskPreview: { x: number; y: number; version: number; value: ReturnType<EditorController['deskGroupPreview']> } | null = null;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private unsubscribe: (() => void) | null = null;
 
@@ -111,6 +114,7 @@ export class EditorScene extends Phaser.Scene {
       if (this.controller.selection) this.dragStart = tile;
     } else {
       this.controller.click(tile.x, tile.y);
+      if (tool === 'desk' && this.controller.deskArrangement !== 'single' && !this.controller.deskPlacementBlocked) this.hover = null;
     }
   }
 
@@ -146,11 +150,12 @@ export class EditorScene extends Phaser.Scene {
       } else if (start.x !== tile.x || start.y !== tile.y) {
         const selected = this.controller.selected();
         if (selected && this.controller.selection) {
-          // Zona move pelo canto: o deslocamento do arraste vale para o canto superior esquerdo.
-          const origin =
-            this.controller.selection.layer === 'zones'
-              ? { x: selected.x / TILE_PX, y: selected.y / TILE_PX }
-              : start;
+          // Arrastar pela segunda metade do móvel não deve mover a sua âncora até o mouse.
+          const layer = this.controller.selection.layer;
+          const origin = {
+            x: Math.floor(selected.x / TILE_PX),
+            y: Math.floor(selected.y / TILE_PX) - (layer === 'furniture' ? 1 : 0),
+          };
           this.controller.moveSelected(origin.x + tile.x - start.x, origin.y + tile.y - start.y);
         }
       }
@@ -187,6 +192,10 @@ export class EditorScene extends Phaser.Scene {
 
     // Profundidades fixas: piso 0, paredes 1, grade 2, zonas 3, móveis e mesas 4, cadeira 5,
     // rótulos 6, spawn 7 e contorno da seleção 8; a prévia do overlay fica em 1000.
+    const compiled = this.controller.compiled();
+    const desks = compiled.ok ? compiled.map.desks : [];
+    const desksByKey = new Map(desks.map((desk) => [desk.key, desk]));
+    this.content.push(...drawDeskJoins(this, desks, 3.9));
     const selection = this.controller.selection;
     const isSelected = (layer: string, object: TiledObject) => selection?.layer === layer && selection.id === object.id;
     for (const layer of doc.layers) {
@@ -194,7 +203,9 @@ export class EditorScene extends Phaser.Scene {
       for (const object of layer.objects) {
         if (layer.name === 'zones') this.drawZone(object, isSelected('zones', object));
         else if (layer.name === 'furniture') this.drawFurniture(object, isSelected('furniture', object));
-        else if (layer.name === 'desks') this.drawDesk(object, isSelected('desks', object));
+        else if (layer.name === 'desks') {
+          this.drawDesk(object, isSelected('desks', object), desksByKey.get(textProp(object, 'desk_key')));
+        }
         else if (layer.name === 'spawn') this.drawSpawn(object, isSelected('spawn', object));
       }
     }
@@ -218,18 +229,44 @@ export class EditorScene extends Phaser.Scene {
     if (!tile) return;
     const image = this.add.image(furniture.x, furniture.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(4);
     this.content.push(image);
-    const width = furniture.width || TILE_PX;
-    const height = furniture.height || TILE_PX;
-    if (selected) this.content.push(this.outline(furniture.x, furniture.y - height, width, height));
+    if (!selected) return;
+    const tileset = TILESETS[tile.id];
+    const width = furniture.width || tileset.tileWidth;
+    const height = furniture.height || tileset.tileHeight;
+    this.content.push(this.outline(furniture.x, furniture.y - height, width, height));
+    const layout = gameTableLayout(tileset.items[tile.frame]);
+    if (!layout) return;
+    const compiled = this.controller.compiled();
+    if (!compiled.ok) return;
+    const { map } = compiled;
+    const top = Math.ceil(furniture.y / TILE_PX) - Math.max(1, Math.round(height / TILE_PX));
+    const footprint = { x: Math.floor(furniture.x / TILE_PX), y: top, width: Math.round(width / TILE_PX), height: Math.round(height / TILE_PX) };
+    const spots = gameTableSides(footprint, layout.sideAxis, map.width, map.height, (x, y) => isWalkable(map, x, y));
+    for (const [side, color] of [['left', 0xfb6b1d], ['right', 0x4d9be6]] as const) {
+      for (const [x, y] of spots[side]) {
+        const dot = this.add.circle((x + 0.5) * TILE_PX, (y + 0.5) * TILE_PX, 2.5, color, 0.95).setDepth(5);
+        this.content.push(dot);
+      }
+    }
   }
 
-  /** Mesa de 1 ou 2 tiles (repete o frame básico no segundo tile), marca da cadeira e chave. */
-  private drawDesk(desk: TiledObject, selected: boolean): void {
+  /** Desenha a mesa e marca a posição da cadeira. Em rascunhos inválidos usa a prévia básica. */
+  private drawDesk(desk: TiledObject, selected: boolean, compiled: CompiledDesk | undefined): void {
     const width = desk.width || TILE_PX;
     const height = desk.height || TILE_PX;
-    const image = this.add.image(desk.x, desk.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4);
-    if (width > TILE_PX) this.content.push(this.add.image(desk.x + TILE_PX, desk.y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
-    if (height > TILE_PX) this.content.push(this.add.image(desk.x, desk.y + TILE_PX, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4));
+    if (compiled) {
+      for (const sprite of deskSprites(compiled, null)) {
+        const frame = deskDecorFrame(sprite.item);
+        if (!frame) continue;
+        this.content.push(this.add.image(desk.x + sprite.dx, desk.y + height + sprite.dy, sheetKey(frame.tileset), frame.frame)
+          .setOrigin(0, 1).setFlip(sprite.flip, sprite.flipY).setDepth(4 + sprite.z));
+      }
+    } else {
+      const draw = (x: number, y: number) => this.add.image(x, y, sheetKey(DESK_TILESET), DESK_FRAME).setOrigin(0).setDepth(4);
+      this.content.push(draw(desk.x, desk.y));
+      if (width > TILE_PX) this.content.push(draw(desk.x + TILE_PX, desk.y));
+      if (height > TILE_PX) this.content.push(draw(desk.x, desk.y + TILE_PX));
+    }
     const orientation = textProp(desk, 'orientation', 'down');
     const [dx, dy] = ARROW[orientation] ?? [0, 1];
     // Marca da cadeira na frente do tile de âncora, encostada na borda da pegada.
@@ -237,7 +274,7 @@ export class EditorScene extends Phaser.Scene {
     const chairY = desk.y + TILE_PX / 2 + (dy > 0 ? height : dy * TILE_PX);
     const chair = this.add.circle(chairX, chairY, 3, 0xfee761, 0.8).setDepth(5);
     const label = this.text(desk.x, desk.y - 8, textProp(desk, 'desk_key')).setDepth(6);
-    this.content.push(image, chair, label);
+    this.content.push(chair, label);
     if (selected) this.content.push(this.outline(desk.x, desk.y, width, height));
   }
 
@@ -257,7 +294,22 @@ export class EditorScene extends Phaser.Scene {
     const graphics = this.overlay;
     graphics.clear();
     if (this.hover) {
-      graphics.lineStyle(1, 0xffffff, 0.6).strokeRect(this.hover.x * TILE_PX, this.hover.y * TILE_PX, TILE_PX, TILE_PX);
+      const { x, y } = this.hover;
+      const { version, tool } = this.controller;
+      if (tool === 'desk' && (this.deskPreview?.version !== version || this.deskPreview.x !== x || this.deskPreview.y !== y)) {
+        this.deskPreview = { x, y, version, value: this.controller.deskGroupPreview(x, y) };
+      }
+      const preview = tool === 'desk' ? this.deskPreview?.value : null;
+      if (preview) {
+        const color = preview.valid ? 0x1ebc73 : 0xe83b3b;
+        for (const desk of preview.placements) {
+          graphics.fillStyle(color, 0.25).fillRect(desk.x * TILE_PX, desk.y * TILE_PX, desk.width * TILE_PX, desk.height * TILE_PX);
+          graphics.lineStyle(1, color, 0.9).strokeRect(desk.x * TILE_PX, desk.y * TILE_PX, desk.width * TILE_PX, desk.height * TILE_PX);
+          graphics.fillStyle(color, 0.95).fillCircle((desk.chairX + 0.5) * TILE_PX, (desk.chairY + 0.5) * TILE_PX, 3);
+        }
+      } else {
+        graphics.lineStyle(1, 0xffffff, 0.6).strokeRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
+      }
     }
     for (const [x, y] of this.stroke) graphics.fillStyle(0xfee761, 0.35).fillRect(x * TILE_PX, y * TILE_PX, TILE_PX, TILE_PX);
     if (this.dragStart && this.hover && (this.controller.tool === 'zone' || this.controller.tool === 'rug')) {

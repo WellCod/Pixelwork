@@ -3,12 +3,17 @@
 import {
   PONG,
   botInput,
+  foosballBotInput,
+  newFoosball,
   newPong,
-  pausePong,
+  resumeFoosball,
   resumePong,
+  stepFoosball,
   stepPong,
   type CompiledTable,
+  type FoosballState,
   type GameSeat,
+  type PongEvent,
   type PongDir,
   type PongSide,
   type PongState,
@@ -40,9 +45,12 @@ export type JoinError = 'table_not_found' | 'table_not_at_side' | 'table_side_ta
 const BOT = 'bot';
 
 /** Partida em andamento: estado da simulação, última direção de cada lado e pedidos de revanche. */
+type MatchState = PongState | FoosballState;
+
 interface Match {
-  state: PongState;
-  inputs: { left: PongDir; right: PongDir };
+  state: MatchState;
+  inputs: Record<PongSide, PongDir>;
+  kicks: Set<PongSide>;
   /** Laço de quadros; null quando a partida está pausada ou terminou. */
   timer: Timer | null;
   rematch: Set<PongSide>;
@@ -63,7 +71,7 @@ const isHuman = (occupant: string | null): occupant is string => occupant !== nu
 
 /**
  * Estado de todas as mesas de jogo de um coworking. O servidor é a autoridade da partida: o
- * cliente só manda direção e recebe o estado de cada quadro.
+ * cliente manda direção ou chute e recebe o estado de cada quadro.
  */
 export class GameRegistry {
   private readonly tables = new Map<string, Table>();
@@ -121,13 +129,20 @@ export class GameRegistry {
     this.broadcastTable(table);
   }
 
-  /** Direção da raquete; `seq` repetido ou fora de ordem é descartado. */
+  /** Direção da raquete ou das hastes; `seq` repetido ou fora de ordem é descartado. */
   input(userId: string, seq: number, dir: PongDir): void {
     const seat = this.seats.get(userId);
     const table = seat && this.tables.get(seat.tableKey);
     if (!seat || !table?.match || seq <= (table.acks.get(userId) ?? 0)) return;
     table.acks.set(userId, seq);
     table.match.inputs[seat.side] = dir;
+  }
+
+  /** Guarda um chute por lado até o próximo quadro. O jogo controla o intervalo entre chutes. */
+  kick(userId: string): void {
+    const seat = this.seats.get(userId);
+    const match = this.tableOf(userId)?.match;
+    if (seat && match && 'rods' in match.state && match.state.phase === 'playing') match.kicks.add(seat.side);
   }
 
   /** Revanche: contra o bot recomeça na hora; 1x1, quando os dois pedirem. */
@@ -169,11 +184,14 @@ export class GameRegistry {
     const match = table?.match;
     // A tecla solta durante a queda nunca chega: a raquete para em vez de correr até a parede.
     const seat = this.seats.get(userId);
-    if (match && seat) match.inputs[seat.side] = 0;
+    if (match && seat) {
+      match.inputs[seat.side] = 0;
+      match.kicks.delete(seat.side);
+    }
     if (!table || !match || match.state.phase === 'ended' || match.state.phase === 'paused') return;
     match.timer?.cancel();
     match.timer = null;
-    match.state = pausePong(match.state);
+    match.state = { ...match.state, phase: 'paused' };
     this.sendState(table, match.state);
   }
 
@@ -186,7 +204,8 @@ export class GameRegistry {
     const match = table?.match;
     if (!table || !match || match.state.phase !== 'paused') return;
     if ([table.left, table.right].some((id) => isHuman(id) && this.offline.has(id))) return;
-    match.state = resumePong(match.state, this.host.clock.now());
+    const now = this.host.clock.now();
+    match.state = 'rods' in match.state ? resumeFoosball(match.state, now) : resumePong(match.state, now);
     match.timer = this.host.scheduler.setInterval(() => this.runFrame(table, match), PONG.FRAME_MS);
   }
 
@@ -247,7 +266,9 @@ export class GameRegistry {
   private startMatch(table: Table): void {
     this.stopMatch(table);
     const { clock, scheduler } = this.host;
-    const match: Match = { state: this.createMatchState(clock.now()), inputs: { left: 0, right: 0 }, timer: null, rematch: new Set() };
+    const now = clock.now();
+    const state = table.definition.game === 'foosball' ? newFoosball(now) : this.createMatchState(now);
+    const match: Match = { state, inputs: { left: 0, right: 0 }, kicks: new Set(), timer: null, rematch: new Set() };
     table.match = match;
     match.timer = scheduler.setInterval(() => this.runFrame(table, match), PONG.FRAME_MS);
   }
@@ -261,11 +282,7 @@ export class GameRegistry {
   private runFrame(table: Table, match: Match): void {
     const frameStartedAt = performance.now();
     const previousState = match.state;
-    const inputs = {
-      left: table.left === BOT ? botInput(previousState, 'left') : match.inputs.left,
-      right: table.right === BOT ? botInput(previousState, 'right') : match.inputs.right,
-    };
-    const { state, events } = stepPong(previousState, inputs, this.host.clock.now());
+    const { state, events } = this.advance(table, match, this.host.clock.now());
     match.state = state;
     this.sendState(table, state);
     if (state.phase === 'ended') {
@@ -284,7 +301,26 @@ export class GameRegistry {
     this.host.observeFrame?.((performance.now() - frameStartedAt) / 1000);
   }
 
-  private sendState(table: Table, state: PongState): void {
+  private advance(table: Table, match: Match, now: number): { state: MatchState; events: PongEvent[] } {
+    const { state, inputs, kicks } = match;
+    if ('rods' in state) {
+      const input = (side: PongSide) => table[side] === BOT
+        ? foosballBotInput(state, side)
+        : { dir: inputs[side], kick: kicks.has(side) };
+      const result = stepFoosball(state, { left: input('left'), right: input('right') }, now);
+      kicks.clear();
+      return result;
+    }
+    return stepPong(state, {
+      left: table.left === BOT ? botInput(state, 'left') : inputs.left,
+      right: table.right === BOT ? botInput(state, 'right') : inputs.right,
+    }, now);
+  }
+
+  private sendState(table: Table, state: MatchState): void {
+    const positions = 'rods' in state
+      ? { foosball: { rods: state.rods, kickAt: state.kickAt } }
+      : { paddles: state.paddles };
     for (const playerId of [table.left, table.right].filter(isHuman)) {
       this.host.send(playerId, {
         t: 'game.state',
@@ -293,7 +329,7 @@ export class GameRegistry {
         phase: state.phase,
         serveAt: state.serveAt,
         ball: state.ball,
-        paddles: state.paddles,
+        ...positions,
         score: state.score,
         serverTs: state.at,
       });

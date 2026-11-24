@@ -111,6 +111,66 @@
           "value": "floor-corgi"
         }
       ]
+    },
+    {
+      "id": 10,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monitor-single-back"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monitor-dual-back"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monitor-laptop-back"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monitor-single-side"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monitor-dual-side"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "monitor-laptop-side"
+        }
+      ]
     }
   ]
 }

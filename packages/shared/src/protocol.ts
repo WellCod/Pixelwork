@@ -1,3 +1,4 @@
+import type { FoosballState } from './foosball.ts';
 import type { PongEvent, PongPhase, PongSide, PongState } from './pong.ts';
 import { z } from 'zod';
 import {
@@ -121,6 +122,7 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('game.bot') }),
   z.object({ t: z.literal('game.rematch') }),
   z.object({ t: z.literal('game.leave') }),
+  z.object({ t: z.literal('game.kick') }),
   z.object({ t: z.literal('game.input'), seq: Seq, dir: z.union([z.literal(-1), z.literal(0), z.literal(1)]) }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
@@ -169,17 +171,19 @@ export type ServerMsg =
   | { t: 'pong'; id: number; ts: number }
   | { t: 'error'; code: string }
   /** Estado da partida, 30 vezes por segundo, só para os jogadores. `ack`: último `seq` de input do destinatário. */
-  | {
+  | ({
       t: 'game.state';
       tableKey: string;
       ack: number;
       phase: PongPhase;
       serveAt: number;
       ball: PongState['ball'];
-      paddles: PongState['paddles'];
       score: PongState['score'];
       serverTs: number;
-    }
+    } & (
+      | { paddles: PongState['paddles']; foosball?: never }
+      | { foosball: Pick<FoosballState, 'rods' | 'kickAt'>; paddles?: never }
+    ))
   | { t: 'game.events'; tableKey: string; events: PongEvent[] }
   | { t: 'table.state'; table: TableState };
 
