@@ -574,7 +574,7 @@ PUT    /me/name                           { name }
 GET    /spaces                            coworkings do usuário
 POST   /orgs                              { name, slug }
 POST   /orgs/:orgId/spaces                { name, slug, template }   owner/admin da org
-GET    /spaces/:spaceId                   metadados + mapa + versão
+GET    /spaces/:spaceId                   metadados + mapa + versão + canEditMap
 
 PUT    /spaces/:spaceId/me/status         { status, text, emoji }
 PUT    /spaces/:spaceId/me/title          { title }
@@ -590,8 +590,8 @@ POST   /spaces/:spaceId/desks/:deskKey/claim    só com o usuário sobre o tile 
 PUT    /spaces/:spaceId/desks/:deskKey/decor    dono
 DELETE /spaces/:spaceId/desks/:deskKey          dono ou admin
 
-POST   /spaces/:spaceId/map/validate      admin -> { errors, orphanDesks }
-PUT    /spaces/:spaceId/map               admin { map, baseVersion } -> 409 se baseVersion != atual
+POST   /spaces/:spaceId/map/validate      admin ou membro da demo -> { errors, orphanDesks }
+PUT    /spaces/:spaceId/map               admin ou membro da demo, { map, baseVersion }
 GET    /spaces/:spaceId/map/export        admin -> zip
 GET    /spaces/:spaceId/replay            admin -> { recording } (gravação da simulação)
 GET    /metrics                           texto do Prometheus (só rede interna)
@@ -809,6 +809,10 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
   mas o avatar não anda. O `EditorController` guarda pilha, ferramenta, opções e seleção fora
   do Phaser; a cena só desenha e traduz o mouse, o painel em React lê o mesmo estado.
 - A cena redesenha tudo a partir do documento a cada comando (mapas de até 100x100).
+- Na ferramenta Mesa, Fileira e Espinha colocam várias estações lado a lado. A espinha usa duas
+  fileiras costas com costas, com as cadeiras para fora. Cada estação mantém seu objeto e sua
+  chave no mapa. A colocação valida tampos e cadeiras e pode ser desfeita em um comando.
+  A união visual se ajusta automaticamente quando duas estações compatíveis se encostam.
 - Editando, mapas que chegam por `map.updated` são ignorados; salvar usa a `baseVersion` do
   início da edição e, no 409, o painel oferece descartar e recarregar o mapa atual.
 - O template para começar do zero é o JSON de `maps/templates/` importado no cliente, sem rota.
@@ -864,18 +868,26 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Fica de fora o que não entra na simulação (chat, mídia, chamadas, mesas, partidas de
   pingpong): o replay é do movimento.
 
-## Interações com objetos: pingpong (aprovado e implementado em 2026-11-22)
+## Interações com objetos: pingue-pongue e pebolim
 
 Desenho completo em `docs/superpowers/specs/2026-11-22-pingpong-design.md`. Decisões de contrato:
 
-- Mapa compilado: `compileMap` devolve `tables: CompiledTable[]` para os móveis cujo `item_id` está
-  em `INTERACTIVE_ITEMS` (hoje só `ping-pong` → `pong`), com chave `<item>@<x>,<y>` e os tiles de
-  cada lado. O mapa salvo não muda. Troca de mapa ao vivo encerra as partidas.
+- Mapa compilado: `compileMap` devolve as mesas interativas em `tables`, com chave
+  `ping-pong@<x>,<y>` ou `foosball@<x>,<y>` e os tiles caminháveis de cada lado. Na horizontal, os jogadores ficam à
+  esquerda e à direita. Na vertical, ficam acima e abaixo. Troca de mapa ao vivo encerra as partidas.
+- No editor, pingue-pongue e pebolim giram de 3x2 para 2x3 e voltam com o botão Girar ou a tecla R.
+  A rotação substitui o sprite pelo GID da outra orientação e ajusta a pegada, preservando o canto
+  superior esquerdo e o ID do objeto. O editor marca os pontos dos jogadores em ambos os móveis.
+  No pebolim, as posições ficam junto às hastes.
 - Simulação: módulo puro `shared/src/pong.ts` (estado + intenções das raquetes + tempo → novo
   estado + eventos), relógio injetado, e um bot puro para o modo solo. O servidor avança cada
-  partida a 30 Hz com o `Scheduler` injetado, só enquanto ela existe.
+  partida a 30 Hz com o `Scheduler` injetado, só enquanto ela existe. O pebolim usa a mesma
+  sessão com uma simulação pura em `shared/src/foosball.ts`. Cada jogador desliza as três hastes do
+  seu time, tenta chutar ao alcance da bola e vence com cinco gols. O bot usa a mesma simulação.
 - Protocolo: cliente manda `game.join`, `game.bot`, `game.rematch`, `game.leave` e `game.input
-  { seq, dir }` (só na mudança). Servidor manda `game.state` (30 Hz, só aos jogadores),
+  { seq, dir }` (só na mudança). No pebolim, `game.kick` tenta um chute com intervalo validado pelo
+  servidor. Servidor manda `game.state` (30 Hz, só aos jogadores), com `paddles` no pingue-pongue
+  ou `foosball` com as posições das hastes e o instante dos chutes no pebolim, além de
   `game.events` e `table.state` (a todos, para a plaquinha com o placar). O `welcome` ganha
   `tables` e `game` (a mesa do próprio jogador, para reabrir a janela na reconexão);
   `Player.activity` ganha `'game'` (chamada continua com prioridade).

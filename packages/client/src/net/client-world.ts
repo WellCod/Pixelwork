@@ -185,6 +185,7 @@ export class ClientWorld {
       case 'table.state': {
         const table = message.table;
         this.tables.set(table.tableKey, table);
+        if (this.seat?.tableKey === table.tableKey && table.phase === 'waiting') this.lastGame = null;
         const side = table.left === this.selfId ? 'left' : table.right === this.selfId ? 'right' : null;
         if (side) {
           if (this.seat?.tableKey !== table.tableKey) this.resetGameInput();

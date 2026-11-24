@@ -1,5 +1,5 @@
 import { DIRS, type Dir } from '@pixelwork/shared';
-import { adoptDocument, textProp, type RugId, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
+import { MAX_DESKS_PER_ROW, adoptDocument, textProp, type DeskArrangement, type RugId, type TiledDoc, type ZoneType } from '@pixelwork/shared/editor';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import smallOffice from '../../../../maps/templates/small-office.json';
 import { api, mapApi } from '../api.ts';
@@ -18,7 +18,7 @@ const TOOLS: { tool: Tool; label: string; hint: string }[] = [
   { tool: 'erase', label: 'Borracha', hint: 'Arraste para apagar a camada escolhida.' },
   { tool: 'furniture', label: 'Móvel', hint: 'Clique para pôr o móvel escolhido.' },
   { tool: 'zone', label: 'Zona', hint: 'Arraste para desenhar a zona.' },
-  { tool: 'desk', label: 'Mesa', hint: 'Clique para pôr uma mesa; R gira a selecionada.' },
+  { tool: 'desk', label: 'Mesa', hint: 'Clique no mapa para colocar a mesa ou bancada.' },
   { tool: 'spawn', label: 'Spawn', hint: 'Clique onde as pessoas aparecem ao entrar.' },
 ];
 
@@ -232,19 +232,48 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
           </div>
         )}
         {controller.tool === 'desk' && (
-          <label className="fields">
-            Cadeira para
-            <select
-              value={controller.deskOrientation}
-              onChange={(event) => controller.setOption({ deskOrientation: event.target.value as Dir })}
-            >
-              {DIRS.map((dir) => (
-                <option key={dir} value={dir}>
-                  {DIR_LABEL[dir]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="fields">
+            <label>
+              Disposição
+              <select
+                value={controller.deskArrangement}
+                onChange={(event) => controller.setOption({ deskArrangement: event.target.value as DeskArrangement })}
+              >
+                <option value="single">Individual</option>
+                <option value="row">Fileira</option>
+                <option value="spine">Espinha (duas fileiras)</option>
+              </select>
+            </label>
+            {controller.deskArrangement !== 'single' && (
+              <label>
+                {controller.deskArrangement === 'spine' ? 'Mesas de cada lado' : 'Mesas na fileira'}
+                <select value={controller.deskCount} onChange={(event) => controller.setOption({ deskCount: Number(event.target.value) })}>
+                  {Array.from({ length: MAX_DESKS_PER_ROW }, (_, index) => index + 1).map((count) => (
+                    <option key={count} value={count}>{count}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              {controller.deskArrangement === 'spine' ? 'Sentido da espinha' : 'Cadeira para'}
+              <select
+                value={controller.deskArrangement === 'spine' ? (controller.deskOrientation === 'up' || controller.deskOrientation === 'down' ? 'down' : 'right') : controller.deskOrientation}
+                onChange={(event) => controller.setOption({ deskOrientation: event.target.value as Dir })}
+              >
+                {controller.deskArrangement === 'spine' ? (
+                  <>
+                    <option value="down">Horizontal</option>
+                    <option value="right">Vertical</option>
+                  </>
+                ) : DIRS.map((dir) => (
+                  <option key={dir} value={dir}>{DIR_LABEL[dir]}</option>
+                ))}
+              </select>
+            </label>
+            {controller.deskPlacementBlocked && (
+              <span className="error" role="status">Escolha uma área livre com espaço para as mesas e as cadeiras.</span>
+            )}
+          </div>
         )}
       </section>
 
@@ -288,6 +317,11 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
                 Girar (R)
               </button>
             </div>
+          )}
+          {controller.selectedGameTable() && (
+            <button type="button" onClick={() => controller.rotateSelected()}>
+              Girar (R)
+            </button>
           )}
           {layer !== 'spawn' && (
             <button type="button" onClick={() => controller.removeSelected()}>

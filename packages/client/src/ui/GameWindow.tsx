@@ -1,8 +1,9 @@
-import { PONG, type ClientMsg, type PongSide } from '@pixelwork/shared';
+import { FOOSBALL, PONG, type ClientMsg, type PongSide } from '@pixelwork/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
 import { PaddleKeys } from '../net/pong-keys.ts';
 import { extrapolateBall, predictPaddle } from '../net/pong-predict.ts';
+import { paintFoosball } from '../game/paint-foosball.ts';
 import { Modal } from './Modal.tsx';
 import { useWorld } from './useWorld.ts';
 
@@ -26,18 +27,14 @@ function isTextField(target: EventTarget | null): boolean {
 
 const oppositeSide = (side: PongSide): PongSide => (side === 'left' ? 'right' : 'left');
 
-/**
- * Janela da partida de pingpong, aberta enquanto o próprio jogador está numa mesa. O campo é
- * desenhado num canvas de 160x90 a cada quadro, a partir do último estado do servidor: a raquete
- * própria é prevista e a bola extrapolada (`pong-predict.ts`).
- */
-export function PongWindow({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
+export function GameWindow({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
   useWorld(world);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [askedRematch, setAskedRematch] = useState(false);
   const seat = world.seat;
   const table = seat ? world.tables.get(seat.tableKey) : undefined;
+  const isFoosball = world.map.tables.some((definition) => definition.key === seat?.tableKey && definition.game === 'foosball');
 
   // Estado das teclas da raquete; só manda `game.input` quando a direção muda.
   const paddleKeys = useMemo(() => new PaddleKeys((direction) => send(world.gameInput(direction))), [world, send]);
@@ -46,31 +43,49 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
   // componente fica montado o tempo todo, e W/S são letras do chat).
   useEffect(() => {
     const handleKey = (event: KeyboardEvent, down: boolean) => {
-      if (paddleKeys.press(event.key, down, world.seat !== null && !isTextField(event.target)) && down) {
+      const active = world.seat !== null && !isTextField(event.target);
+      if (down && active && isFoosball && event.code === 'Space' && world.lastGame?.phase === 'playing') {
+        event.preventDefault();
+        if (!event.repeat) send({ t: 'game.kick' });
+        return;
+      }
+      if (paddleKeys.press(event.key, down, active || !down) && down) {
         event.preventDefault();
       }
     };
     const onKeyDown = (event: KeyboardEvent) => handleKey(event, true);
     const onKeyUp = (event: KeyboardEvent) => handleKey(event, false);
+    const onBlur = () => {
+      if (world.seat) send(world.gameInput(0));
+      paddleKeys.reset();
+    };
+    window.addEventListener('blur', onBlur);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     return () => {
+      window.removeEventListener('blur', onBlur);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [world, paddleKeys]);
+  }, [world, paddleKeys, isFoosball, send]);
 
   // Avisos da partida: fim e vitória por desistência.
   useEffect(
-    () =>
-      world.subscribe((event) => {
+    () => {
+      let previousTable = world.seat ? world.tables.get(world.seat.tableKey) : undefined;
+      return world.subscribe((event) => {
         // Reconexão: o servidor zerou a raquete; a próxima tecla precisa ser enviada de novo.
         if (event.type === 'reset') paddleKeys.reset();
         // Partida nova (revanche ou alguém chegou): o aviso da anterior sai e a raquete recomeça.
-        if (event.type === 'table' && event.table.tableKey === world.seat?.tableKey && event.table.phase === 'playing') {
-          setNotice(null);
-          setAskedRematch(false);
-          paddleKeys.reset();
+        if (event.type === 'table' && event.table.tableKey === world.seat?.tableKey) {
+          const newMatch = previousTable?.phase !== 'playing' || previousTable.left !== event.table.left
+            || previousTable.right !== event.table.right;
+          if (event.table.phase === 'playing' && newMatch) {
+            setNotice(null);
+            setAskedRematch(false);
+            paddleKeys.reset();
+          }
+          previousTable = event.table;
         }
         if (event.type !== 'gameEvents' || !world.seat) return;
         const endEvent = event.events.find((gameEvent) => gameEvent.type === 'end');
@@ -81,7 +96,8 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
         const opponentQuit = currentTable?.phase !== 'ended';
         setNotice(opponentQuit ? 'O adversário saiu: vitória por desistência.' : won ? 'Você venceu!' : 'Você perdeu.');
         setAskedRematch(false);
-      }),
+      });
+    },
     [world, paddleKeys],
   );
 
@@ -95,41 +111,49 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
       if (!context2d || !side) return;
       const lastGame = world.lastGame;
       const now = Date.now();
-      // Campo, linha central tracejada e as bordas de cima e de baixo.
-      context2d.fillStyle = FIELD;
-      context2d.fillRect(0, 0, PONG.FIELD_WIDTH, PONG.FIELD_HEIGHT);
-      context2d.fillStyle = LINE;
-      for (let y = 2; y < PONG.FIELD_HEIGHT; y += 6) context2d.fillRect(PONG.FIELD_WIDTH / 2 - 0.5, y, 1, 3);
-      context2d.fillRect(0, 0, PONG.FIELD_WIDTH, 1);
-      context2d.fillRect(0, PONG.FIELD_HEIGHT - 1, PONG.FIELD_WIDTH, 1);
+      if (isFoosball) {
+        const serverNow = lastGame ? lastGame.serverTs + (now - lastGame.receivedAt) : 0;
+        paintFoosball(context2d, side, lastGame?.foosball, lastGame?.ball, serverNow);
+      } else {
+        // Campo, linha central tracejada e as bordas de cima e de baixo.
+        context2d.fillStyle = FIELD;
+        context2d.fillRect(0, 0, PONG.FIELD_WIDTH, PONG.FIELD_HEIGHT);
+        context2d.fillStyle = LINE;
+        for (let y = 2; y < PONG.FIELD_HEIGHT; y += 6) context2d.fillRect(PONG.FIELD_WIDTH / 2 - 0.5, y, 1, 3);
+        context2d.fillRect(0, 0, PONG.FIELD_WIDTH, 1);
+        context2d.fillRect(0, PONG.FIELD_HEIGHT - 1, PONG.FIELD_WIDTH, 1);
 
-      // A própria raquete é prevista a partir das teclas ainda não confirmadas; a do outro vem do servidor.
-      const myPaddleY = lastGame
-        ? predictPaddle(lastGame.paddles[side], world.gameAckedDir, world.gamePending, lastGame.receivedAt, now)
-        : PONG.FIELD_HEIGHT / 2;
-      const theirPaddleY = lastGame ? lastGame.paddles[oppositeSide(side)] : PONG.FIELD_HEIGHT / 2;
-      const drawPaddle = (paddleSide: PongSide, y: number, color: string) => {
-        context2d.fillStyle = color;
-        const x = paddleSide === 'left' ? PONG.LEFT_X : PONG.RIGHT_X;
-        context2d.fillRect(x, Math.round(y - PONG.PADDLE_H / 2), PONG.PADDLE_W, PONG.PADDLE_H);
-      };
-      drawPaddle(side, myPaddleY, MINE);
-      drawPaddle(oppositeSide(side), theirPaddleY, THEIRS);
+        // A própria raquete é prevista a partir das teclas ainda não confirmadas; a do outro vem do servidor.
+        const myPaddleY = lastGame?.paddles
+          ? predictPaddle(lastGame.paddles[side], world.gameAckedDir, world.gamePending, lastGame.receivedAt, now)
+          : PONG.FIELD_HEIGHT / 2;
+        const theirPaddleY = lastGame?.paddles?.[oppositeSide(side)] ?? PONG.FIELD_HEIGHT / 2;
+        const drawPaddle = (paddleSide: PongSide, y: number, color: string) => {
+          context2d.fillStyle = color;
+          const x = paddleSide === 'left' ? PONG.LEFT_X : PONG.RIGHT_X;
+          context2d.fillRect(x, Math.round(y - PONG.PADDLE_H / 2), PONG.PADDLE_W, PONG.PADDLE_H);
+        };
+        drawPaddle(side, myPaddleY, MINE);
+        drawPaddle(oppositeSide(side), theirPaddleY, THEIRS);
+
+        // Bola extrapolada desde o último estado só com a partida rolando; fora disso fica parada.
+        const ball = lastGame?.phase === 'playing' ? extrapolateBall(lastGame.ball, lastGame.receivedAt, now) : lastGame?.ball;
+        context2d.fillStyle = BALL;
+        if (ball) context2d.fillRect(Math.round(ball.x - PONG.BALL_SIZE / 2), Math.round(ball.y - PONG.BALL_SIZE / 2), PONG.BALL_SIZE, PONG.BALL_SIZE);
+      }
 
       if (!lastGame) return;
-      // Bola extrapolada desde o último estado só com a partida rolando; fora disso fica parada.
-      const ball = lastGame.phase === 'playing' ? extrapolateBall(lastGame.ball, lastGame.receivedAt, now) : lastGame.ball;
-      context2d.fillStyle = BALL;
-      context2d.fillRect(Math.round(ball.x - PONG.BALL_SIZE / 2), Math.round(ball.y - PONG.BALL_SIZE / 2), PONG.BALL_SIZE, PONG.BALL_SIZE);
+      const width = isFoosball ? FOOSBALL.WIDTH : PONG.FIELD_WIDTH;
+      const height = isFoosball ? FOOSBALL.HEIGHT : PONG.FIELD_HEIGHT;
 
       const drawBanner = (text: string) => {
         context2d.fillStyle = SHADE;
-        context2d.fillRect(0, PONG.FIELD_HEIGHT / 2 - 9, PONG.FIELD_WIDTH, 18);
+        context2d.fillRect(0, height / 2 - 9, width, 18);
         context2d.fillStyle = LINE;
         context2d.font = '600 10px "Inter Variable", system-ui, sans-serif';
         context2d.textAlign = 'center';
         context2d.textBaseline = 'middle';
-        context2d.fillText(text, PONG.FIELD_WIDTH / 2, PONG.FIELD_HEIGHT / 2 + 0.5);
+        context2d.fillText(text, width / 2, height / 2 + 0.5);
       };
       if (lastGame.phase === 'countdown') {
         // Tempo até o saque no relógio do servidor, descontado o tempo desde que o estado chegou.
@@ -141,7 +165,7 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
     };
     draw();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [world]);
+  }, [world, isFoosball]);
 
   if (!seat || !table) return null;
   const nameOf = (id: string | null) =>
@@ -188,7 +212,7 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
   });
 
   return (
-    <Modal title="Pingpong" onClose={() => send({ t: 'game.leave' })}>
+    <Modal title={isFoosball ? 'Pebolim' : 'Pingpong'} onClose={() => send({ t: 'game.leave' })}>
       <div className="pong-score" aria-live="polite">
         <span>{nameOf(table.left)}</span>
         <strong>
@@ -196,16 +220,28 @@ export function PongWindow({ world, send }: { world: ClientWorld; send: (message
         </strong>
         <span>{nameOf(table.right)}</span>
       </div>
-      <canvas ref={canvas} className="pong-field" width={PONG.FIELD_WIDTH} height={PONG.FIELD_HEIGHT} aria-label="Campo da partida" />
+      <canvas
+        ref={canvas}
+        className="pong-field"
+        width={isFoosball ? FOOSBALL.WIDTH : PONG.FIELD_WIDTH}
+        height={isFoosball ? FOOSBALL.HEIGHT : PONG.FIELD_HEIGHT}
+        tabIndex={isFoosball ? 0 : undefined}
+        aria-label="Campo da partida"
+      />
       {statusBar}
       <div className="pong-controls">
-        <span className="hint">Setas ou W/S movem a sua raquete (azul).</span>
-        <button type="button" aria-label="Raquete para cima" {...touchHandlers('touch-up')}>
+        <span className="hint">{isFoosball
+          ? 'Setas ↑/↓ ou W/S movem as hastes azuis. Espaço chuta. Primeiro a 5 gols vence.'
+          : 'Setas ou W/S movem a sua raquete (azul).'}</span>
+        <button type="button" aria-label={isFoosball ? 'Hastes para cima' : 'Raquete para cima'} {...touchHandlers('touch-up')}>
           ▲
         </button>
-        <button type="button" aria-label="Raquete para baixo" {...touchHandlers('touch-down')}>
+        <button type="button" aria-label={isFoosball ? 'Hastes para baixo' : 'Raquete para baixo'} {...touchHandlers('touch-down')}>
           ▼
         </button>
+        {isFoosball && (
+          <button type="button" aria-label="Chutar" onClick={() => send({ t: 'game.kick' })}>Chutar</button>
+        )}
         <button type="button" onClick={() => send({ t: 'game.leave' })}>
           Sair da mesa
         </button>

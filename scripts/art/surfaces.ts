@@ -114,6 +114,14 @@ export const wallTop = texture((_x, y) => {
   return 'mist';
 });
 
+/** Divisória vertical com bordas visíveis sobre o carpete e o carvalho. */
+export const wallDivider = texture((x) => {
+  if (x === 0 || x === 15) return 'dusk';
+  if (x === 1) return 'mist';
+  if (x >= 13) return 'mauve';
+  return 'gray';
+});
+
 /** Face da parede: friso branco no alto, painéis claros com junta vertical e rodapé escuro. */
 export const wallFace = texture((x, y) => {
   if (y === 0) return 'gray';

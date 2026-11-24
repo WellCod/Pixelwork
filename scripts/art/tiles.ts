@@ -58,6 +58,7 @@ export const WALLS: TileArt[] = [
   { pixels: surfaces.wallHangingPlant, itemId: 'wall-plant' },
   { pixels: surfaces.wallTv, itemId: 'wall-tv' },
   { pixels: surfaces.wallWindowCurtain, itemId: 'wall-window-curtain' },
+  { pixels: surfaces.wallDivider, itemId: 'wall-divider' },
 ]
 
 // ---- móveis ----
@@ -167,4 +168,10 @@ export const DESK_DECOR_EXTRAS: TileArt[] = [
   { pixels: deskDecor.wallPennant, itemId: 'wall-pennant' },
   { pixels: deskDecor.wovenBasket, itemId: 'woven-basket' },
   { pixels: deskDecor.floorCorgi, itemId: 'floor-corgi' },
+  { pixels: deskDecor.monitorSingleBack, itemId: 'monitor-single-back' },
+  { pixels: deskDecor.monitorDualBack, itemId: 'monitor-dual-back' },
+  { pixels: deskDecor.laptopBack, itemId: 'monitor-laptop-back' },
+  { pixels: deskDecor.monitorSingleSide, itemId: 'monitor-single-side' },
+  { pixels: deskDecor.monitorDualSide, itemId: 'monitor-dual-side' },
+  { pixels: deskDecor.laptopSide, itemId: 'monitor-laptop-side' },
 ]

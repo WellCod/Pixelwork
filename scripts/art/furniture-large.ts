@@ -276,3 +276,30 @@ export const FURNITURE_3X2: TileArt[] = [
   { pixels: receptionDesk, collides: true, itemId: 'reception' },
   { pixels: foosball, collides: true, itemId: 'foosball' },
 ];
+
+// ---- 2x3: mesas de jogos na vertical, com a mesma luz dos sprites horizontais ----
+
+const pingPongVertical = make(32, 48, (canvas) => {
+  canvas.box(3, 2, 26, 39, TABLE_GREEN);
+  canvas.rect(3, 39, 26, 2, 'green').vline(6, 41, 5, 'dusk').vline(25, 41, 5, 'dusk');
+  canvas.vline(15, 4, 35, 'white').hline(4, 20, 24, 'mist').px(3, 19, 'gray').px(28, 19, 'gray');
+  canvas.outline('pine');
+  canvas.rect(8, 9, 3, 4, 'red').rect(21, 29, 3, 4, 'sky').px(14, 27, 'white');
+});
+
+const foosballVertical = make(32, 48, (canvas) => {
+  canvas.box(5, 2, 22, 39, TABLE_GREEN);
+  canvas.vline(5, 3, 37, 'bark').vline(26, 3, 37, 'bark').hline(6, 40, 20, 'bark');
+  canvas.vline(7, 41, 5, 'bark').vline(24, 41, 5, 'bark').hline(6, 20, 20, 'white');
+  canvas.outline('ink');
+  for (const y of [9, 15, 25, 32]) {
+    canvas.hline(2, y, 28, 'gray').px(1, y, 'ink').px(30, y, 'ink');
+    for (const x of [10, 15, 20]) canvas.px(x, y, y < 20 ? 'red' : 'blue');
+  }
+});
+
+/** Tileset das mesas de jogos na vertical. */
+export const FURNITURE_2X3: TileArt[] = [
+  { pixels: pingPongVertical, collides: true, itemId: 'ping-pong-vertical' },
+  { pixels: foosballVertical, collides: true, itemId: 'foosball-vertical' },
+];

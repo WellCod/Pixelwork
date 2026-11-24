@@ -24,6 +24,7 @@ export interface SpaceDetail {
   map: unknown;
   mapVersion: number;
   role: 'admin' | 'member';
+  canEditMap: boolean;
 }
 
 export class ApiError extends Error {

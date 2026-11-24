@@ -391,6 +391,9 @@ export class SpaceRuntime {
       case 'game.leave':
         this.games.leave(userId);
         break;
+      case 'game.kick':
+        this.games.kick(userId);
+        break;
       case 'game.input':
         this.games.input(userId, message.seq, message.dir);
         break;

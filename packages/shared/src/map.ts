@@ -2,7 +2,7 @@ import { TILESETS, TILESET_IDS, type TilesetId } from './catalog.generated.ts';
 import { isCornerSofa } from './furniture.ts';
 import { TILE_PX } from './constants.ts';
 import { DIR_DELTA, DIRS, type Dir } from './protocol.ts';
-import { INTERACTIVE_ITEMS, type CompiledTable } from './tables.ts';
+import { gameTableLayout, gameTableSides, type CompiledTable } from './tables.ts';
 
 /** Lado máximo do mapa em tiles (100x100). */
 export const MAX_MAP_TILES = 100;
@@ -211,7 +211,7 @@ export function compileMap(json: unknown): CompileResult {
   const walkableAt = (x: number, y: number) => inside(x, y) && walkable[y * width + x] === 1;
 
   // Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo.
-  const interactiveTables: Omit<CompiledTable, 'sides'>[] = [];
+  const interactiveTables: (Omit<CompiledTable, 'sides'> & { sideAxis: Parameters<typeof gameTableSides>[1] })[] = [];
   for (const object of objectsOf(findLayer('furniture') as Json)) {
     const resolved = resolveGid(asNumber(object.gid), tilesetRefs);
     if (!resolved) continue;
@@ -229,11 +229,12 @@ export function compileMap(json: unknown): CompileResult {
     const footprintWidth = Math.max(1, Math.round((objectWidth > 0 ? objectWidth : tileset.tileWidth) / TILE_PX));
     const footprintHeight = Math.max(1, Math.round((objectHeight > 0 ? objectHeight : tileset.tileHeight) / TILE_PX));
     const item = tileset.items[resolved.tile];
-    const game = item === undefined ? undefined : INTERACTIVE_ITEMS[item];
-    if (item !== undefined && game !== undefined) {
+    const layout = gameTableLayout(item);
+    if (layout) {
       interactiveTables.push({
-        key: `${item}@${left},${bottom - footprintHeight}`,
-        game,
+        key: `${layout.item}@${left},${bottom - footprintHeight}`,
+        game: layout.game,
+        sideAxis: layout.sideAxis,
         x: left,
         y: bottom - footprintHeight,
         width: footprintWidth,
@@ -429,13 +430,9 @@ export function compileMap(json: unknown): CompileResult {
 
   if (errors.length > 0) return { ok: false, errors };
   // Lados calculados depois de tudo bloquear (móveis e mesas): só tiles onde dá para ficar.
-  const walkableColumn = (columnX: number, table: Omit<CompiledTable, 'sides'>) =>
-    Array.from({ length: table.height }, (_, i): [number, number] => [columnX, table.y + i]).filter(([cellX, cellY]) =>
-      walkableAt(cellX, cellY),
-    );
-  const tables: CompiledTable[] = interactiveTables.map((table) => ({
+  const tables: CompiledTable[] = interactiveTables.map(({ sideAxis, ...table }) => ({
     ...table,
-    sides: { left: walkableColumn(table.x - 1, table), right: walkableColumn(table.x + table.width, table) },
+    sides: gameTableSides(table, sideAxis, width, height, walkableAt),
   }));
   return {
     ok: true,

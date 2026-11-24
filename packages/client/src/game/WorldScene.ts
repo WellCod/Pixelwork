@@ -23,7 +23,8 @@ import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
 import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
-import { deskDecorFrame, deskSprites, isNear, seatedFacing } from './presence.ts';
+import { drawDeskJoins } from './desk-joins.ts';
+import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
 import { embedTilesets, objectLayer, propertyValue, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
@@ -52,6 +53,7 @@ interface Avatar {
   sprite: Phaser.GameObjects.Sprite;
   ring: Phaser.GameObjects.Ellipse;
   shadow: Phaser.GameObjects.Ellipse;
+  stool: Phaser.GameObjects.Graphics;
   label: NamePill;
   title: TitlePill;
   mover: Mover;
@@ -145,6 +147,7 @@ export class WorldScene extends Phaser.Scene {
           .setOrigin(0, 1).setDepth(object.y - TILE_PX).setCrop(0, 0, tileWidth, TILE_PX);
       }
     }
+    drawDeskJoins(this, this.options.world.map.desks);
     this.renderZoneLabels();
 
     this.mapSize = { width: tilemap.widthInPixels, height: tilemap.heightInPixels };
@@ -243,10 +246,11 @@ export class WorldScene extends Phaser.Scene {
     if (ghostOn) this.ghost?.setPosition(world.confirmed.x * TILE_PX, world.confirmed.y * TILE_PX);
     for (const [id, avatar] of this.avatars) {
       avatar.mover.update(delta);
-      // (x, y) é o pé do avatar: centro do tile na horizontal, base do tile na vertical. A
-      // profundidade é o próprio y, como a dos móveis; sombra e anel ficam logo abaixo do sprite.
-      const x = avatar.mover.x * TILE_PX + TILE_PX / 2;
-      const y = avatar.mover.y * TILE_PX + TILE_PX;
+      const moving = avatar.mover.moving;
+      const seated = moving ? null : seatedPose(world.map, world.desks, id, avatar.mover.x, avatar.mover.y);
+      // O pé fica na base do tile. Na cadeira, a pose desloca o desenho até o meio da mesa.
+      const x = avatar.mover.x * TILE_PX + TILE_PX / 2 + (seated?.dx ?? 0);
+      const y = avatar.mover.y * TILE_PX + TILE_PX + (seated?.dy ?? 0);
       avatar.sprite.setPosition(x, y).setDepth(y);
       avatar.shadow.setPosition(x, y - 1).setDepth(y - 0.6);
       avatar.ring.setPosition(x, y - 1).setDepth(y - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
@@ -260,13 +264,11 @@ export class WorldScene extends Phaser.Scene {
       const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
       avatar.title.setVisible(avatar.title.value !== '' && (near || avatar.hovered));
 
-      // O próprio avatar segue "andando" enquanto a tecla está segurada, mesmo parado contra a parede.
-      const walking = avatar.mover.moving || (id === world.selfId && held !== undefined);
-      const seated = walking
-        ? null
-        : seatedFacing(world.map, world.desks, id, Math.round(avatar.mover.x), Math.round(avatar.mover.y));
+      // Tecla segurada contra o tampo não tira o banco se o avatar continua no mesmo lugar.
+      const walking = moving || (seated === null && id === world.selfId && held !== undefined);
+      avatar.stool.setPosition(x, y).setDepth(y - 0.3).setVisible(seated !== null);
       if (walking) avatar.sprite.play(walkAnim(avatar.textureKey, avatar.dir), true);
-      else avatar.sprite.stop().setFrame(seated ? seatedFrame(seated) : idleFrame(avatar.dir));
+      else avatar.sprite.stop().setFrame(seated ? seatedFrame(seated.facing) : idleFrame(avatar.dir));
     }
   }
 
@@ -401,11 +403,12 @@ export class WorldScene extends Phaser.Scene {
       id === 'bot' ? 'Bot' : id ? ((world.players.get(id)?.name ?? 'Alguém').split(' ')[0] ?? 'Alguém') : '…';
     for (const table of world.map.tables) {
       const state = world.tables.get(table.key);
+      const gameName = table.game === 'foosball' ? 'Pebolim' : 'Pingpong';
       const text =
         !state || state.phase === 'free'
-          ? 'Pingpong: livre'
+          ? `${gameName}: livre`
           : state.phase === 'waiting'
-            ? 'Pingpong: esperando'
+            ? `${gameName}: esperando`
             : `${firstName(state.left)} ${state.score.left} × ${state.score.right} ${firstName(state.right)}`;
       const centerX = (table.x + table.width / 2) * TILE_PX;
       this.tablePlaques.set(table.key, tablePlaque(this, centerX, table.y * TILE_PX - 2, text).setDepth(LABEL_DEPTH - 2));
@@ -454,6 +457,11 @@ export class WorldScene extends Phaser.Scene {
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(position.dir)).setOrigin(0.5, 1);
     const shadow = this.add.ellipse(0, 0, 12, 5, CONTACT_SHADOW_COLOR, AVATAR_SHADOW_ALPHA);
+    // O banco aparece sob o sprite sentado. A sombra do avatar fica abaixo dos pés do banco.
+    const stool = this.add.graphics().setVisible(false)
+      .fillStyle(0x374e4a).fillRect(-6, -5, 2, 5).fillRect(4, -5, 2, 5)
+      .fillStyle(0x966c6c).fillRoundedRect(-7, -8, 14, 4, 1)
+      .fillStyle(0xe6cba5).fillRect(-6, -8, 12, 2);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = new NamePill(this).setDepth(LABEL_DEPTH);
     const title = new TitlePill(this).setDepth(LABEL_DEPTH);
@@ -461,6 +469,7 @@ export class WorldScene extends Phaser.Scene {
       sprite,
       ring,
       shadow,
+      stool,
       label,
       title,
       mover: new Mover(position.x, position.y),
@@ -500,6 +509,7 @@ export class WorldScene extends Phaser.Scene {
     avatar.sprite.destroy();
     avatar.ring.destroy();
     avatar.shadow.destroy();
+    avatar.stool.destroy();
     avatar.label.destroy();
     avatar.title.destroy();
     avatar.chat?.destroy();
@@ -575,19 +585,19 @@ export class WorldScene extends Phaser.Scene {
     // profundidade de cada um é a da base somada ao z relativo que o `deskSprites` define.
     const x = desk.x * TILE_PX;
     const bottom = (desk.y + desk.height) * TILE_PX;
-    const addItem = (itemId: string, dx: number, dy: number, depth: number, flip = false) => {
+    const addItem = (itemId: string, dx: number, dy: number, depth: number, flip: boolean, flipY: boolean) => {
       const sprite = deskDecorFrame(itemId);
       if (!sprite) return;
       objects.push(
         this.add
           .image(x + dx, bottom + dy, sheetKey(sprite.tileset), sprite.frame)
           .setOrigin(0, 1)
-          .setFlipX(flip)
+          .setFlip(flip, flipY)
           .setDepth(depth),
       );
     };
 
-    for (const sprite of deskSprites(desk, decor)) addItem(sprite.item, sprite.dx, sprite.dy, bottom + sprite.z, sprite.flip);
+    for (const sprite of deskSprites(desk, decor)) addItem(sprite.item, sprite.dx, sprite.dy, bottom + sprite.z, sprite.flip, sprite.flipY);
 
     if (state?.userId && state.ownerName && !world.players.has(state.userId)) {
       objects.push(this.plaque(desk, state.ownerName));

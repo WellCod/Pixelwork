@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { PNG } from 'pngjs';
 import { CHARACTER_SHEETS } from './art/character.ts';
-import { FURNITURE_2X1, FURNITURE_2X2, FURNITURE_3X2 } from './art/furniture-large.ts';
+import { FURNITURE_2X1, FURNITURE_2X2, FURNITURE_2X3, FURNITURE_3X2 } from './art/furniture-large.ts';
 import { DESK_DECOR, DESK_DECOR_EXTRAS, FLOORS, FURNITURE, WALLS, type TileArt } from './art/tiles.ts';
 import { blank, stamp, toPng } from './lib/pixels.ts';
 
@@ -76,6 +76,7 @@ tileset('desk-decor-extras', DESK_DECOR_EXTRAS);
 tileset('furniture-2x1', FURNITURE_2X1, { w: 32, h: 16 });
 tileset('furniture-2x2', FURNITURE_2X2, { w: 32, h: 32 });
 tileset('furniture-3x2', FURNITURE_3X2, { w: 48, h: 32 });
+tileset('furniture-2x3', FURNITURE_2X3, { w: 32, h: 48 });
 
 for (const [path, pixels] of Object.entries(CHARACTER_SHEETS)) {
   write(`characters/${path}.png`, PNG.sync.write(toPng(pixels)));

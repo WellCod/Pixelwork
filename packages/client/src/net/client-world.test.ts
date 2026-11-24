@@ -57,7 +57,7 @@ describe('ClientWorld: mesas de jogo', () => {
     });
     expect(world.gamePending.map((input) => input.seq)).toEqual([2]);
     expect(world.gameAckedDir).toBe(1);
-    expect(world.lastGame?.paddles.left).toBe(50);
+    expect(world.lastGame?.paddles?.left).toBe(50);
   });
 
   it('game.state não muda a versão que a UI observa', () => {

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import type { AuthDeps } from '../auth/routes.ts';
 import { ASSETS_DIR } from '../assets.ts';
 import { parseBody } from '../http.ts';
-import { requireMember, type SpaceParams } from './access.ts';
+import { canEditSpaceMap, requireMember, type SpaceParams } from './access.ts';
 
 /** Contrato do mapa: JSON de até 5 MB (docs/architecture.md, seção 6). */
 export const MAX_MAP_BYTES = 5 * 1024 * 1024;
@@ -22,7 +22,7 @@ function sizeErrors(map: unknown): MapError[] {
   return Buffer.byteLength(JSON.stringify(map ?? null)) > MAX_MAP_BYTES ? [{ code: 'too_large' }] : [];
 }
 
-/** Editor de mapa (só admin): ensaio, gravação com controle de versão, exportação e replay. */
+/** Editor de mapa, gravação com controle de versão e rotas de exportação e replay. */
 export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
   const { db } = deps;
 
@@ -53,7 +53,7 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
     async (request, reply) => {
       const access = await requireMember(deps, request, reply);
       if (!access) return reply;
-      if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
+      if (!(await canEditSpaceMap(deps, access.membership))) return reply.code(403).send({ error: 'admin_only' });
       const body = await parseBody(ValidateBody, request, reply);
       if (!body) return reply;
 
@@ -72,7 +72,7 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
     async (request, reply) => {
       const access = await requireMember(deps, request, reply);
       if (!access) return reply;
-      if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
+      if (!(await canEditSpaceMap(deps, access.membership))) return reply.code(403).send({ error: 'admin_only' });
       const body = await parseBody(SaveBody, request, reply);
       if (!body) return reply;
 

@@ -5,7 +5,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TILESETS, compileMap, type TilesetId } from '@pixelwork/shared';
-import { RUGS, rugMask, type RugId } from '@pixelwork/shared/editor';
+import { RUGS, deskGroupLayout, rugMask, type RugId } from '@pixelwork/shared/editor';
 // FIRSTGID reserva 100 gids por tileset (1, 101, 201...): um tileset pode crescer sem empurrar o
 // gid dos seguintes, que os mapas salvos guardam.
 import { FIRSTGID } from '@pixelwork/shared/testing';
@@ -19,7 +19,7 @@ const TILE = 16;
 const FLOOR = { woodLight: 0, kitchen: 2, cream: 3, gray: 4, grass: 55, stone: 56, sageTile: 58 };
 const WALL = {
   top: 0, face: 1, window: 2, sage: 3, cream: 4, painting: 5, poster: 6, clock: 7, whiteboard: 8, shelf: 9,
-  lilac: 10, cork: 11, hangingPlant: 12, tv: 13, curtain: 14,
+  cork: 11, hangingPlant: 12, tv: 13, curtain: 14, divider: 15,
 };
 
 // Camadas de tile como arrays lineares (linha * largura + coluna) de gids globais; 0 é vazio.
@@ -70,13 +70,14 @@ const faceRow: [number, number][] = [
   [7, WALL.clock], [8, WALL.window], [9, WALL.face], [10, WALL.poster], [11, WALL.window], [12, WALL.face],
   [13, WALL.cork], [14, WALL.window], [15, WALL.face], [16, WALL.whiteboard], [17, WALL.whiteboard], [18, WALL.face],
   [19, WALL.window], [20, WALL.shelf], [21, WALL.window], [22, WALL.face], [23, WALL.hangingPlant], [24, WALL.window],
-  [25, WALL.face], [26, WALL.top], [27, WALL.lilac], [28, WALL.curtain], [29, WALL.lilac], [30, WALL.tv], [31, WALL.tv],
-  [32, WALL.lilac], [33, WALL.curtain], [34, WALL.lilac], [35, WALL.painting], [36, WALL.lilac], [37, WALL.curtain], [38, WALL.lilac],
+  [25, WALL.face], [26, WALL.divider], [27, WALL.cream], [28, WALL.curtain], [29, WALL.cream], [30, WALL.cream],
+  [31, WALL.cream], [32, WALL.tv], [33, WALL.cream], [34, WALL.cream], [35, WALL.cream], [36, WALL.cream],
+  [37, WALL.curtain], [38, WALL.cream],
 ];
 for (const [x, frame] of faceRow) wall(frame, x, 1);
-// Sala de reunião: parede lateral (topo) e frente com porta dupla em (31, 11) e (32, 11).
-for (let y = 1; y <= 11; y++) wall(WALL.top, 26, y);
-for (let x = 26; x < MAP_WIDTH - 1; x++) if (x !== 31 && x !== 32) wall(WALL.lilac, x, 11);
+// Aurora: divisória com Engenharia e frente creme, mantendo o vão da porta dupla.
+for (let y = 2; y <= 11; y++) wall(WALL.divider, 26, y);
+for (let x = 27; x < MAP_WIDTH - 1; x++) if (x !== 31 && x !== 32) wall(WALL.cream, x, 11);
 
 // ---- objetos ----
 // Ids sequenciais em todas as camadas de objeto; o último vira o `nextobjectid` do mapa.
@@ -178,19 +179,21 @@ const zones = [
   zone('jardim', 'open', 'Jardim', 25, 21, 14, 6),
 ];
 
-// Mesas largas (32x16) viradas para baixo: cadeira na frente do tile da esquerda.
+// O Produto usa mesas individuais; a Engenharia tem duas fileiras com as cadeiras para fora.
 let deskCount = 0;
-const desk = (x: number, y: number) =>
+const desk = (x: number, y: number, orientation: 'up' | 'down' = 'down') =>
   tiledObject({
     x: x * TILE,
     y: y * TILE,
     width: 2 * TILE,
     height: TILE,
-    properties: stringProperties({ desk_key: `mesa-${++deskCount}`, orientation: 'down' }),
+    properties: stringProperties({ desk_key: `mesa-${++deskCount}`, orientation }),
   });
 const desks = [
   desk(2, 4), desk(5, 4), desk(8, 4), desk(2, 8), desk(5, 8), desk(8, 8),
-  desk(15, 4), desk(18, 4), desk(21, 4), desk(15, 8), desk(18, 8), desk(21, 8),
+  ...deskGroupLayout(16, 6, 'down', 'spine', 3).map(({ x, y, orientation }) =>
+    desk(x, y, orientation === 'up' ? 'up' : 'down'),
+  ),
 ];
 
 const map = {
@@ -211,7 +214,7 @@ const map = {
     { name: 'pixelwork_next_desk', type: 'string', value: String(deskCount + 1) },
     { name: 'pixelwork_next_zone', type: 'string', value: '1' },
   ],
-  tilesets: Object.entries(FIRSTGID).filter(([id]) => id !== 'desk-decor-extras').map(([id, firstgid]) => ({ firstgid, source: `${id}.tsj` })),
+  tilesets: Object.entries(FIRSTGID).filter(([id]) => id !== 'desk-decor-extras' && id !== 'furniture-2x3').map(([id, firstgid]) => ({ firstgid, source: `${id}.tsj` })),
   layers: [
     { id: 1, name: 'floor', type: 'tilelayer', width: MAP_WIDTH, height: MAP_HEIGHT, x: 0, y: 0, opacity: 1, visible: true, data: floor },
     { id: 2, name: 'walls', type: 'tilelayer', width: MAP_WIDTH, height: MAP_HEIGHT, x: 0, y: 0, opacity: 1, visible: true, data: walls },

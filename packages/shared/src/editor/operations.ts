@@ -2,7 +2,9 @@
 // há o que mudar, para não empilhar desfazer vazio.
 import { TILESETS, TILESET_IDS, type TilesetId } from '../catalog.generated.ts';
 import { TILE_PX } from '../constants.ts';
-import type { ZoneType } from '../map.ts';
+import { frameOf } from '../assets.ts';
+import { gameTableLayout } from '../tables.ts';
+import { compileMap, isWalkable, type CompiledMap, type ZoneType } from '../map.ts';
 
 // Declarado no map.ts (uma fonte só); o editor reexporta porque o cliente importa daqui.
 export type { ZoneType };
@@ -145,16 +147,60 @@ export function placeFurniture(doc: TiledDoc, tileset: TilesetId, frame: number,
   const { tileWidth, tileHeight } = TILESETS[tileset];
   // Objeto de tile do Tiled fica ancorado no canto inferior esquerdo: a pegada sobe a partir dele.
   if (!fits(doc, tx * TILE_PX, (ty + 1) * TILE_PX - tileHeight, tileWidth, tileHeight)) return null;
+  return withTileset(doc, tileset, (firstgid) => addWithKey(doc, 'furniture', (id) =>
+    baseObject(id, { gid: firstgid + frame, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: tileWidth, height: tileHeight }),
+  ));
+}
+
+function withTileset(doc: TiledDoc, tileset: TilesetId, command: (firstgid: number) => EditorCommand): EditorCommand {
   const tilesetRefs = (doc.tilesets as TilesetRef[] | undefined) ?? [];
   const source = `${tileset}.tsj`;
   const existing = tilesetRefs.find((tilesetRef) => tilesetRef.source === source);
-  const firstgid = existing?.firstgid ?? freeFirstgid(tilesetRefs, tileset);
-  const addCommand = addWithKey(doc, 'furniture', (id) =>
-    baseObject(id, { gid: firstgid + frame, x: tx * TILE_PX, y: (ty + 1) * TILE_PX, width: tileWidth, height: tileHeight }),
-  );
-  if (existing) return addCommand;
+  if (existing) return command(existing.firstgid);
+  const firstgid = freeFirstgid(tilesetRefs, tileset);
   const tilesets = [...tilesetRefs, { firstgid, source }].sort((left, right) => left.firstgid - right.firstgid);
-  return { kind: 'batch', commands: [{ kind: 'setDocFields', fields: { tilesets } }, addCommand] };
+  return { kind: 'batch', commands: [{ kind: 'setDocFields', fields: { tilesets } }, command(firstgid)] };
+}
+
+/** Reconhece mesas rotacionáveis pela referência original do Tiled. */
+export function gameTableOf(doc: TiledDoc, object: TiledObject): ReturnType<typeof gameTableLayout> {
+  const gid = (object.gid ?? 0) & 0x0fffffff;
+  let owner: TilesetRef | undefined;
+  for (const reference of (doc.tilesets as TilesetRef[] | undefined) ?? []) {
+    if (reference.firstgid <= gid && (!owner || reference.firstgid > owner.firstgid)) owner = reference;
+  }
+  if (!owner) return undefined;
+  const source = owner.source;
+  const tileset = TILESET_IDS.find((id) => source === id + '.tsj');
+  return tileset ? gameTableLayout(TILESETS[tileset].items[gid - owner.firstgid]) : undefined;
+}
+
+function furnitureSize(doc: TiledDoc, object: TiledObject): { width: number; height: number } {
+  if (object.width > 0 && object.height > 0) return { width: object.width, height: object.height };
+  const layout = gameTableOf(doc, object);
+  const alternate = layout && TILESETS[layout.alternateTileset];
+  return {
+    width: object.width > 0 ? object.width : alternate?.tileHeight ?? TILE_PX,
+    height: object.height > 0 ? object.height : alternate?.tileWidth ?? TILE_PX,
+  };
+}
+
+/** Gira a mesa 90°, mantendo o canto superior esquerdo e adequando a âncora de tile do Tiled. */
+export function rotateGameTable(doc: TiledDoc, id: number): EditorCommand | null {
+  const object = findObject(doc, 'furniture', id);
+  const layout = gameTableOf(doc, object);
+  if (!layout) return null;
+  const { alternateTileset, alternateItem } = layout;
+  const { tileWidth: width, tileHeight: height } = TILESETS[alternateTileset];
+  const oldHeight = object.height > 0 ? object.height : width;
+  const top = object.y - oldHeight;
+  if (!fits(doc, object.x, top, width, height)) return null;
+  const frame = frameOf(alternateTileset, alternateItem);
+  return withTileset(doc, alternateTileset, (firstgid) => ({
+    kind: 'replaceObject',
+    layer: 'furniture',
+    object: { ...object, gid: firstgid + frame, y: top + height, width, height, rotation: 0 },
+  }));
 }
 
 /**
@@ -259,19 +305,79 @@ export function addDesk(doc: TiledDoc, tx: number, ty: number, orientation: Dir)
   return addWithKey(
     doc,
     'desks',
-    (id, key) =>
-      baseObject(id, {
-        x: tx * TILE_PX,
-        y: ty * TILE_PX,
-        // Mesa nova é a larga: 2 tiles de frente para a cadeira (docs/architecture.md, seção 6).
-        ...size,
-        properties: [
-          { name: 'desk_key', type: 'string', value: key ?? '' },
-          { name: 'orientation', type: 'string', value: orientation },
-        ],
-      }),
+    (id, key) => deskObject(id, key ?? '', tx, ty, orientation),
     'desk',
   );
+}
+
+function deskObject(id: number, key: string, x: number, y: number, orientation: Dir): TiledObject {
+  return baseObject(id, {
+    x: x * TILE_PX,
+    y: y * TILE_PX,
+    ...deskSize(orientation, 2),
+    properties: [
+      { name: 'desk_key', type: 'string', value: key },
+      { name: 'orientation', type: 'string', value: orientation },
+    ],
+  });
+}
+
+export type DeskArrangement = 'single' | 'row' | 'spine';
+export const MAX_DESKS_PER_ROW = 12;
+
+interface DeskPlacement extends TileRect {
+  orientation: Dir;
+  chairX: number;
+  chairY: number;
+}
+
+
+/** Monta a fileira ou a espinha a partir do canto superior esquerdo da bancada. */
+export function deskGroupLayout(x: number, y: number, orientation: Dir, arrangement: Exclude<DeskArrangement, 'single'>, count: number): DeskPlacement[] {
+  if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(count) || count < 1 || count > MAX_DESKS_PER_ROW) return [];
+  const across = orientation === 'up' || orientation === 'down';
+  const width = across ? 2 : 1;
+  const height = across ? 1 : 2;
+  const rows: readonly Dir[] = arrangement === 'spine' ? (across ? ['up', 'down'] : ['left', 'right']) : [orientation];
+  return rows.flatMap((direction, row) => Array.from({ length: count }, (_, index) => {
+    const deskX = x + (across ? index * width : row);
+    const deskY = y + (across ? row : index * height);
+    const chairX = deskX + (direction === 'left' ? -1 : direction === 'right' ? width : 0);
+    const chairY = deskY + (direction === 'up' ? -1 : direction === 'down' ? height : 0);
+    return { x: deskX, y: deskY, width, height, orientation: direction, chairX, chairY };
+  }));
+}
+
+/** Confere a área das mesas e das cadeiras, incluindo spawn e cadeiras já reservadas. */
+export function canPlaceDeskGroup(map: CompiledMap, placements: readonly DeskPlacement[]): boolean {
+  const blocked = new Set(map.desks.map((desk) => desk.chairY * map.width + desk.chairX));
+  blocked.add(map.spawn.y * map.width + map.spawn.x);
+  return placements.length > 0 && placements.every((desk) => {
+    if (!isWalkable(map, desk.chairX, desk.chairY) || blocked.has(desk.chairY * map.width + desk.chairX)) return false;
+    for (let y = desk.y; y < desk.y + desk.height; y++) {
+      for (let x = desk.x; x < desk.x + desk.width; x++) {
+        if (!isWalkable(map, x, y) || blocked.has(y * map.width + x)) return false;
+      }
+    }
+    return true;
+  });
+}
+
+/** Insere uma bancada inteira em uma ação de desfazer, com chaves independentes por estação. */
+export function addDeskGroup(doc: TiledDoc, x: number, y: number, orientation: Dir, arrangement: Exclude<DeskArrangement, 'single'>, count: number): EditorCommand | null {
+  const placements = deskGroupLayout(x, y, orientation, arrangement, count);
+  const compiled = compileMap(doc);
+  if (!compiled.ok || !canPlaceDeskGroup(compiled.map, placements)) return null;
+  const nextId = nextObjectId(doc);
+  const nextKey = nextKeyNumber(doc, 'desk');
+  const commands: EditorCommand[] = placements.map((desk, index) => ({
+    kind: 'addObject',
+    layer: 'desks',
+    object: deskObject(nextId + index, PREFIX.desk + '-' + String(nextKey + index), desk.x, desk.y, desk.orientation),
+  }));
+  const nextNumber = nextKey + placements.length;
+  const properties = withProp(doc.properties, COUNTERS.desk, String(nextNumber));
+  return { kind: 'batch', commands: [{ kind: 'setDocFields', fields: { nextobjectid: nextId + placements.length, properties } }, ...commands] };
 }
 
 /** Largura e altura em pixels da mesa de `tiles` tiles virada para `orientation`. */
@@ -308,8 +414,9 @@ export function moveObject(doc: TiledDoc, layer: ObjectLayerName, id: number, tx
   }
   if (!inside(doc, tx, ty)) return null;
   // Zona, mesa e móvel inteiros têm que caber no mapa depois de mover (o móvel sobe a partir de y).
-  const objectWidth = object.width || TILE_PX;
-  const objectHeight = object.height || TILE_PX;
+  const { width: objectWidth, height: objectHeight } = layer === 'furniture'
+    ? furnitureSize(doc, object)
+    : { width: object.width || TILE_PX, height: object.height || TILE_PX };
   if ((layer === 'zones' || layer === 'desks') && !fits(doc, x, y, objectWidth, objectHeight)) return null;
   if (layer === 'furniture' && !fits(doc, x, y - objectHeight, objectWidth, objectHeight)) return null;
   if (x === object.x && y === object.y) return null;
@@ -344,8 +451,7 @@ export function objectAt(doc: TiledDoc, layer: ObjectLayerName, tx: number, ty: 
     }
     // Móvel ancorado no canto inferior esquerdo: a pegada sobe `height` a partir de `y`.
     if (layer === 'furniture') {
-      const objectWidth = object.width || TILE_PX;
-      const objectHeight = object.height || TILE_PX;
+      const { width: objectWidth, height: objectHeight } = furnitureSize(doc, object);
       return pixelX >= object.x && pixelX < object.x + objectWidth && pixelY >= object.y - objectHeight && pixelY < object.y;
     }
     // Mesa ancorada no canto superior esquerdo: a pegada desce `height` a partir de `y`.
