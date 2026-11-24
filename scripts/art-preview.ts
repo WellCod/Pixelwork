@@ -50,7 +50,7 @@ function blit(
 
 // Tilesets empilhados na coluna da esquerda.
 let nextY = 8;
-for (const id of ['floors', 'walls', 'furniture', 'desk-decor']) {
+for (const id of ['floors', 'walls', 'furniture', 'desk-decor', 'desk-decor-extras']) {
   const sheet = readAsset(`tilesets/${id}.png`);
   blit(sheet, 8, nextY);
   nextY += sheet.height * SCALE + 8;

@@ -277,3 +277,67 @@ export const dividerSide = item((canvas) => {
   canvas.vline(11, 0, 16, 'white');
   canvas.outline('slate');
 });
+
+// ---- complementos de personalização ----
+
+export const mechanicalKeyboard = item((canvas) => {
+  canvas.rect(2, 9, 12, 5, 'navy').rect(3, 9, 10, 3, 'blue').hline(4, 12, 8, 'indigo');
+  for (let x = 3; x <= 12; x += 2) canvas.px(x, 10, 'ice').px(x, 11, 'lilac');
+  canvas.hline(5, 12, 5, 'lavender').px(12, 10, 'peach');
+});
+
+export const terrarium = item((canvas) => {
+  canvas.rect(4, 6, 8, 7, 'deepteal').rect(5, 5, 6, 7, 'sage').rect(5, 7, 6, 4, 'mint');
+  canvas.hline(5, 5, 6, 'seafoam').vline(5, 6, 4, 'ice').hline(5, 11, 6, 'bark');
+  canvas.vline(8, 8, 3, 'pine').px(7, 9, 'leaf').px(9, 8, 'emerald');
+});
+
+export const drawingTablet = item((canvas) => {
+  canvas.rect(3, 7, 10, 7, 'navy').rect(4, 8, 8, 5, 'indigo');
+  canvas.rect(5, 9, 6, 3, 'lavender').hline(5, 9, 4, 'lilac').px(8, 10, 'peach').px(9, 11, 'pink');
+  canvas.px(12, 6, 'ink').px(11, 7, 'ink').px(10, 8, 'white').px(8, 13, 'ice');
+});
+
+export const teaSet = item((canvas) => {
+  canvas.hline(2, 13, 12, 'rosewood').hline(3, 12, 10, 'cream');
+  canvas.rect(4, 7, 6, 5, 'purple').rect(5, 8, 4, 3, 'lilac').hline(5, 6, 4, 'violet');
+  canvas.px(7, 5, 'lavender').px(3, 8, 'violet').px(2, 7, 'purple').px(10, 8, 'violet');
+  canvas.rect(11, 10, 3, 2, 'lavender').px(11, 10, 'white');
+});
+
+export const handheld = item((canvas) => {
+  canvas.rect(3, 8, 10, 5, 'indigo').rect(4, 7, 8, 7, 'blue');
+  canvas.rect(6, 8, 4, 4, 'navy').rect(7, 9, 2, 2, 'mint');
+  canvas.px(4, 10, 'ice').px(5, 11, 'ice').px(11, 9, 'peach').px(11, 11, 'pink');
+});
+
+export const wallVinyl = item((canvas) => {
+  canvas.rect(5, 3, 6, 10, 'ink').rect(3, 5, 10, 6, 'ink').rect(4, 4, 8, 8, 'shadow');
+  canvas.hline(6, 5, 4, 'mauve').px(5, 6, 'mauve').px(10, 10, 'dusk');
+  canvas.rect(7, 7, 3, 3, 'rose').px(8, 8, 'cream');
+});
+
+export const moonPrint = item((canvas) => {
+  canvas.rect(3, 3, 10, 10, 'violet').rect(4, 4, 8, 8, 'lilac').rect(5, 5, 6, 6, 'navy');
+  canvas.px(8, 6, 'lemon').hline(7, 7, 2, 'cream').hline(7, 8, 2, 'cream');
+  canvas.hline(8, 9, 2, 'lemon').px(10, 6, 'ice').px(6, 9, 'sky');
+});
+
+export const wallPennant = item((canvas) => {
+  canvas.hline(3, 4, 10, 'rosewood').rect(4, 5, 8, 5, 'deepteal').rect(5, 5, 6, 5, 'teal');
+  canvas.hline(5, 10, 6, 'deepteal').hline(6, 11, 4, 'teal').hline(7, 12, 2, 'deepteal');
+  canvas.px(7, 6, 'seafoam').hline(6, 7, 3, 'mint').px(7, 8, 'seafoam');
+});
+
+export const wovenBasket = item((canvas) => {
+  canvas.rect(4, 8, 9, 6, 'bark').rect(5, 9, 7, 4, 'honey').hline(4, 8, 9, 'tan');
+  canvas.hline(6, 7, 5, 'bark').px(6, 6, 'tan').px(10, 6, 'tan').hline(7, 5, 3, 'tan');
+  for (let x = 5; x <= 11; x += 2) canvas.px(x, 10, 'rust').px(x + 1, 12, 'clay');
+});
+
+export const floorCorgi = item((canvas) => {
+  canvas.rect(6, 8, 7, 5, 'honey').hline(7, 12, 5, 'cream').hline(6, 13, 6, 'rust');
+  canvas.rect(3, 7, 5, 5, 'tan').rect(4, 8, 3, 4, 'cream').px(3, 6, 'rust').px(7, 5, 'rust');
+  canvas.px(4, 6, 'honey').px(7, 6, 'honey').px(4, 8, 'ink').px(3, 10, 'ink');
+  canvas.px(13, 7, 'tan').px(12, 8, 'honey').px(12, 12, 'clay');
+});

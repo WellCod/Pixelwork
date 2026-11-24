@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TILESETS, TILESET_IDS } from './catalog.generated.ts';
+import { frameOf } from './assets.ts';
 import { compileMap, isWalkable, relocate, zoneAt, type MapError } from './map.ts';
 import smallOfficeV1 from './fixtures/small-office-v1.json';
 import { FIRSTGID, FURNITURE, buildTestMap, type TestMapOptions } from './testing.ts';
@@ -48,6 +49,15 @@ describe('compileMap: mapas válidos', () => {
     expect(map.tilesets).toEqual([...TILESET_IDS]);
   });
 
+  it('preserva mapas em que outro tileset começa logo após o desk-decor original', () => {
+    const compactMap = {
+      ...smallOfficeV1,
+      // 301 + 48 tiles da folha original. Crescer essa folha invalidaria este mapa.
+      tilesets: [...smallOfficeV1.tilesets, { firstgid: 349, source: 'furniture-2x1.tsj' }],
+    };
+    expect(compileMap(compactMap).ok).toBe(true);
+  });
+
   it('móvel sem colisão não bloqueia', () => {
     const result = compileMap(buildTestMap({ furniture: [{ x: 3, y: 3, tile: FURNITURE.chair }] }));
     expect(result.ok && isWalkable(result.map, 3, 3)).toBe(true);
@@ -68,6 +78,30 @@ describe('compileMap: móveis de várias células', () => {
     if (!result.ok) throw new Error(JSON.stringify(result.errors));
     // Âncora no canto inferior esquerdo: (3,3) é o tile de baixo à esquerda.
     for (const [x, y] of [[3, 3], [4, 3], [3, 2], [4, 2]] as const) expect(isWalkable(result.map, x, y)).toBe(false);
+    expect(isWalkable(result.map, 5, 3)).toBe(true);
+  });
+
+  it('permite andar no vão do sofá em L e bloqueia as três almofadas e o braço', () => {
+    const tileset = 'furniture-3x2';
+    const tile = frameOf(tileset, 'sofa-l');
+    const result = compileMap(buildTestMap({ furniture: [{ x: 3, y: 3, tile, tileset, w: 3, h: 2 }] }));
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    for (const [x, y] of [[3, 2], [4, 2], [5, 2], [5, 3]] as const) expect(isWalkable(result.map, x, y)).toBe(false);
+    expect(isWalkable(result.map, 3, 3)).toBe(true);
+    expect(isWalkable(result.map, 4, 3)).toBe(true);
+  });
+
+  it('usa as dimensões do tileset em móveis sem largura ou altura no JSON', () => {
+    const tileset = 'furniture-2x2';
+    const tile = frameOf(tileset, 'arcade');
+    const json = buildTestMap({ furniture: [{ x: 3, y: 3, tile, tileset }] });
+    const [object] = layerOf(json, 'furniture').objects as Record<string, unknown>[];
+    if (!object) throw new Error('móvel ausente');
+    delete object.width;
+    delete object.height;
+    const result = compileMap(json);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    for (const [x, y] of [[3, 2], [4, 2], [3, 3], [4, 3]] as const) expect(isWalkable(result.map, x, y)).toBe(false);
     expect(isWalkable(result.map, 5, 3)).toBe(true);
   });
 

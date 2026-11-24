@@ -213,6 +213,6 @@ O deploy numa VPS está preparado (Caddy com TLS, app, Postgres, LiveKit), mas n
 A arte é original e gerada em código (`pnpm assets:art`, a partir de `scripts/art/`), na paleta
 Resurrect 64 e num guia de estilo próprio (luz de cima à esquerda, contorno no tom do material,
 fundo claro e calmo): 12 pisos, 3 tapetes, 15 paredes, 54 móveis em quatro tamanhos de célula, mesa
-larga com 23 itens de decoração e avatares com 6 cabelos, 6 roupas e 5 acessórios. Peça desenhada à
+larga com 33 itens de decoração e avatares com 9 cabelos, 9 roupas e 8 acessórios. Peça desenhada à
 mão substitui a gerada sem mudar código. Licenças aceitas e créditos em
 `docs/art.md` e na página `/creditos` do app.

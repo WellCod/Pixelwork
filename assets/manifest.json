@@ -41,6 +41,12 @@
       "license": "own",
       "author": "Pixelwork",
       "source": null
+    },
+    {
+      "id": "desk-decor-extras",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
     }
   ],
   "characters": {
@@ -88,6 +94,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "bob",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "braid",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "undercut",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "outfit": [
@@ -126,6 +150,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "vest",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "overalls",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "cardigan",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "accessory": [
@@ -155,6 +197,24 @@
       },
       {
         "id": "bow",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "round-glasses",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "bandana",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "flower-clip",
         "license": "own",
         "author": "Pixelwork",
         "source": null
@@ -260,6 +320,36 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "mechanical-keyboard",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "terrarium",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "drawing-tablet",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "tea-set",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "handheld",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "wallItems": [
@@ -292,6 +382,24 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "wall-vinyl",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "moon-print",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "wall-pennant",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "floorItems": [
@@ -321,6 +429,18 @@
       },
       {
         "id": "cat",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "woven-basket",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "floor-corgi",
         "license": "own",
         "author": "Pixelwork",
         "source": null

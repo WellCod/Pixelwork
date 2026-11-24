@@ -277,7 +277,8 @@ Restrições (o servidor rejeita com código de erro):
   pelo cliente (`dividerLayout`), em vez de flutuar.
 - Decisões da fase 1: caminhável = tem piso, não tem parede e não tem móvel com `collides`. A
   própria mesa ocupa e bloqueia o seu tile. Objetos de tile (móveis) seguem a âncora do Tiled, no
-  canto inferior esquerdo. Entrada que não é objeto JSON devolve `not_orthogonal` (não há
+  canto inferior esquerdo. Sem largura ou altura, a dimensão vem do tileset. O sofá em L de
+  3x2 bloqueia a fileira de trás e o braço direito na fileira da frente. Entrada que não é objeto JSON devolve `not_orthogonal` (não há
   `orientation`). Os metadados dos `.tsj` (colunas, `collides`, `item_id`) vão para o catálogo
   gerado (`TILESETS`), para o `compileMap` não ler arquivo.
 - O Phaser não lê tileset externo: o cliente embute os tilesets do catálogo no JSON só para

@@ -1,6 +1,10 @@
 import {
   CHAT_BUBBLE_MS,
+  CONTACT_SHADOW_COLOR,
+  deskContactShadows,
   findPath,
+  furnitureContactShadows,
+  isCornerSofa,
   STEP_MS,
   TILESETS,
   TILESET_IDS,
@@ -9,6 +13,7 @@ import {
   tilesetImageUrl,
   type ClientMsg,
   type CompiledDesk,
+  type ContactShadow,
   type Dir,
   type Player,
 } from '@pixelwork/shared';
@@ -18,7 +23,7 @@ import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
 import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, zonePill } from './labels.ts';
 import { Mover } from './mover.ts';
-import { deskSprites, isNear, seatedFacing } from './presence.ts';
+import { deskDecorFrame, deskSprites, isNear, seatedFacing } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
 import { embedTilesets, objectLayer, propertyValue, resolveGid } from './tiled.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
@@ -57,10 +62,7 @@ interface Avatar {
   chatTimer: Phaser.Time.TimerEvent | null;
 }
 
-const DESK_TILESET = 'desk-decor';
-/** Sombra de contato de móveis e avatares: a cor mais escura da paleta, translúcida. */
-const SHADOW_COLOR = 0x2e222f;
-const SHADOW_ALPHA = 0.18;
+const AVATAR_SHADOW_ALPHA = 0.18;
 /** Zoom da câmera em múltiplos do zoom base (`baseZoom`): inteiro, para o pixel art não borrar. */
 const ZOOM_LEVELS = [1, 2, 3] as const;
 const SPEAKING_COLOR = 0x63c74d;
@@ -69,10 +71,12 @@ const LABEL_DEPTH = 100_000;
 const sheetKey = (id: string) => `sheet:${id}`;
 const tilesKey = (id: string) => `tiles:${id}`;
 
-/** item_id do catálogo -> frame no tileset de decoração de mesa. */
-const DECOR_FRAMES = new Map(
-  Object.entries(TILESETS[DESK_TILESET].items).map(([frame, item]) => [item, Number(frame)]),
-);
+function paintContactShadows(graphics: Phaser.GameObjects.Graphics, x: number, bottom: number, shadows: readonly ContactShadow[]): void {
+  for (const shadow of shadows) {
+    graphics.fillStyle(CONTACT_SHADOW_COLOR, shadow.alpha);
+    graphics.fillEllipse(x + shadow.centerX, bottom + shadow.centerY, shadow.width, shadow.height);
+  }
+}
 
 /**
  * Cena do coworking: mapa, móveis, mesas, avatares e rótulos. Lê o estado do `ClientWorld`,
@@ -118,18 +122,28 @@ export class WorldScene extends Phaser.Scene {
     tilemap.createLayer('floor', tilesets).setDepth(-2);
     tilemap.createLayer('walls', tilesets).setDepth(-1);
 
-    // Sombra de contato sob cada móvel (docs/art.md, guia de estilo): elipse translúcida na base
-    // da pegada, desenhada abaixo dos móveis e acima do piso.
-    const shadows = this.add.graphics().setDepth(-0.5);
-    shadows.fillStyle(SHADOW_COLOR, SHADOW_ALPHA);
-    // Profundidade = y da base em pixels: quem está mais embaixo na tela é desenhado por cima, e o
-    // avatar passa na frente ou atrás do móvel conforme a linha em que está.
+    // Sombras acima do piso e abaixo das paredes e dos sprites.
+    const shadows = this.add.graphics().setDepth(-1.5);
+    for (const desk of this.options.world.map.desks) {
+      paintContactShadows(shadows, desk.x * TILE_PX, (desk.y + desk.height) * TILE_PX,
+        deskContactShadows(desk.width * TILE_PX, desk.height * TILE_PX));
+    }
     for (const object of objectLayer(mapJson, 'furniture')) {
       const tile = object.gid ? resolveGid(mapJson, object.gid) : null;
       if (!tile) continue;
-      const width = object.width ?? TILE_PX;
-      if (TILESETS[tile.id].collides.includes(tile.frame)) shadows.fillEllipse(object.x + width / 2, object.y - 2, width - 2, 6);
-      this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
+      const tileset = TILESETS[tile.id];
+      const { tileWidth, tileHeight } = tileset;
+      const item = tileset.items[tile.frame];
+      if (tileset.collides.includes(tile.frame)) {
+        paintContactShadows(shadows, object.x, object.y, furnitureContactShadows(item, tileWidth, tileHeight));
+      }
+      const image = this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
+      if (isCornerSofa(item, tileWidth, tileHeight)) {
+        // A fileira de trás fica atrás de quem anda no vão, na frente do sofá.
+        image.setCrop(0, TILE_PX, tileWidth, TILE_PX);
+        this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame)
+          .setOrigin(0, 1).setDepth(object.y - TILE_PX).setCrop(0, 0, tileWidth, TILE_PX);
+      }
     }
     this.renderZoneLabels();
 
@@ -439,7 +453,7 @@ export class WorldScene extends Phaser.Scene {
     const position = isSelf ? world.self : player;
     const textureKey = ensureAvatarTexture(this, player.avatar);
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(position.dir)).setOrigin(0.5, 1);
-    const shadow = this.add.ellipse(0, 0, 12, 5, SHADOW_COLOR, SHADOW_ALPHA);
+    const shadow = this.add.ellipse(0, 0, 12, 5, CONTACT_SHADOW_COLOR, AVATAR_SHADOW_ALPHA);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = new NamePill(this).setDepth(LABEL_DEPTH);
     const title = new TitlePill(this).setDepth(LABEL_DEPTH);
@@ -561,12 +575,12 @@ export class WorldScene extends Phaser.Scene {
     // profundidade de cada um é a da base somada ao z relativo que o `deskSprites` define.
     const x = desk.x * TILE_PX;
     const bottom = (desk.y + desk.height) * TILE_PX;
-    const addItem = (itemId: string | null, dx: number, dy: number, depth: number, flip = false) => {
-      const frame = itemId ? DECOR_FRAMES.get(itemId) : undefined;
-      if (frame === undefined) return;
+    const addItem = (itemId: string, dx: number, dy: number, depth: number, flip = false) => {
+      const sprite = deskDecorFrame(itemId);
+      if (!sprite) return;
       objects.push(
         this.add
-          .image(x + dx, bottom + dy, sheetKey(DESK_TILESET), frame)
+          .image(x + dx, bottom + dy, sheetKey(sprite.tileset), sprite.frame)
           .setOrigin(0, 1)
           .setFlipX(flip)
           .setDepth(depth),

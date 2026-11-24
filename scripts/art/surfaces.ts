@@ -15,25 +15,16 @@ export function texture(colorAt: (x: number, y: number) => ColorName, textureWid
 
 // ---- pisos ----
 
-/**
- * Madeira clara: tábuas de carvalho de 8 px, topo um tom acima (luz de cima), emenda e ponta das
- * tábuas em carvalho escuro, desencontradas, e dois pixels de veio por tábua. Pouco contraste de
- * propósito: o piso é fundo. (Tábua de 4 px com friso branco sobre pêssego lia como tijolo.)
- */
+/** Carvalho claro com juntas finas e espaçadas, para continuar legível sem competir com os móveis. */
 export const woodLight = texture((x, y) => {
   const plank = Math.floor(y / 8);
-  const rowInPlank = y % 8;
-  // Emenda de ponta e veios em colunas que mudam por tábua (multiplicadores primos com 16), para
-  // as tábuas vizinhas não alinharem.
-  if (rowInPlank === 7) return 'oakSeam';
-  if (x === (plank * 9 + 4) % TILE) return 'oakSeam';
-  if (rowInPlank === 0) return 'oakLight';
-  if ((rowInPlank === 3 && x === (plank * 5 + 11) % TILE) || (rowInPlank === 5 && x === (plank * 7 + 1) % TILE)) return 'oakSeam';
-  return 'oak';
+  if (y % 8 === 7 || x === (plank * 9 + 4) % TILE) return 'oak';
+  if (y === 4 && x >= 10 && x <= 11) return 'oak';
+  return 'oakLight';
 });
 
-/** Ladrilho claro grande (8x8) com rejunte carvalho fino: liso, sem cara de tijolo. */
-export const creamTile = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'oak' : 'oakLight'));
+/** Ladrilho creme de uma célula com rejunte de carvalho claro. */
+export const creamTile = texture((x, y) => (x === TILE - 1 || y === TILE - 1 ? 'oak' : 'oakLight'));
 
 /** Carpete lavanda claro: liso, com pontos rosados espaçados. */
 export const lilacCarpet = texture((x, y) => ((x * 3 + y * 5) % 17 === 0 ? 'pink' : 'lilac'));
@@ -41,17 +32,13 @@ export const lilacCarpet = texture((x, y) => ((x * 3 + y * 5) % 17 === 0 ? 'pink
 /** Carpete azul-claro: liso, com pontos brancos espaçados. */
 export const iceCarpet = texture((x, y) => ((x * 5 + y * 3) % 17 === 0 ? 'white' : 'ice'));
 
-/** Ladrilho de copa: peças brancas de 8 px com rejunte névoa (o xadrez chamava atenção demais). */
-export const kitchenChecker = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'mist' : 'white'));
+/** Ladrilho da copa em névoa, com rejunte sálvia suave e uma peça por célula. */
+export const kitchenChecker = texture((x, y) => (x === TILE - 1 || y === TILE - 1 ? 'celery' : 'mist'));
 
-/** Taco em espinha de peixe: peças em diagonal de carvalho, emenda escura e filete claro ao lado. */
+/** Taco em carvalho com diagonais largas e duas cores próximas. */
 export const herringbone = texture((x, y) => {
-  // Colunas de 4 px alternando a direção da diagonal: o zigue-zague da espinha de peixe.
-  const forward = Math.floor(x / 4) % 2 === 0;
-  const diagonalPhase = ((forward ? x : -x + 16) + 2 * y) % 8;
-  if (diagonalPhase === 0) return 'oakSeam';
-  if (diagonalPhase === 1) return 'oakLight';
-  return 'oak';
+  const phase = ((x < 8 ? x : 15 - x) + y) % 8;
+  return phase === 0 ? 'oak' : 'oakLight';
 });
 
 /** Madeira escura: tábuas de 8 px em ferrugem, emenda em casca, veio em barro. */
@@ -63,35 +50,27 @@ export const woodDark = texture((x, y) => {
   return 'rust';
 });
 
-/** Grama para a área externa: verde-folha com tufos claros espaçados. */
+/** Grama sálvia com poucos tufos de dois ou três pixels. */
 export const grass = texture((x, y) => {
-  const tuftHash = (x * 7 + y * 13) % 23;
-  if (tuftHash === 0) return 'sprout';
-  if (tuftHash === 11) return 'sage';
-  return 'leaf';
+  if ((y === 4 && x === 3) || (y === 11 && x === 12)) return 'leaf';
+  if ((y === 5 && (x === 3 || x === 4)) || (y === 12 && x === 12)) return 'celery';
+  return 'sage';
 });
 
-/** Calçada de pedras irregulares: pedras névoa com junta cinza. */
+/** Calçada com pedras de 8 px e juntas desencontradas que fecham ao repetir o tile. */
 export const stonePath = texture((x, y) => {
-  // Fileiras de 5 px, cada uma deslocada 3 px da anterior para as juntas não alinharem.
-  const stoneRow = Math.floor(y / 5);
-  const offset = (stoneRow * 3) % 6;
-  if (y % 5 === 4 || (x + offset) % 6 === 5) return 'gray';
-  if ((x + offset) % 6 === 0 && y % 5 === 0) return 'white';
-  return 'mist';
+  const offset = y < 8 ? 0 : 4;
+  return y % 8 === 7 || (x + offset) % 8 === 7 ? 'gray' : 'mist';
 });
 
 /** Cimento queimado: névoa lisa com raros pontos cinza. */
 export const concrete = texture((x, y) => ((x * 11 + y * 7) % 23 === 0 ? 'gray' : 'mist'));
 
-/** Ladrilho sálvia claro 8x8 com rejunte sálvia (tom vizinho, nada de grade branca). */
-export const sageTile = texture((x, y) => (x % 8 === 7 || y % 8 === 7 ? 'sage' : 'celery'));
+/** Ladrilho sálvia de uma célula, na mesma escala que a copa e o lounge. */
+export const sageTile = texture((x, y) => (x === TILE - 1 || y === TILE - 1 ? 'sage' : 'celery'));
 
-/**
- * Carpete de escritório claro: névoa com uma trama miúda em branco, espaçada. Fica na família das
- * paredes e não esfria a sala como o cinza-azulado.
- */
-export const grayCarpet = texture((x, y) => ((x + 2 * y) % 8 === 0 && y % 2 === 0 ? 'white' : 'mist'));
+/** Carpete de escritório com uma trama discreta, sem repetição de pontos brancos. */
+export const grayCarpet = texture((x, y) => ((y === 6 || y === 13) && x >= 6 && x <= 7 ? 'celery' : 'mist'));
 
 // ---- tapetes (16 tiles, um por combinação de bordas: máscara N=1, S=2, O=4, L=8) ----
 
@@ -104,18 +83,14 @@ export interface RugColors {
 
 /**
  * Um tile do tapete. A borda tem 3 px (contorno, filete claro, campo) só nos lados de fora, então
- * qualquer retângulo de tiles fecha certinho; o miolo tem um losango a cada 8 px.
+ * qualquer retângulo de tiles fecha. O miolo tem um losango discreto por célula.
  */
 function rugTile(colors: RugColors, north: boolean, south: boolean, west: boolean, east: boolean): Pixels {
   return texture((x, y) => {
     const fromEdge = Math.min(north ? y : 99, south ? TILE - 1 - y : 99, west ? x : 99, east ? TILE - 1 - x : 99);
     if (fromEdge === 0) return colors.edge;
     if (fromEdge === 2) return colors.stripe;
-    // Losango só quando a célula de 8 px inteira está longe da borda: nada de losango cortado.
-    const motifCenterX = Math.floor(x / 8) * 8 + 4;
-    const motifCenterY = Math.floor(y / 8) * 8 + 4;
-    const cellFromEdge = Math.min(north ? motifCenterY : 99, south ? TILE - 1 - motifCenterY : 99, west ? motifCenterX : 99, east ? TILE - 1 - motifCenterX : 99);
-    if (cellFromEdge >= 6 && Math.abs(x - motifCenterX) + Math.abs(y - motifCenterY) === 2) return colors.motif;
+    if (Math.abs(x - 7) + Math.abs(y - 7) === 2) return colors.motif;
     return colors.field;
   });
 }
@@ -127,9 +102,9 @@ export function rug(colors: RugColors): Pixels[] {
   );
 }
 
-export const RUG_LAVENDER: RugColors = { edge: 'mauve', stripe: 'white', field: 'lilac', motif: 'pink' };
-export const RUG_SAGE: RugColors = { edge: 'fern', stripe: 'celery', field: 'sage', motif: 'mist' };
-export const RUG_CREAM: RugColors = { edge: 'clay', stripe: 'cream', field: 'peach', motif: 'cream' };
+export const RUG_LAVENDER: RugColors = { edge: 'mauve', stripe: 'mist', field: 'lilac', motif: 'lavender' };
+export const RUG_SAGE: RugColors = { edge: 'fern', stripe: 'celery', field: 'sage', motif: 'celery' };
+export const RUG_CREAM: RugColors = { edge: 'rosewood', stripe: 'oakLight', field: 'cream', motif: 'peach' };
 
 // ---- paredes ----
 

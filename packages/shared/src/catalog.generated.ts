@@ -1,14 +1,14 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras'] as const;
 export const BODY_IDS = ['base'] as const;
-export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro'] as const;
-export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater'] as const;
-export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow'] as const;
+export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'] as const;
+export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan'] as const;
+export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip'] as const;
 export const DESK_VARIANTS = ['basic', 'dark', 'white'] as const;
-export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck'] as const;
-export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo'] as const;
-export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat'] as const;
+export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck', 'mechanical-keyboard', 'terrarium', 'drawing-tablet', 'tea-set', 'handheld'] as const;
+export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo', 'wall-vinyl', 'moon-print', 'wall-pennant'] as const;
+export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat', 'woven-basket', 'floor-corgi'] as const;
 export const SKIN_PALETTES = ['light', 'medium', 'dark', 'pale', 'tan', 'deep'] as const;
 export const HAIR_PALETTES = ['brown', 'black', 'blond', 'red', 'gray', 'pink', 'blue', 'green'] as const;
 export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gray', 'black', 'cream'] as const;
@@ -413,6 +413,25 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "4": "reception",
       "5": "foosball"
     }
+  },
+  "desk-decor-extras": {
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 16,
+    "collides": [],
+    "items": {
+      "0": "mechanical-keyboard",
+      "1": "terrarium",
+      "2": "drawing-tablet",
+      "3": "tea-set",
+      "4": "handheld",
+      "5": "wall-vinyl",
+      "6": "moon-print",
+      "7": "wall-pennant",
+      "8": "woven-basket",
+      "9": "floor-corgi"
+    }
   }
 };
 
@@ -475,6 +494,13 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "tileset",
+    "id": "desk-decor-extras",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/body",
     "id": "base",
     "license": "own",
@@ -524,6 +550,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/hair",
+    "id": "bob",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/hair",
+    "id": "braid",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/hair",
+    "id": "undercut",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/outfit",
     "id": "basic",
     "license": "own",
@@ -566,6 +613,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/outfit",
+    "id": "vest",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "overalls",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "cardigan",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/accessory",
     "id": "glasses",
     "license": "own",
@@ -596,6 +664,27 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "character/accessory",
     "id": "bow",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "round-glasses",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "bandana",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "flower-clip",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -713,6 +802,41 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/decorItems",
+    "id": "mechanical-keyboard",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "terrarium",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "drawing-tablet",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "tea-set",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "handheld",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/wallItems",
     "id": "poster",
     "license": "own",
@@ -748,6 +872,27 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/wallItems",
+    "id": "wall-vinyl",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "moon-print",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "wall-pennant",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/floorItems",
     "id": "plant-small",
     "license": "own",
@@ -778,6 +923,20 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "desk/floorItems",
     "id": "cat",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "woven-basket",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "floor-corgi",
     "license": "own",
     "author": "Pixelwork",
     "source": null

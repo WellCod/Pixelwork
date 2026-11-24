@@ -214,7 +214,8 @@ describe('mapas: upload, troca ao vivo e export', () => {
 
   it('export de mapa que usa só parte dos tilesets leva só esses', async () => {
     const partial = buildTestMap({ ...base });
-    (partial.tilesets as unknown[]).splice(3, 1); // tira desk-decor, que o mapa não usa
+    partial.tilesets = (partial.tilesets as { source: string }[])
+      .filter((tileset) => !tileset.source.startsWith('desk-decor'));
     const saved = await api(server, admin, 'PUT', space('/map'), { map: partial, baseVersion: await version() });
     expect(saved.status).toBe(200);
     const response = await fetch(`${server.baseUrl}${space('/map/export')}`, { headers: { cookie: admin.cookie } });

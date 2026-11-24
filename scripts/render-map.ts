@@ -4,6 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
+import { CONTACT_SHADOW_COLOR, deskContactShadows, furnitureContactShadows, isCornerSofa, type ContactShadow } from '@pixelwork/shared';
 
 const root = join(import.meta.dirname, '..');
 const [mapPath = join(root, 'maps/templates/small-office.json'), outputPath = 'map.png', scaleArg = '2'] =
@@ -37,6 +38,8 @@ interface Sheet {
   columns: number;
   /** item_id -> índice do tile, para achar o frame da mesa e do monitor pelo nome. */
   items: Map<string, number>;
+  itemIds: Map<number, string>;
+  collides: Set<number>;
 }
 const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
   width: number;
@@ -57,9 +60,15 @@ function loadSheet(id: string): Sheet {
       tiles?: { id: number; properties?: { name: string; value: unknown }[] }[];
     };
     const items = new Map<string, number>();
+    const itemIds = new Map<number, string>();
+    const collides = new Set<number>();
     for (const tile of tsj.tiles ?? []) {
       const itemId = tile.properties?.find((property) => property.name === 'item_id')?.value;
-      if (typeof itemId === 'string') items.set(itemId, tile.id);
+      if (typeof itemId === 'string') {
+        items.set(itemId, tile.id);
+        itemIds.set(tile.id, itemId);
+      }
+      if (tile.properties?.some((property) => property.name === 'collides' && property.value === true)) collides.add(tile.id);
     }
     sheet = {
       png: PNG.sync.read(readFileSync(join(root, 'assets/tilesets', `${id}.png`))),
@@ -67,6 +76,8 @@ function loadSheet(id: string): Sheet {
       tileHeight: tsj.tileheight,
       columns: tsj.columns,
       items,
+      itemIds,
+      collides,
     };
     sheetCache.set(id, sheet);
   }
@@ -101,11 +112,12 @@ function put(x: number, y: number, rgb: number[], alpha = 1): void {
 }
 
 /** Frame `frame` do tileset `id` com o canto inferior esquerdo em (x, bottom). */
-function draw(id: string, frame: number, x: number, bottom: number): void {
+function draw(id: string, frame: number, x: number, bottom: number, rows?: readonly [number, number]): void {
   const sheet = loadSheet(id);
   const sourceX = (frame % sheet.columns) * sheet.tileWidth;
   const sourceY = Math.floor(frame / sheet.columns) * sheet.tileHeight;
-  for (let dy = 0; dy < sheet.tileHeight; dy++) {
+  const [firstRow, endRow] = rows ?? [0, sheet.tileHeight];
+  for (let dy = firstRow; dy < endRow; dy++) {
     for (let dx = 0; dx < sheet.tileWidth; dx++) {
       const sourceOffset = ((sourceY + dy) * sheet.png.width + sourceX + dx) * 4;
       if ((sheet.png.data[sourceOffset + 3] ?? 0) === 0) continue;
@@ -118,13 +130,19 @@ function draw(id: string, frame: number, x: number, bottom: number): void {
   }
 }
 
-/** Sombra elíptica translúcida com centro (centerX, centerY) e raios radiusX e radiusY. */
-function shadow(centerX: number, centerY: number, radiusX: number, radiusY: number): void {
-  for (let y = Math.floor(centerY - radiusY); y <= centerY + radiusY; y++) {
-    for (let x = Math.floor(centerX - radiusX); x <= centerX + radiusX; x++) {
-      // Testa o centro do pixel (+0,5) contra a equação da elipse.
-      if (((x + 0.5 - centerX) / radiusX) ** 2 + ((y + 0.5 - centerY) / radiusY) ** 2 <= 1) {
-        put(x, y, [0x2e, 0x22, 0x2f], 0.18);
+const shadowRgb = [CONTACT_SHADOW_COLOR >> 16, (CONTACT_SHADOW_COLOR >> 8) & 255, CONTACT_SHADOW_COLOR & 255];
+
+function paintContactShadows(anchorX: number, bottom: number, shadows: readonly ContactShadow[]): void {
+  for (const shadow of shadows) {
+    const centerX = anchorX + shadow.centerX;
+    const centerY = bottom + shadow.centerY;
+    const radiusX = shadow.width / 2;
+    const radiusY = shadow.height / 2;
+    for (let y = Math.floor(centerY - radiusY); y <= centerY + radiusY; y++) {
+      for (let x = Math.floor(centerX - radiusX); x <= centerX + radiusX; x++) {
+        if (((x + 0.5 - centerX) / radiusX) ** 2 + ((y + 0.5 - centerY) / radiusY) ** 2 <= 1) {
+          put(x, y, shadowRgb, shadow.alpha);
+        }
       }
     }
   }
@@ -132,12 +150,14 @@ function shadow(centerX: number, centerY: number, radiusX: number, radiusY: numb
 
 const findLayer = (name: string) => map.layers.find((layer) => layer.name === name);
 // Camadas de tile: o índice no array é linha * largura + coluna, e `draw` ancora pela base da célula.
-for (const name of ['floor', 'walls']) {
+function paintLayer(name: 'floor' | 'walls'): void {
   (findLayer(name)?.data ?? []).forEach((gid, i) => {
     const tile = resolve(gid);
     if (tile) draw(tile.id, tile.frame, (i % map.width) * TILE, (Math.floor(i / map.width) + 1) * TILE);
   });
 }
+
+paintLayer('floor');
 
 // Móveis e mesas vão para uma lista só e são pintados pela base (y de baixo), para o que está mais
 // embaixo no mapa cobrir o que está atrás, como no cliente.
@@ -145,14 +165,18 @@ const drawables: { base: number; paint: () => void }[] = [];
 for (const furnitureObject of findLayer('furniture')?.objects ?? []) {
   const tile = furnitureObject.gid ? resolve(furnitureObject.gid) : null;
   if (!tile) continue;
-  drawables.push({
-    // Objeto de tile do Tiled tem o y na base.
-    base: furnitureObject.y,
-    paint: () => {
-      shadow(furnitureObject.x + furnitureObject.width / 2, furnitureObject.y - 2, furnitureObject.width / 2 - 1, 3);
-      draw(tile.id, tile.frame, furnitureObject.x, furnitureObject.y);
-    },
-  });
+  const { tileWidth, tileHeight, itemIds, collides } = loadSheet(tile.id);
+  const item = itemIds.get(tile.frame);
+  if (collides.has(tile.frame)) {
+    paintContactShadows(furnitureObject.x, furnitureObject.y, furnitureContactShadows(item, tileWidth, tileHeight));
+  }
+  const drawObject = (rows?: readonly [number, number]) => draw(tile.id, tile.frame, furnitureObject.x, furnitureObject.y, rows);
+  if (isCornerSofa(item, tileWidth, tileHeight)) {
+    drawables.push({ base: furnitureObject.y - TILE, paint: () => drawObject([0, TILE]) });
+    drawables.push({ base: furnitureObject.y, paint: () => drawObject([TILE, tileHeight]) });
+  } else {
+    drawables.push({ base: furnitureObject.y, paint: () => drawObject() });
+  }
 }
 const decorItems = loadSheet('desk-decor').items;
 for (const deskObject of findLayer('desks')?.objects ?? []) {
@@ -160,10 +184,10 @@ for (const deskObject of findLayer('desks')?.objects ?? []) {
   const isTall = deskObject.height > TILE;
   // Mesa é objeto retangular: o y fica no topo, então a base é y + altura.
   const bottom = deskObject.y + deskObject.height;
+  paintContactShadows(deskObject.x, bottom, deskContactShadows(deskObject.width, deskObject.height));
   drawables.push({
     base: bottom,
     paint: () => {
-      shadow(deskObject.x + deskObject.width / 2, bottom - 2, deskObject.width / 2 - 1, 3);
       const frameOf = (itemId: string) => decorItems.get(itemId) ?? 0;
       if (isWide) {
         draw('desk-decor', frameOf('basic-wide-l'), deskObject.x, bottom);
@@ -180,6 +204,7 @@ for (const deskObject of findLayer('desks')?.objects ?? []) {
     },
   });
 }
+paintLayer('walls');
 for (const drawable of drawables.sort((drawableA, drawableB) => drawableA.base - drawableB.base)) drawable.paint();
 
 // Ampliação final por vizinho mais próximo: cada pixel da saída copia os 4 bytes do pixel de origem.
