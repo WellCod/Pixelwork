@@ -3,6 +3,7 @@
 import type { Pixels } from '../lib/pixels.ts';
 import * as deskDecor from './desk-decor.ts';
 import * as halloween from './halloween.ts';
+import * as festive from './festive-desk.ts';
 import * as smallFurniture from './furniture-small.ts';
 import * as surfaces from './surfaces.ts';
 
@@ -189,6 +190,32 @@ export const DESK_DECOR_HALLOWEEN: TileArt[] = [
   { pixels: halloween.garland, itemId: 'halloween-garland' },
   { pixels: halloween.blackCat, itemId: 'halloween-black-cat' },
   { pixels: halloween.candyBucket, itemId: 'halloween-candy-bucket' },
+];
+
+export const DESK_DECOR_FESTIVE: TileArt[] = [
+  { pixels: festive.christmasTree, itemId: 'christmas-tree' },
+  { pixels: festive.christmasGift, itemId: 'christmas-gift' },
+  { pixels: festive.christmasWreath, itemId: 'christmas-wreath' },
+  { pixels: festive.christmasGiftStack, itemId: 'christmas-gift-stack' },
+  { pixels: festive.newYearStar, itemId: 'new-year-star' },
+  { pixels: festive.newYearPopper, itemId: 'new-year-popper' },
+  { pixels: festive.newYearClock, itemId: 'new-year-clock' },
+  { pixels: festive.newYearBalloons, itemId: 'new-year-balloons' },
+];
+
+export const DESK_DECOR_CHRISTMAS: TileArt[] = [
+  { pixels: festive.christmasCandyCane, itemId: 'christmas-candy-cane' },
+  { pixels: festive.christmasStringLights, itemId: 'christmas-string-lights' },
+];
+
+export const DESK_DECOR_GRINCH: TileArt[] = [
+  { pixels: festive.grinchMiniature, itemId: 'grinch-miniature' },
+  { pixels: festive.grinchCrookedTree, itemId: 'grinch-crooked-tree' },
+  { pixels: festive.grinchHeart, itemId: 'grinch-heart' },
+  { pixels: festive.grinchGiftSack, itemId: 'grinch-gift-sack' },
+  { pixels: festive.grinchMax, itemId: 'grinch-max' },
+  { pixels: festive.grinchSnowGlobe, itemId: 'grinch-snow-globe' },
+  { pixels: festive.grinchStringLights, itemId: 'grinch-string-lights' },
 ];
 
 export const FURNITURE_HALLOWEEN: TileArt[] = [

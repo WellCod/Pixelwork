@@ -71,6 +71,24 @@
       "license": "own",
       "author": "Pixelwork",
       "source": null
+    },
+    {
+      "id": "desk-decor-festive",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "desk-decor-grinch",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
+    },
+    {
+      "id": "desk-decor-christmas",
+      "license": "own",
+      "author": "Pixelwork",
+      "source": null
     }
   ],
   "characters": {
@@ -204,6 +222,30 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "christmas-sweater",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "new-year-jacket",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-coat",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-fur",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "accessory": [
@@ -269,6 +311,40 @@
       },
       {
         "id": "halloween-bat-ears",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "christmas-santa-hat",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "new-year-tiara",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-mask",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "headwear": [
+      {
+        "id": "grinch-santa-hat",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      }
+    ],
+    "backpack": [
+      {
+        "id": "grinch-present-sack",
         "license": "own",
         "author": "Pixelwork",
         "source": null
@@ -434,6 +510,60 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "christmas-tree",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "christmas-gift",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "new-year-star",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "new-year-popper",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-miniature",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-crooked-tree",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-max",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-snow-globe",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "christmas-candy-cane",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "wallItems": [
@@ -496,6 +626,36 @@
         "license": "own",
         "author": "Pixelwork",
         "source": null
+      },
+      {
+        "id": "christmas-wreath",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "new-year-clock",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-heart",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-string-lights",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "christmas-string-lights",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
       }
     ],
     "floorItems": [
@@ -549,6 +709,24 @@
       },
       {
         "id": "halloween-candy-bucket",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "christmas-gift-stack",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "new-year-balloons",
+        "license": "own",
+        "author": "Pixelwork",
+        "source": null
+      },
+      {
+        "id": "grinch-gift-sack",
         "license": "own",
         "author": "Pixelwork",
         "source": null

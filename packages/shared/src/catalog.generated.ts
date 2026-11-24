@@ -1,14 +1,16 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3', 'desk-decor-halloween', 'furniture-halloween', 'furniture-2x1-halloween'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3', 'desk-decor-halloween', 'furniture-halloween', 'furniture-2x1-halloween', 'desk-decor-festive', 'desk-decor-grinch', 'desk-decor-christmas'] as const;
 export const BODY_IDS = ['base'] as const;
 export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'] as const;
-export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan', 'halloween-witch-robe', 'halloween-vampire-cape'] as const;
-export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip', 'halloween-witch-hat', 'halloween-pumpkin-mask', 'halloween-bat-ears'] as const;
+export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan', 'halloween-witch-robe', 'halloween-vampire-cape', 'christmas-sweater', 'new-year-jacket', 'grinch-coat', 'grinch-fur'] as const;
+export const ACCESSORY_IDS = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip', 'halloween-witch-hat', 'halloween-pumpkin-mask', 'halloween-bat-ears', 'christmas-santa-hat', 'new-year-tiara', 'grinch-mask'] as const;
+export const HEADWEAR_IDS = ['grinch-santa-hat'] as const;
+export const BACKPACK_IDS = ['grinch-present-sack'] as const;
 export const DESK_VARIANTS = ['basic', 'dark', 'white', 'halloween-twilight'] as const;
-export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck', 'mechanical-keyboard', 'terrarium', 'drawing-tablet', 'tea-set', 'handheld', 'halloween-pumpkin-lamp', 'halloween-potion', 'halloween-spellbook', 'halloween-skull'] as const;
-export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo', 'wall-vinyl', 'moon-print', 'wall-pennant', 'halloween-cobweb', 'halloween-garland'] as const;
-export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat', 'woven-basket', 'floor-corgi', 'halloween-black-cat', 'halloween-candy-bucket'] as const;
+export const DECOR_ITEMS = ['mug', 'lamp', 'books', 'pencil-cup', 'headphones', 'cactus-mini', 'photo', 'water-bottle', 'sticky-notes', 'speaker', 'takeaway-coffee', 'trophy', 'duck', 'mechanical-keyboard', 'terrarium', 'drawing-tablet', 'tea-set', 'handheld', 'halloween-pumpkin-lamp', 'halloween-potion', 'halloween-spellbook', 'halloween-skull', 'christmas-tree', 'christmas-gift', 'new-year-star', 'new-year-popper', 'grinch-miniature', 'grinch-crooked-tree', 'grinch-max', 'grinch-snow-globe', 'christmas-candy-cane'] as const;
+export const WALL_ITEMS = ['poster', 'clock', 'calendar', 'shelf-mini', 'framed-photo', 'wall-vinyl', 'moon-print', 'wall-pennant', 'halloween-cobweb', 'halloween-garland', 'christmas-wreath', 'new-year-clock', 'grinch-heart', 'grinch-string-lights', 'christmas-string-lights'] as const;
+export const FLOOR_ITEMS = ['plant-small', 'bin', 'backpack', 'vase-tall', 'cat', 'woven-basket', 'floor-corgi', 'halloween-black-cat', 'halloween-candy-bucket', 'christmas-gift-stack', 'new-year-balloons', 'grinch-gift-sack'] as const;
 export const SKIN_PALETTES = ['light', 'medium', 'dark', 'pale', 'tan', 'deep'] as const;
 export const HAIR_PALETTES = ['brown', 'black', 'blond', 'red', 'gray', 'pink', 'blue', 'green'] as const;
 export const OUTFIT_PALETTES = ['blue', 'red', 'green', 'purple', 'yellow', 'gray', 'black', 'cream', 'orange'] as const;
@@ -521,6 +523,50 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
       "1": "halloween-vampire-sofa",
       "2": "halloween-treat-table"
     }
+  },
+  "desk-decor-festive": {
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [],
+    "items": {
+      "0": "christmas-tree",
+      "1": "christmas-gift",
+      "2": "christmas-wreath",
+      "3": "christmas-gift-stack",
+      "4": "new-year-star",
+      "5": "new-year-popper",
+      "6": "new-year-clock",
+      "7": "new-year-balloons"
+    }
+  },
+  "desk-decor-grinch": {
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [],
+    "items": {
+      "0": "grinch-miniature",
+      "1": "grinch-crooked-tree",
+      "2": "grinch-heart",
+      "3": "grinch-gift-sack",
+      "4": "grinch-max",
+      "5": "grinch-snow-globe",
+      "6": "grinch-string-lights"
+    }
+  },
+  "desk-decor-christmas": {
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [],
+    "items": {
+      "0": "christmas-candy-cane",
+      "1": "christmas-string-lights"
+    }
   }
 };
 
@@ -613,6 +659,27 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "furniture-2x1-halloween",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "desk-decor-festive",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "desk-decor-grinch",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "desk-decor-christmas",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -765,6 +832,34 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "character/outfit",
+    "id": "christmas-sweater",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "new-year-jacket",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "grinch-coat",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/outfit",
+    "id": "grinch-fur",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "character/accessory",
     "id": "glasses",
     "license": "own",
@@ -837,6 +932,41 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "character/accessory",
     "id": "halloween-bat-ears",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "christmas-santa-hat",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "new-year-tiara",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/accessory",
+    "id": "grinch-mask",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/headwear",
+    "id": "grinch-santa-hat",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "character/backpack",
+    "id": "grinch-present-sack",
     "license": "own",
     "author": "Pixelwork",
     "source": null
@@ -1024,6 +1154,69 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/decorItems",
+    "id": "christmas-tree",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "christmas-gift",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "new-year-star",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "new-year-popper",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "grinch-miniature",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "grinch-crooked-tree",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "grinch-max",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "grinch-snow-globe",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/decorItems",
+    "id": "christmas-candy-cane",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/wallItems",
     "id": "poster",
     "license": "own",
@@ -1094,6 +1287,41 @@ export const CREDITS: readonly Credit[] = [
     "source": null
   },
   {
+    "kind": "desk/wallItems",
+    "id": "christmas-wreath",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "new-year-clock",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "grinch-heart",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "grinch-string-lights",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/wallItems",
+    "id": "christmas-string-lights",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
     "kind": "desk/floorItems",
     "id": "plant-small",
     "license": "own",
@@ -1152,6 +1380,27 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "desk/floorItems",
     "id": "halloween-candy-bucket",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "christmas-gift-stack",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "new-year-balloons",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "desk/floorItems",
+    "id": "grinch-gift-sack",
     "license": "own",
     "author": "Pixelwork",
     "source": null

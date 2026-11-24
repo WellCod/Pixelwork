@@ -7,6 +7,8 @@ const KIND_LABEL: Record<string, string> = {
   'character/hair': 'Personagem: cabelo',
   'character/outfit': 'Personagem: roupa',
   'character/accessory': 'Personagem: acessório',
+  'character/headwear': 'Personagem: gorros',
+  'character/backpack': 'Personagem: itens nas costas',
   'desk/variants': 'Mesa: variações',
   'desk/decorItems': 'Mesa: itens',
   'desk/wallItems': 'Mesa: parede',

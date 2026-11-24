@@ -1,0 +1,86 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "name": "desk-decor-grinch",
+  "image": "desk-decor-grinch.png",
+  "imagewidth": 128,
+  "imageheight": 16,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "columns": 8,
+  "tilecount": 8,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-miniature"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-crooked-tree"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-heart"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-gift-sack"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-max"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-snow-globe"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "grinch-string-lights"
+        }
+      ]
+    }
+  ]
+}

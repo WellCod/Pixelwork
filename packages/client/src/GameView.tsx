@@ -15,6 +15,7 @@ import { CallUi } from './ui/CallUi.tsx';
 import { ChatBox } from './ui/ChatBox.tsx';
 import { DeskBar } from './ui/DeskBar.tsx';
 import { GameWindow } from './ui/GameWindow.tsx';
+import { FurnitureSeatBar } from './ui/FurnitureSeatBar.tsx';
 import { TableBar } from './ui/TableBar.tsx';
 import { MediaControls } from './ui/MediaControls.tsx';
 import { RoomPanel } from './ui/RoomPanel.tsx';
@@ -174,6 +175,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
                 <ZoneUi world={world} send={send} />
                 <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
                 <TableBar world={world} send={send} />
+                <FurnitureSeatBar world={world} send={send} />
               </>
             )}
           </div>

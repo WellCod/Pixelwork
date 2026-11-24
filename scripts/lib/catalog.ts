@@ -21,6 +21,8 @@ export const Manifest = z.object({
     hair: z.array(Asset),
     outfit: z.array(Asset),
     accessory: z.array(Asset),
+    headwear: z.array(Asset).default([]),
+    backpack: z.array(Asset).default([]),
   }),
   deskDecor: z.object({
     variants: z.array(Asset),
@@ -200,6 +202,8 @@ export function buildCatalog(input: CatalogInput): string {
     list('HAIR_IDS', ids(characters.hair)),
     list('OUTFIT_IDS', ids(characters.outfit)),
     list('ACCESSORY_IDS', ids(characters.accessory)),
+    list('HEADWEAR_IDS', ids(characters.headwear)),
+    list('BACKPACK_IDS', ids(characters.backpack)),
     list('DESK_VARIANTS', ids(deskDecor.variants)),
     list('DECOR_ITEMS', ids(deskDecor.decorItems)),
     list('WALL_ITEMS', ids(deskDecor.wallItems)),

@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react';
+import { COLLECTIONS, type CustomizationCollection } from './customization-collections.ts';
 import { Modal } from './Modal.tsx';
 
 export function CustomizationEditor({ title, preview, children, error, saving, onSave, onClose }: {
@@ -50,6 +51,18 @@ export function CustomizationNav<Key extends string>({ label, options, current, 
           {option.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+export function CustomizationCollectionPicker({ collection, onChange }: {
+  collection: CustomizationCollection;
+  onChange: (collection: CustomizationCollection) => void;
+}) {
+  return (
+    <div className="customization-collection">
+      <span className="customization-collection-label">Coleção</span>
+      <CustomizationNav label="Coleção" options={COLLECTIONS} current={collection} onChange={onChange} />
     </div>
   );
 }

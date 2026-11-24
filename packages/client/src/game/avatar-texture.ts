@@ -1,8 +1,10 @@
 import {
   ACCESSORY_IDS,
+  BACKPACK_IDS,
   BODY_IDS,
   DIRS,
   HAIR_IDS,
+  HEADWEAR_IDS,
   OUTFIT_IDS,
   avatarKey,
   characterImageUrl,
@@ -21,6 +23,8 @@ export function preloadCharacterLayers(scene: Phaser.Scene): void {
     ['outfit', OUTFIT_IDS],
     ['hair', HAIR_IDS],
     ['accessory', ACCESSORY_IDS],
+    ['headwear', HEADWEAR_IDS],
+    ['backpack', BACKPACK_IDS],
   ];
   for (const [layer, ids] of layers) {
     for (const id of ids) scene.load.image(layerKey(layer, id), characterImageUrl(layer, id));

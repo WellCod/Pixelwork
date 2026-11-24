@@ -4,6 +4,7 @@ export * from './catalog.generated.ts';
 export * from './constants.ts';
 export * from './map.ts';
 export * from './furniture.ts';
+export * from './furniture-seats.ts';
 export * from './protocol.ts';
 export * from './sim.ts';
 export * from './validation.ts';

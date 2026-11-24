@@ -13,6 +13,7 @@ import {
   RECONNECT_GRACE_MS,
   Recorder,
   TICK_MS,
+  canReachFurnitureSeat,
   chatRecipients,
   encodeTick,
   withAck,
@@ -131,6 +132,7 @@ export class SpaceRuntime {
   private readonly movedSinceTick = new Set<string>();
   private ticker: Timer | null = null;
   private readonly desks = new Map<string, DeskState>();
+  private readonly seatedOnFurniture = new Map<string, string>();
   private readonly locks = new Map<string, Lock>();
   private readonly knocks = new Map<string, Knock>();
   private readonly calls = new Map<string, Call>();
@@ -375,11 +377,20 @@ export class SpaceRuntime {
         if (call) this.endCall(call, !call.active && call.to === userId ? 'declined' : 'left');
         break;
       }
+      case 'furniture.sit': {
+        const error = this.sitOnFurniture(userId, message.seatKey);
+        if (error) this.send(connection, { t: 'error', code: error });
+        break;
+      }
+      case 'furniture.stand':
+        this.standFromFurniture(userId);
+        break;
       case 'game.join': {
         // Quem está em chamada atendida não senta para jogar.
         const position = this.world.players.get(userId);
         const error = position ? this.games.join(userId, message.tableKey, position, Boolean(this.callOf(userId)?.active)) : 'table_not_at_side';
         if (error) this.send(connection, { t: 'error', code: error });
+        else this.standFromFurniture(userId);
         break;
       }
       case 'game.bot':
@@ -422,10 +433,29 @@ export class SpaceRuntime {
         this.rules,
       );
       this.world = result.state;
+      const next = this.world.players.get(userId);
+      if (next && (next.x !== player.x || next.y !== player.y)) this.standFromFurniture(userId);
       for (const event of result.events) this.movedSinceTick.add(event.id);
       this.afterMove(userId);
       // Passo recusado (parede, sala trancada) também conta: vira o avatar e marca o intervalo.
     }
+  }
+
+  private sitOnFurniture(userId: string, seatKey: string): 'furniture_seat_unavailable' | 'furniture_seat_taken' | null {
+    const player = this.world.players.get(userId);
+    const seat = this.map.furnitureSeats.find((candidate) => candidate.key === seatKey);
+    if (!player || !seat || this.games.seatOf(userId) || !canReachFurnitureSeat(seat, player.x, player.y)) {
+      return 'furniture_seat_unavailable';
+    }
+    if (this.seatedOnFurniture.get(userId) === seatKey) return null;
+    if ([...this.seatedOnFurniture.values()].includes(seatKey)) return 'furniture_seat_taken';
+    this.seatedOnFurniture.set(userId, seatKey);
+    this.broadcast({ t: 'player.update', id: userId, patch: { seatedAt: seatKey } });
+    return null;
+  }
+
+  private standFromFurniture(userId: string): void {
+    if (this.seatedOnFurniture.delete(userId)) this.broadcast({ t: 'player.update', id: userId, patch: { seatedAt: null } });
   }
 
   /** Conexão fechou: a pessoa fica no mapa até o fim da tolerância de reconexão. */
@@ -518,6 +548,7 @@ export class SpaceRuntime {
       if (!this.desks.has(deskKey)) this.desks.set(deskKey, { deskKey, userId: null, ownerName: null, decor: null });
     }
 
+    for (const id of this.seatedOnFurniture.keys()) this.standFromFurniture(id);
     this.map = map;
     this.mapVersion = version;
     // Antes do refresh dos jogadores abaixo: quem jogava volta a 'idle'.
@@ -880,6 +911,7 @@ export class SpaceRuntime {
     }
     // Saiu do mapa (fim da tolerância de reconexão): desistência na mesa em que estava.
     this.games.leave(userId);
+    this.seatedOnFurniture.delete(userId);
     if (member.mediaRoom) this.removeFromRoom(member.mediaRoom, userId);
     this.members.delete(userId);
     const players = new Map(this.world.players);
@@ -900,7 +932,10 @@ export class SpaceRuntime {
     const member = this.members.get(id);
     const simPlayer = this.world.players.get(id);
     if (!member || !simPlayer) throw new Error(`jogador ${id} sem estado`);
-    return { ...member.profile, shortId: member.shortId, x: simPlayer.x, y: simPlayer.y, dir: simPlayer.dir, activity: member.activity };
+    return {
+      ...member.profile, shortId: member.shortId, x: simPlayer.x, y: simPlayer.y, dir: simPlayer.dir,
+      activity: member.activity, seatedAt: this.seatedOnFurniture.get(id) ?? null,
+    };
   }
 
   private send(connection: Conn, message: ServerMsg): void {

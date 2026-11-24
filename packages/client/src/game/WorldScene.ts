@@ -247,13 +247,18 @@ export class WorldScene extends Phaser.Scene {
     for (const [id, avatar] of this.avatars) {
       avatar.mover.update(delta);
       const moving = avatar.mover.moving;
-      const seated = moving ? null : seatedPose(world.map, world.desks, id, avatar.mover.x, avatar.mover.y);
+      const furnitureKey = world.players.get(id)?.seatedAt;
+      const furnitureSeat = !moving && furnitureKey
+        ? world.map.furnitureSeats.find((seat) => seat.key === furnitureKey) : undefined;
+      const deskPose = moving || furnitureSeat ? null : seatedPose(world.map, world.desks, id, avatar.mover.x, avatar.mover.y);
+      const facing = furnitureSeat?.facing ?? deskPose?.facing;
       // O pé fica na base do tile. Na cadeira, a pose desloca o desenho até o meio da mesa.
-      const x = avatar.mover.x * TILE_PX + TILE_PX / 2 + (seated?.dx ?? 0);
-      const y = avatar.mover.y * TILE_PX + TILE_PX + (seated?.dy ?? 0);
-      avatar.sprite.setPosition(x, y).setDepth(y);
-      avatar.shadow.setPosition(x, y - 1).setDepth(y - 0.6);
-      avatar.ring.setPosition(x, y - 1).setDepth(y - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
+      const x = furnitureSeat?.x ?? (avatar.mover.x * TILE_PX + TILE_PX / 2 + (deskPose?.dx ?? 0));
+      const y = furnitureSeat?.y ?? (avatar.mover.y * TILE_PX + TILE_PX + (deskPose?.dy ?? 0));
+      const depth = furnitureSeat?.depth ?? y;
+      avatar.sprite.setPosition(x, y).setDepth(depth);
+      avatar.shadow.setPosition(x, y - 1).setDepth(depth - 0.6).setVisible(!furnitureSeat);
+      avatar.ring.setPosition(x, y - 1).setDepth(depth - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
       avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
       avatar.title.setPosition(Math.round(x), Math.round(y) + 13);
       if (avatar.chat) {
@@ -265,10 +270,10 @@ export class WorldScene extends Phaser.Scene {
       avatar.title.setVisible(avatar.title.value !== '' && (near || avatar.hovered));
 
       // Tecla segurada contra o tampo não tira o banco se o avatar continua no mesmo lugar.
-      const walking = moving || (seated === null && id === world.selfId && held !== undefined);
-      avatar.stool.setPosition(x, y).setDepth(y - 0.3).setVisible(seated !== null);
+      const walking = moving || (facing === undefined && id === world.selfId && held !== undefined);
+      avatar.stool.setPosition(x, y).setDepth(y - 0.3).setVisible(deskPose !== null);
       if (walking) avatar.sprite.play(walkAnim(avatar.textureKey, avatar.dir), true);
-      else avatar.sprite.stop().setFrame(seated ? seatedFrame(seated.facing) : idleFrame(avatar.dir));
+      else avatar.sprite.stop().setFrame(facing ? seatedFrame(facing) : idleFrame(avatar.dir));
     }
   }
 
@@ -365,6 +370,7 @@ export class WorldScene extends Phaser.Scene {
         break;
       case 'update': {
         const player = world.players.get(event.id);
+        if (player?.seatedAt && player.id === world.selfId) this.cancelAuto();
         if (player) this.refreshAvatar(player);
         break;
       }

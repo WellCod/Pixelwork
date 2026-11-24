@@ -6,7 +6,7 @@ export function tilesetImageUrl(id: TilesetId): string {
 }
 
 /** Camadas do personagem, desenhadas de baixo para cima nesta ordem. */
-export type CharacterLayer = 'body' | 'outfit' | 'hair' | 'accessory';
+export type CharacterLayer = 'body' | 'outfit' | 'hair' | 'accessory' | 'headwear' | 'backpack';
 
 export function characterImageUrl(layer: CharacterLayer, id: string): string {
   return `/characters/${layer}/${id}.png`;
