@@ -3,12 +3,14 @@ import type { PongEvent, PongPhase, PongSide, PongState } from './pong.ts';
 import { z } from 'zod';
 import {
   ACCESSORY_IDS,
+  BACKPACK_IDS,
   BODY_IDS,
   DECOR_ITEMS,
   DESK_VARIANTS,
   FLOOR_ITEMS,
   HAIR_IDS,
   HAIR_PALETTES,
+  HEADWEAR_IDS,
   OUTFIT_IDS,
   OUTFIT_PALETTES,
   SKIN_PALETTES,
@@ -32,7 +34,7 @@ export type Status = 'available' | 'focus' | 'away';
 /** O que o jogador está fazendo, mostrado aos outros (reunião, chamada, jogo). */
 export type Activity = 'idle' | 'meeting' | 'call' | 'game';
 
-/** Avatar montado por camadas do catálogo; cabelo e acessório são opcionais. */
+/** Avatar montado por camadas do catálogo. */
 export const AvatarSpec = z.object({
   body: z.enum(BODY_IDS),
   skin: z.enum(SKIN_PALETTES),
@@ -41,6 +43,8 @@ export const AvatarSpec = z.object({
   outfit: z.enum(OUTFIT_IDS),
   outfitColor: z.enum(OUTFIT_PALETTES),
   accessory: z.enum(ACCESSORY_IDS).nullable(),
+  headwear: z.enum(HEADWEAR_IDS).nullable().optional(),
+  backpack: z.enum(BACKPACK_IDS).nullable().optional(),
 });
 export type AvatarSpec = z.infer<typeof AvatarSpec>;
 
@@ -71,6 +75,8 @@ export interface Player {
   statusText: string | null;
   statusEmoji: string | null;
   activity: Activity;
+  /** Vaga num sofá, cadeira de mesa redonda ou banqueta. */
+  seatedAt?: string | null;
 }
 
 export interface ZoneState {
@@ -118,6 +124,8 @@ export const ClientMsg = z.discriminatedUnion('t', [
   // Teto folgado em unidades UTF-16 só contra abuso; o limite real (em code points, depois do trim) é conferido no servidor.
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
   z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
+  z.object({ t: z.literal('furniture.sit'), seatKey: Key }),
+  z.object({ t: z.literal('furniture.stand') }),
   z.object({ t: z.literal('game.join'), tableKey: Key }),
   z.object({ t: z.literal('game.bot') }),
   z.object({ t: z.literal('game.rematch') }),
@@ -154,7 +162,7 @@ export type ServerMsg =
       t: 'player.update';
       id: string;
       patch: Partial<
-        Pick<Player, 'name' | 'avatar' | 'title' | 'status' | 'statusText' | 'statusEmoji' | 'activity'>
+        Pick<Player, 'name' | 'avatar' | 'title' | 'status' | 'statusText' | 'statusEmoji' | 'activity' | 'seatedAt'>
       >;
     }
   | { t: 'zone.state'; zone: ZoneState }

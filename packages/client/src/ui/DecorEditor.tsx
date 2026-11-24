@@ -15,7 +15,8 @@ import { useState, type CSSProperties } from 'react';
 import { deskDecorFrame, deskSprites } from '../game/presence.ts';
 import { profileApi } from '../api.ts';
 import { label } from './labels.ts';
-import { CustomizationEditor, CustomizationNav, CustomizationPicker } from './CustomizationEditor.tsx';
+import { collectionItems, type CustomizationCollection } from './customization-collections.ts';
+import { CustomizationCollectionPicker, CustomizationEditor, CustomizationNav, CustomizationPicker } from './CustomizationEditor.tsx';
 import { errorMessage } from './useWorld.ts';
 
 /** Tipos de tela; cada um tem o tile `monitor-<tipo>` no tileset de decoração. */
@@ -133,10 +134,22 @@ interface Props {
 /** Personalização da própria mesa, organizada pelas posições que podem ser alteradas. */
 export function DecorEditor({ spaceId, desk, initial, onClose }: Props) {
   const [decor, setDecor] = useState(initial);
+  const [collection, setCollection] = useState<CustomizationCollection>('default');
   const [section, setSection] = useState<(typeof SECTIONS)[number]['key']>('variant');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const activeSlot = SLOTS.find((slot) => slot.key === section);
+  const variants = collectionItems(DESK_VARIANTS, collection);
+  const slots = SLOTS.map((slot) => ({
+    ...slot,
+    options: collectionItems<NonNullable<DeskDecor['slots'][SlotKey]>>(slot.options, collection),
+  }));
+  const sections = SECTIONS.filter(({ key }) => {
+    if (key === 'variant') return variants.length > 0;
+    if (key === 'monitor') return collection === 'default';
+    return slots.some((slot) => slot.key === key && slot.options.length > 0);
+  });
+  const activeSection = sections.find(({ key }) => key === section)?.key ?? sections[0]?.key;
+  const activeSlot = slots.find((slot) => slot.key === activeSection);
 
   const updateSlot = <Key extends SlotKey>(key: Key, value: DeskDecor['slots'][Key]) => {
     setDecor({ ...decor, slots: { ...decor.slots, [key]: value } });
@@ -163,19 +176,20 @@ export function DecorEditor({ spaceId, desk, initial, onClose }: Props) {
       onClose={onClose}
       onSave={() => { void save(); }}
     >
-      <CustomizationNav label="Categorias da mesa" options={SECTIONS} current={section} onChange={setSection} />
-      <div className="customization-section" key={section}>
-        {section === 'variant' && (
+      <CustomizationCollectionPicker collection={collection} onChange={setCollection} />
+      {activeSection && <CustomizationNav label="Categorias da mesa" options={sections} current={activeSection} onChange={setSection} />}
+      <div className="customization-section" key={`${collection}-${activeSection}`}>
+        {activeSection === 'variant' && (
           <CustomizationPicker
             legend="Acabamento da mesa"
             value={decor.variant}
-            options={DESK_VARIANTS}
+            options={variants}
             text={(variant) => label(variant, 'desk')}
             preview={(variant) => <Thumb item={variant} />}
             onChange={(variant) => setDecor({ ...decor, variant })}
           />
         )}
-        {section === 'monitor' && (
+        {activeSection === 'monitor' && (
           <CustomizationPicker
             legend="Tipo de tela"
             value={decor.monitor}

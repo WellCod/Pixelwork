@@ -82,6 +82,18 @@ describe('perfil, status, cargo e mesas', () => {
       expect(me.json).toMatchObject({ avatar: AVATAR });
     });
 
+    it('gorro e saco persistem juntos com máscara e roupa', async () => {
+      const alice = await online();
+      const bob = await online();
+      const grinch: AvatarSpec = {
+        ...AVATAR, outfit: 'grinch-fur', accessory: 'grinch-mask', headwear: 'grinch-santa-hat', backpack: 'grinch-present-sack',
+      };
+      expect((await api(server, alice.guest, 'PUT', '/me/avatar', grinch)).status).toBe(200);
+      const update = await bob.bot.next('player.update', (message) => message.id === alice.guest.id);
+      expect(update.patch.avatar).toEqual(grinch);
+      expect((await api(server, alice.guest, 'GET', '/me')).json).toMatchObject({ avatar: grinch });
+    });
+
     it('avatar com peça fora do catálogo é recusado', async () => {
       const alice = await online();
       const result = await api(server, alice.guest, 'PUT', '/me/avatar', { ...AVATAR, hair: 'moicano' });

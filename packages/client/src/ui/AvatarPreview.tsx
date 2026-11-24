@@ -23,7 +23,7 @@ function loadLayer(layer: CharacterLayer, id: string): Promise<HTMLImageElement>
 
 const CROPS = {
   full: { top: 0, height: FRAME_H },
-  head: { top: 4, height: 16 },
+  head: { top: 3, height: 17 },
   outfit: { top: 17, height: 15 },
 } as const;
 

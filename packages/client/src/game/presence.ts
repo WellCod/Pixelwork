@@ -2,6 +2,7 @@ import {
   PROXIMITY_ENTER_TILES,
   TILE_PX,
   TILESETS,
+  TILESET_IDS,
   type TilesetId,
   type CompiledDesk,
   type CompiledMap,
@@ -158,7 +159,7 @@ export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSp
   return sprites;
 }
 
-const DESK_DECOR_TILESETS = ['desk-decor', 'desk-decor-extras', 'desk-decor-halloween'] as const;
+const DESK_DECOR_TILESETS = TILESET_IDS.filter((id) => id === 'desk-decor' || id.startsWith('desk-decor-'));
 const DESK_DECOR_FRAMES = new Map(DESK_DECOR_TILESETS.flatMap((tileset) =>
   Object.entries(TILESETS[tileset].items).map(([frame, item]) => [item, { tileset, frame: Number(frame) }] as const),
 ));

@@ -681,6 +681,8 @@ export const AvatarSpec = z.object({
   outfit: z.enum(OUTFIT_IDS),
   outfitColor: z.enum(OUTFIT_PALETTES),
   accessory: z.enum(ACCESSORY_IDS).nullable(),
+  headwear: z.enum(HEADWEAR_IDS).nullable().optional(),
+  backpack: z.enum(BACKPACK_IDS).nullable().optional(),
 });
 ```
 
@@ -904,6 +906,19 @@ Desenho completo em `docs/superpowers/specs/2026-11-22-pingpong-design.md`. Deci
   como mudança para a UI em React (o canvas lê o último estado a cada quadro). Servidor em
   `server/src/realtime/games.ts`; métricas `pixelwork_games_active` e
   `pixelwork_game_frame_seconds`.
+
+## Assentos nos móveis
+
+- Sofás, mesas redondas e banquetas oferecem vagas derivadas da posição e da pegada do móvel.
+  O mapa compilado guarda o ponto de desenho, a direção e os tiles caminháveis de acesso. Cada
+  acesso pertence à zona do assento e fica fora das cadeiras reservadas às mesas de trabalho.
+- O cliente envia `furniture.sit { seatKey }` ou `furniture.stand`. O servidor confere a posição
+  confirmada e reserva uma pessoa por vaga. O campo `Player.seatedAt` chega no `welcome` e em
+  `player.update`, e o cliente desenha a pose no móvel. A posição lógica do avatar é o tile de
+  acesso para movimento, colisão e proximidade.
+- Um passo válido, a entrada em uma partida, a troca de mapa ou a saída definitiva liberam a vaga.
+  Durante a tolerância de reconexão, a vaga acompanha a presença do jogador. A ocupação fica em
+  memória e é efêmera.
 
 ## Observabilidade
 

@@ -153,7 +153,8 @@ function overPart(
 // ---- roupa ----
 
 type OutfitStyle = 'basic' | 'hoodie' | 'shirt' | 'dress' | 'jacket' | 'sweater' | 'vest' | 'overalls' | 'cardigan'
-  | 'halloween-witch-robe' | 'halloween-vampire-cape';
+  | 'halloween-witch-robe' | 'halloween-vampire-cape' | 'christmas-sweater' | 'new-year-jacket' | 'grinch-coat'
+  | 'grinch-fur';
 
 /** Camada de roupa: pinta tronco e pernas da silhueta com as cores-chave de roupa (A C D F). */
 function outfit(style: OutfitStyle, pose: Pose): Pixels {
@@ -169,7 +170,19 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
     stamp(frame, sprite(cape, { K: 'ink', r: 'wine', R: 'crimson' }, 'capa de vampiro'), 1, TORSO_Y - 1 + dy);
   }
   const torso = TORSO[facing === 'left' ? 'side' : 'front'];
+  if (style === 'grinch-fur') {
+    const tufts = facing === 'left'
+      ? ['.....VVV....', '...PVLVVPV..', '..PPVVVVLLP.', '...PVVVVPPP.']
+      : ['...PVLLVP...', '.PVVVVVVVVP.', 'PVVVLLVVVVVP', '.PLVVVVVLLP.'];
+    stamp(frame, sprite(tufts, { P: 'pine', V: 'green', L: 'leaf' }, 'pelos dos ombros'), X0, TORSO_Y + dy);
+  }
   overPart(frame, torso, X0, TORSO_Y + dy, (pixelChar, x, y) => {
+    if (style === 'grinch-fur') {
+      if (pixelChar === '4') return PALETTE.leaf;
+      if (pixelChar === 'K') return y === 0 || (x + y) % 3 === 0 ? PALETTE.pine : null;
+      if ((x + y * 2) % 5 === 0) return x < 7 ? PALETTE.sprout : PALETTE.emerald;
+      return x < 7 ? PALETTE.leaf : PALETTE.green;
+    }
     if (pixelChar === 'K') return 'K';
     if (pixelChar === '4') return null; // mãos ficam de fora
     // Manga: a coluna do braço de lado, as colunas das bordas de frente e de costas. Fora dela, a
@@ -181,6 +194,22 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
       return sleeve ? 'A' : x >= 8 && facing !== 'left' ? 'A' : 'C';
     }
     const facingFront = facing === 'down';
+    if (style === 'grinch-coat') {
+      if (y === 1 || y === 5 || (facingFront && x === 5 && y < 4)) return PALETTE.cream;
+      if (y === 4) return facingFront && x === 6 ? PALETTE.gold : PALETTE.ink;
+      return sleeve ? 'C' : x < 7 ? PALETTE.red : PALETTE.crimson;
+    }
+    if (style === 'christmas-sweater') {
+      if (facingFront && ((y === 2 && x === 5) || (y === 3 && x >= 4 && x <= 6))) return PALETTE.leaf;
+      if (facingFront && y === 4 && x >= 3 && x <= 7) return x === 5 ? PALETTE.honey : PALETTE.pine;
+      if (y === 1 || y === 5) return PALETTE.cream;
+      return sleeve ? 'C' : 'D';
+    }
+    if (style === 'new-year-jacket') {
+      if (facingFront && y <= 4 && (x === 5 || x === 6)) return y === 2 ? PALETTE.gold : PALETTE.white;
+      if (facingFront && y >= 2 && (x === y + 1 || x === 10 - y)) return PALETTE.honey;
+      return sleeve ? 'C' : x < 8 ? 'F' : 'D';
+    }
     if (style === 'halloween-witch-robe') {
       if (facingFront && y === 3 && (x === 5 || x === 6)) return PALETTE.gold;
       if (y === 3) return PALETTE.grape;
@@ -249,7 +278,11 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
   }
   // Calça escura sobre a pele das pernas; o sapato do corpo continua aparecendo.
   const legPart = seated ? seatedLegs(facing) : legs(facing, phase);
-  overPart(frame, legPart, X0, LEGS_Y + dy, (pixelChar, x) => {
+  overPart(frame, legPart, X0, LEGS_Y + dy, (pixelChar, x, y) => {
+    if (style === 'grinch-fur') {
+      if (pixelChar === 'K' || pixelChar === 'k') return PALETTE.pine;
+      return (x + y) % 3 === 0 ? PALETTE.emerald : PALETTE.green;
+    }
     if (style === 'overalls' && (pixelChar === '3' || pixelChar === '2')) return pixelChar === '2' ? 'A' : 'C';
     if (pixelChar === '3' || pixelChar === '2') return pixelChar === '2' ? 'k' : x % 4 === 1 ? 'g' : 'n';
     return null;
@@ -474,12 +507,56 @@ function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
 // ---- acessórios ----
 
 type AccessoryStyle = 'glasses' | 'cap' | 'headphones' | 'beanie' | 'bow' | 'round-glasses' | 'bandana' | 'flower-clip'
-  | 'halloween-witch-hat' | 'halloween-pumpkin-mask' | 'halloween-bat-ears';
+  | 'halloween-witch-hat' | 'halloween-pumpkin-mask' | 'halloween-bat-ears' | 'christmas-santa-hat' | 'new-year-tiara' | 'grinch-mask';
 
 /** Camada de acessório, presa à cabeça. */
 function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
   const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
   const y0 = HEAD_Y + (seated ? 2 : 0);
+  if (style === 'grinch-mask') {
+    const outline = ['....PPPP....', '..PPVVVVPP..', '.PVLVVVVVVP.', '.PVLLVVVVVP.',
+      'PVLLEELVVVVP', 'PVLLLEVLVVVP', '.PVLVVVLVVP.', '.PVVVVVVVVP.', '..PVVVVVVP..', '...PPPPPP...'];
+    const mask = new Canvas(FRAME_WIDTH, FRAME_HEIGHT);
+    mask.vline(7, y0 - 2, 3, 'green').px(8, y0 - 3, 'pine').px(8, y0 - 2, 'sprout').px(9, y0 - 1, 'green');
+    const face = sprite(outline, { P: 'pine', V: 'green', L: 'leaf', E: 'sprout' }, 'volume do rosto do Grinch');
+    stamp(frame, mask.toPixels(), 0, 0);
+    stamp(frame, face, X0, y0);
+    const expression = new Canvas(FRAME_WIDTH, FRAME_HEIGHT);
+    if (facing === 'down') {
+      expression.hline(3, y0 + 3, 2, 'pine').px(5, y0 + 4, 'ink').px(6, y0 + 4, 'pine');
+      expression.hline(11, y0 + 3, 2, 'pine').px(10, y0 + 4, 'ink').px(9, y0 + 4, 'pine');
+      expression.hline(4, y0 + 5, 3, 'lemon').hline(9, y0 + 5, 3, 'lemon');
+      expression.px(6, y0 + 5, 'brick').px(9, y0 + 5, 'brick').px(7, y0 + 6, 'pine');
+      expression.px(4, y0 + 7, 'pine').hline(5, y0 + 8, 6, 'pine').px(11, y0 + 7, 'pine').px(12, y0 + 6, 'pine');
+      expression.hline(7, y0 + 8, 3, 'sprout');
+    } else if (facing === 'left') {
+      expression.hline(3, y0 + 4, 4, 'pine').hline(4, y0 + 5, 3, 'lemon').px(5, y0 + 5, 'brick');
+      expression.px(2, y0 + 6, 'lime').px(3, y0 + 7, 'pine').hline(4, y0 + 8, 4, 'pine').px(8, y0 + 7, 'pine');
+    } else {
+      expression.vline(8, y0 + 3, 4, 'pine').px(7, y0 + 4, 'sprout').px(9, y0 + 5, 'emerald');
+    }
+    stamp(frame, expression.toPixels(), 0, 0);
+    return frame;
+  }
+  if (style === 'christmas-santa-hat') {
+    const hat = new Canvas(FRAME_WIDTH, FRAME_HEIGHT);
+    const pom = facing === 'left' ? 13 : 4;
+    hat.hline(4, y0 - 4, 8, 'maroon').rect(3, y0 - 3, 10, 5, 'maroon');
+    hat.rect(4, y0 - 2, 8, 4, 'red').hline(5, y0 - 3, 4, 'salmon');
+    hat.px(pom, y0 - 4, 'white').px(pom, y0 - 3, 'mist').px(pom - 1, y0 - 3, 'mist');
+    hat.rect(2, y0 + 1, 12, 3, 'dusk').hline(3, y0 + 1, 10, 'white').hline(3, y0 + 2, 10, 'mist');
+    return hat.toPixels();
+  }
+  if (style === 'new-year-tiara') {
+    const tiara = new Canvas(FRAME_WIDTH, FRAME_HEIGHT);
+    tiara.hline(3, y0 + 1, 10, 'bark').hline(4, y0, 8, 'honey');
+    const stars = facing === 'left' ? [[5, 3], [9, 2]] as const : [[4, 2], [8, 3], [11, 2]] as const;
+    for (const [x, height] of stars) {
+      tiara.vline(x, y0 - height, height, 'gold').hline(x - 1, y0 - height + 1, 3, 'honey');
+      tiara.px(x, y0 - height + 1, facing === 'up' ? 'gold' : 'lemon');
+    }
+    return tiara.toPixels();
+  }
   if (style === 'halloween-witch-hat') {
     const belt = facing === 'up' ? '...KOOOOOK....' : '...KOYYOOK....';
     const brim = facing === 'left' ? 'KKKKKKKKKKKK..' : 'KKKKKKKKKKKKKK';
@@ -578,6 +655,39 @@ function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
   return frame;
 }
 
+// ---- gorro e item de costas ----
+
+function grinchHat({ facing, seated }: Pose): Pixels {
+  const canvas = new Canvas(FRAME_WIDTH, FRAME_HEIGHT);
+  const top = HEAD_Y - 5 + (seated ? 2 : 0);
+  const tip = facing === 'left' ? 14 : 12;
+  canvas.hline(6, top, 6, 'wine').hline(5, top + 1, 8, 'crimson').hline(4, top + 2, 10, 'crimson');
+  canvas.rect(3, top + 3, 10, 3, 'wine').rect(4, top + 3, 8, 2, 'red');
+  canvas.hline(6, top + 1, 4, 'salmon').hline(5, top + 2, 4, 'red');
+  canvas.px(tip, top + 3, 'dusk').px(tip, top + 2, 'white').px(tip - 1, top + 3, 'mist');
+  canvas.rect(2, top + 5, 12, 2, 'dusk').hline(3, top + 5, 10, 'white').hline(3, top + 6, 10, 'mist');
+  return canvas.toPixels();
+}
+
+function grinchBackpack({ facing, phase, seated }: Pose): Pixels {
+  const canvas = new Canvas(FRAME_WIDTH, FRAME_HEIGHT);
+  // O volume aparece ao lado de frente e cobre o dorso quando a pessoa gira.
+  const x = facing === 'up' ? 4 : facing === 'left' ? 9 : 11;
+  const width = facing === 'up' ? 9 : FRAME_WIDTH - x;
+  const y = 18 + (seated ? 1 : phase === 1 || phase === 3 ? 1 : 0);
+  canvas.hline(x + 1, y + 1, width - 1, 'bark').rect(x, y + 3, width, 8, 'bark');
+  canvas.rect(x + 1, y + 3, width - 2, 6, 'clay').hline(x + 1, y + 9, width - 2, 'tan');
+  canvas.vline(x + 1, y + 4, 4, 'honey').hline(x + 1, y + 2, width - 2, 'gold');
+  canvas.hline(x + 1, y + 10, width - 2, 'rust').px(x + width - 2, y + 7, 'rust');
+  canvas.rect(x + 1, y - 1, 3, 3, 'crimson').px(x + 2, y - 1, 'gold');
+  if (facing === 'down') {
+    canvas.px(10, y + 2, 'bark').px(9, y + 3, 'honey').px(8, y + 4, 'bark').px(7, y + 5, 'honey');
+  } else if (facing === 'up') {
+    canvas.rect(x + 5, y, 3, 2, 'pine').px(x + 6, y, 'mint').px(x + 3, y + 6, 'rust');
+  }
+  return canvas.toPixels();
+}
+
 // ---- folha completa ----
 
 type Layer = (pose: Pose) => Pixels;
@@ -603,12 +713,14 @@ function sheet(layer: Layer): Pixels {
   return sheetPixels;
 }
 
-const OUTFITS: OutfitStyle[] = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan', 'halloween-witch-robe', 'halloween-vampire-cape'];
+const OUTFITS: OutfitStyle[] = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan', 'halloween-witch-robe', 'halloween-vampire-cape', 'christmas-sweater', 'new-year-jacket', 'grinch-coat', 'grinch-fur'];
 const HAIRS: HairStyle[] = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'];
-const ACCESSORIES: AccessoryStyle[] = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip', 'halloween-witch-hat', 'halloween-pumpkin-mask', 'halloween-bat-ears'];
+const ACCESSORIES: AccessoryStyle[] = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip', 'halloween-witch-hat', 'halloween-pumpkin-mask', 'halloween-bat-ears', 'christmas-santa-hat', 'new-year-tiara', 'grinch-mask'];
 
 export const CHARACTER_SHEETS: Record<string, Pixels> = {
   'body/base': sheet(body),
+  'headwear/grinch-santa-hat': sheet(grinchHat),
+  'backpack/grinch-present-sack': sheet(grinchBackpack),
   ...Object.fromEntries(OUTFITS.map((id) => [`outfit/${id}`, sheet((pose) => outfit(id, pose))])),
   ...Object.fromEntries(HAIRS.map((id) => [`hair/${id}`, sheet((pose) => hair(id, pose))])),
   ...Object.fromEntries(ACCESSORIES.map((id) => [`accessory/${id}`, sheet((pose) => accessory(id, pose))])),

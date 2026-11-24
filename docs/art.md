@@ -70,7 +70,7 @@ cada cor-chave pela cor correspondente da rampa escolhida.
 
 ## 4. Spritesheets de personagem
 
-Camadas, na ordem de composição: `body` -> `outfit` -> `hair` -> `accessory`. Todas as camadas
+Camadas, na ordem de composição: `body`, `outfit`, `backpack`, `hair`, `accessory` e `headwear`. Todas as camadas
 seguem exatamente o mesmo layout:
 
 ```
@@ -119,7 +119,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
     "body":      [{ "id": "base", "license": "CC0", "author": "zaphgames", "source": "https://opengameart.org/content/simple-character-base-16x16" }],
     "hair":      [{ "id": "short", "license": "own", "author": "Seu Nome", "source": null }],
     "outfit":    [],
-    "accessory": []
+    "accessory": [],
+    "headwear": [],
+    "backpack": []
   },
   "deskDecor": {
     "variants": [], "decorItems": [], "wallItems": [], "floorItems": []
@@ -129,6 +131,8 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 
 - `scripts/gen-catalog.ts` lê o manifesto e gera `packages/shared/src/catalog.generated.ts` com os
   enums (`BODY_IDS`, `HAIR_IDS`, `DESK_VARIANTS`, `DECOR_ITEMS` etc.) e a lista de créditos.
+- Os seletores de mesa e avatar agrupam os itens por prefixo de ID (`halloween-`,
+  `christmas-`, `grinch-` e `new-year-`). Os demais IDs aparecem na coleção Padrão.
 - Um asset fora do manifesto não existe para o app. Um asset no manifesto sem licença registrada
   quebra o script.
 - A página de créditos do app e o `CREDITS.txt` do export saem da mesma lista.
@@ -176,6 +180,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 | `desk-decor-halloween` | 16x16 | 901 | Estação Crepúsculo e decoração de Halloween para tampo, parede e chão |
 | `furniture-halloween` | 16x16 | 1001 | Móveis e enfeites de Halloween de um tile |
 | `furniture-2x1-halloween` | 32x16 | 1101 | Sofá, mesa de doces e dupla de abóboras |
+| `desk-decor-festive` | 16x16 | 1201 | Enfeites de Natal e Ano Novo para estações de trabalho |
+| `desk-decor-grinch` | 16x16 | 1301 | Enfeites da coleção Grinch para estações de trabalho |
+| `desk-decor-christmas` | 16x16 | 1401 | Bengala e luzes para decoração de Natal |
 
 - Tapete: 16 tiles por tapete, um para cada combinação de bordas (máscara N=1, S=2, O=4, L=8),
   pintados pela ferramenta Tapete do editor (`paintRug`). Qualquer retângulo, até 1x1, fecha a borda.

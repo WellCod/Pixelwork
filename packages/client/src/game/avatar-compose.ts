@@ -10,8 +10,11 @@ export function layersOf(spec: AvatarSpec): [CharacterLayer, string][] {
   const layers: [CharacterLayer, string | null][] = [
     ['body', spec.body],
     ['outfit', spec.outfit],
-    ['hair', spec.hair],
+    ['backpack', spec.backpack ?? null],
+    // A máscara do Grinch é uma cabeça inteira, incluindo o tufo de pelo.
+    ['hair', spec.accessory === 'grinch-mask' ? null : spec.hair],
     ['accessory', spec.accessory],
+    ['headwear', spec.headwear ?? null],
   ];
   return layers.filter((entry): entry is [CharacterLayer, string] => entry[1] !== null);
 }

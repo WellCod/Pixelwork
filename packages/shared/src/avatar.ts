@@ -42,5 +42,7 @@ export function avatarKey(spec: AvatarSpec): string {
     spec.outfit,
     spec.outfitColor,
     spec.accessory ?? '-',
+    spec.headwear ?? '-',
+    spec.backpack ?? '-',
   ].join('.');
 }
