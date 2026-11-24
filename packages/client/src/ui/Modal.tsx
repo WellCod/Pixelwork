@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Diálogo modal acessível: fecha com Esc ou clique fora e mantém o foco dentro enquanto aberto. */
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children, className }: { title: string; onClose: () => void; children: ReactNode; className?: string }) {
   const dialog = useRef<HTMLDivElement>(null);
   // `onClose` em ref: o efeito do teclado roda uma vez só e ainda chama a versão mais recente.
   const close = useRef(onClose);
@@ -17,7 +17,8 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialogElement = dialog.current;
-    const focusables = () => [...(dialogElement?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])];
+    const focusables = () => [...(dialogElement?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])]
+      .filter((element) => !element.closest('[inert]'));
     (focusables()[0] ?? dialogElement)?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -50,7 +51,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={dialog}
-        className="modal"
+        className={className ? 'modal ' + className : 'modal'}
         role="dialog"
         aria-modal="true"
         aria-label={title}

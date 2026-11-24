@@ -5,7 +5,7 @@ import { dirname, join, relative } from 'node:path';
 import { PNG } from 'pngjs';
 import { CHARACTER_SHEETS } from './art/character.ts';
 import { FURNITURE_2X1, FURNITURE_2X2, FURNITURE_3X2 } from './art/furniture-large.ts';
-import { DESK_DECOR, FLOORS, FURNITURE, WALLS, type TileArt } from './art/tiles.ts';
+import { DESK_DECOR, DESK_DECOR_EXTRAS, FLOORS, FURNITURE, WALLS, type TileArt } from './art/tiles.ts';
 import { blank, stamp, toPng } from './lib/pixels.ts';
 
 const root = join(import.meta.dirname, '..');
@@ -72,6 +72,7 @@ tileset('floors', FLOORS);
 tileset('walls', WALLS);
 tileset('furniture', FURNITURE);
 tileset('desk-decor', DESK_DECOR);
+tileset('desk-decor-extras', DESK_DECOR_EXTRAS);
 tileset('furniture-2x1', FURNITURE_2X1, { w: 32, h: 16 });
 tileset('furniture-2x2', FURNITURE_2X2, { w: 32, h: 32 });
 tileset('furniture-3x2', FURNITURE_3X2, { w: 48, h: 32 });

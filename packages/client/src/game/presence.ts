@@ -1,5 +1,7 @@
 import {
   PROXIMITY_ENTER_TILES,
+  TILESETS,
+  type TilesetId,
   type CompiledDesk,
   type CompiledMap,
   type DeskDecor,
@@ -97,7 +99,7 @@ export function dividerLayout(desk: CompiledDesk): DividerLayout | null {
 }
 
 export interface DeskSprite {
-  /** item_id no desk-decor. */
+  /** ID do item no catálogo de decoração. */
   item: string;
   /** Deslocamento do canto inferior esquerdo do sprite a partir do canto esquerdo e da base da pegada. */
   dx: number;
@@ -147,4 +149,14 @@ export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSp
     add(decor.slots[slot], dx, dy, slot === 'back' ? backZ : 0.2);
   }
   return sprites;
+}
+
+const DESK_DECOR_TILESETS = ['desk-decor', 'desk-decor-extras'] as const;
+const DESK_DECOR_FRAMES = new Map(DESK_DECOR_TILESETS.flatMap((tileset) =>
+  Object.entries(TILESETS[tileset].items).map(([frame, item]) => [item, { tileset, frame: Number(frame) }] as const),
+));
+
+/** Localiza o sprite de mesa ou decoração pelo mesmo ID na prévia e no mapa. */
+export function deskDecorFrame(item: string): { tileset: TilesetId; frame: number } | undefined {
+  return DESK_DECOR_FRAMES.get(item);
 }

@@ -1,6 +1,6 @@
 import { characterImageUrl, type AvatarSpec, type CharacterLayer } from '@pixelwork/shared';
 import { useEffect, useRef } from 'react';
-import { FRAME_H, FRAME_W, composeAvatar, layersOf } from '../game/avatar-compose.ts';
+import { COLS, FRAME_H, FRAME_W, composeAvatar, idleFrame, layersOf } from '../game/avatar-compose.ts';
 
 /** Cache por URL das camadas já pedidas: várias prévias abertas compartilham o mesmo download. */
 const layerImagesByUrl = new Map<string, Promise<HTMLImageElement>>();
@@ -21,8 +21,20 @@ function loadLayer(layer: CharacterLayer, id: string): Promise<HTMLImageElement>
   return layerImage;
 }
 
-/** Primeiro frame (parado, de frente) do avatar composto, em escala inteira. */
-export function AvatarPreview({ spec, scale = 3 }: { spec: AvatarSpec; scale?: number }) {
+const CROPS = {
+  full: { top: 0, height: FRAME_H },
+  head: { top: 4, height: 16 },
+  outfit: { top: 17, height: 15 },
+} as const;
+
+/** Frame parado do avatar composto, recortado em escala inteira para o editor. */
+export function AvatarPreview({ spec, scale = 3, direction = 'down', crop = 'full' }: {
+  spec: AvatarSpec;
+  scale?: number;
+  direction?: Parameters<typeof idleFrame>[0];
+  crop?: keyof typeof CROPS;
+}) {
+  const { top, height } = CROPS[crop];
   const canvas = useRef<HTMLCanvasElement>(null);
 
   // Carrega as camadas, compõe a folha e desenha só o primeiro frame. `cancelled` descarta o
@@ -44,12 +56,14 @@ export function AvatarPreview({ spec, scale = 3 }: { spec: AvatarSpec; scale?: n
       // Pixel art: ampliar sem suavização para os pixels continuarem nítidos.
       context2d.imageSmoothingEnabled = false;
       context2d.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-      context2d.drawImage(sheet, 0, 0, FRAME_W, FRAME_H, 0, 0, FRAME_W * scale, FRAME_H * scale);
+      const frame = idleFrame(direction);
+      context2d.drawImage(sheet, 0, Math.floor(frame / COLS) * FRAME_H + top, FRAME_W, height,
+        0, 0, FRAME_W * scale, height * scale);
     });
     return () => {
       cancelled = true;
     };
-  }, [spec, scale]);
+  }, [spec, scale, direction, top, height]);
 
-  return <canvas ref={canvas} width={FRAME_W * scale} height={FRAME_H * scale} className="avatar-preview" />;
+  return <canvas ref={canvas} width={FRAME_W * scale} height={height * scale} className="avatar-preview" />;
 }

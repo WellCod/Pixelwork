@@ -1,0 +1,116 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "name": "desk-decor-extras",
+  "image": "desk-decor-extras.png",
+  "imagewidth": 128,
+  "imageheight": 32,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "columns": 8,
+  "tilecount": 16,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 0,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "mechanical-keyboard"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "terrarium"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "drawing-tablet"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "tea-set"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "handheld"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-vinyl"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "moon-print"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "wall-pennant"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "woven-basket"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "properties": [
+        {
+          "name": "item_id",
+          "type": "string",
+          "value": "floor-corgi"
+        }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,7 @@ const MAP_HEIGHT = 28;
 const TILE = 16;
 
 // Pisos e paredes pelos frames dos tilesets (scripts/art/surfaces.ts).
-const FLOOR = { woodLight: 0, kitchen: 2, cream: 3, gray: 4, herringbone: 53, grass: 55, stone: 56, sageTile: 58 };
+const FLOOR = { woodLight: 0, kitchen: 2, cream: 3, gray: 4, grass: 55, stone: 56, sageTile: 58 };
 const WALL = {
   top: 0, face: 1, window: 2, sage: 3, cream: 4, painting: 5, poster: 6, clock: 7, whiteboard: 8, shelf: 9,
   lilac: 10, cork: 11, hangingPlant: 12, tv: 13, curtain: 14,
@@ -45,7 +45,7 @@ const rug = (id: RugId, x0: number, y0: number, widthTiles: number, heightTiles:
 floorRect(FLOOR.woodLight, 1, 2, 12, 10); // produto
 floorRect(FLOOR.gray, 13, 2, 13, 10); // engenharia
 floorRect(FLOOR.woodLight, 27, 2, 12, 9); // sala de reunião
-floorRect(FLOOR.herringbone, 1, 12, 38, 2); // corredor
+floorRect(FLOOR.woodLight, 1, 12, 38, 2); // corredor contínuo com as áreas de madeira
 floorRect(FLOOR.cream, 1, 14, 12, 13); // lounge
 floorRect(FLOOR.kitchen, 13, 14, 12, 13); // copa
 floorRect(FLOOR.sageTile, 25, 14, 14, 7); // jogos
@@ -53,7 +53,7 @@ floorRect(FLOOR.grass, 25, 21, 14, 6); // jardim
 floorRect(FLOOR.stone, 25, 23, 14, 1);
 rug('lavender', 2, 17, 8, 6);
 rug('sage', 28, 15, 9, 5);
-rug('lavender', 29, 4, 8, 5);
+rug('cream', 29, 4, 8, 5);
 
 // ---- paredes: topo em volta, face clara no alto com janelas e decoração ----
 for (let x = 0; x < MAP_WIDTH; x++) {
@@ -211,7 +211,7 @@ const map = {
     { name: 'pixelwork_next_desk', type: 'string', value: String(deskCount + 1) },
     { name: 'pixelwork_next_zone', type: 'string', value: '1' },
   ],
-  tilesets: Object.entries(FIRSTGID).map(([id, firstgid]) => ({ firstgid, source: `${id}.tsj` })),
+  tilesets: Object.entries(FIRSTGID).filter(([id]) => id !== 'desk-decor-extras').map(([id, firstgid]) => ({ firstgid, source: `${id}.tsj` })),
   layers: [
     { id: 1, name: 'floor', type: 'tilelayer', width: MAP_WIDTH, height: MAP_HEIGHT, x: 0, y: 0, opacity: 1, visible: true, data: floor },
     { id: 2, name: 'walls', type: 'tilelayer', width: MAP_WIDTH, height: MAP_HEIGHT, x: 0, y: 0, opacity: 1, visible: true, data: walls },

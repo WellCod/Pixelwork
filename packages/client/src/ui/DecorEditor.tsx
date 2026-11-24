@@ -1,5 +1,7 @@
 import {
+  CONTACT_SHADOW_COLOR,
   DECOR_ITEMS,
+  deskContactShadows,
   DESK_VARIANTS,
   FLOOR_ITEMS,
   TILESETS,
@@ -10,52 +12,55 @@ import {
   type DeskDecor,
 } from '@pixelwork/shared';
 import { useState, type CSSProperties } from 'react';
-import { deskSprites } from '../game/presence.ts';
+import { deskDecorFrame, deskSprites } from '../game/presence.ts';
 import { profileApi } from '../api.ts';
 import { label } from './labels.ts';
-import { Modal } from './Modal.tsx';
+import { CustomizationEditor, CustomizationNav, CustomizationPicker } from './CustomizationEditor.tsx';
 import { errorMessage } from './useWorld.ts';
 
 /** Tipos de tela; cada um tem o tile `monitor-<tipo>` no tileset de decoração. */
 const MONITORS = ['single', 'dual', 'laptop'] as const;
-const DECOR = TILESETS['desk-decor'];
-/** item_id do catálogo -> frame no tileset de decoração. */
-const FRAMES = new Map(Object.entries(DECOR.items).map(([frame, item]) => [item, Number(frame)]));
-const THUMB_SCALE = 3;
+const THUMB_SCALE = 2;
 
 type SlotKey = keyof DeskDecor['slots'];
-/** Posições livres da mesa e quais itens cabem em cada uma. */
-const SLOTS: { key: SlotKey; label: string; options: readonly string[] }[] = [
-  { key: 'left', label: 'Na mesa, à esquerda', options: DECOR_ITEMS },
-  { key: 'right', label: 'Na mesa, à direita', options: DECOR_ITEMS },
-  { key: 'back', label: 'Na parede (ou na divisória)', options: WALL_ITEMS },
-  { key: 'floor', label: 'No chão', options: FLOOR_ITEMS },
-];
+const SLOTS = [
+  { key: 'left', label: 'Esquerda', legend: 'Lado esquerdo da mesa', options: DECOR_ITEMS },
+  { key: 'right', label: 'Direita', legend: 'Lado direito da mesa', options: DECOR_ITEMS },
+  { key: 'back', label: 'Parede', legend: 'Parede ou divisória', options: WALL_ITEMS },
+  { key: 'floor', label: 'Chão', legend: 'Chão ao lado da mesa', options: FLOOR_ITEMS },
+] as const;
+
+const SECTIONS = [
+  { key: 'variant', label: 'Mesa' },
+  { key: 'monitor', label: 'Tela' },
+  ...SLOTS,
+] as const;
 
 /** Um tile do tileset de decoração, recortado por CSS e ampliado sem suavizar. */
 function Thumb({ item, scale = THUMB_SCALE, style }: { item: string | null; scale?: number; style?: CSSProperties }) {
-  const frame = item === null ? undefined : FRAMES.get(item);
+  const sprite = item === null ? undefined : deskDecorFrame(item);
   const size = TILE_PX * scale;
-  if (frame === undefined) return <span className="thumb thumb-empty" style={{ width: size, height: size, ...style }} />;
+  if (sprite === undefined) return <span className="thumb thumb-empty" style={{ width: size, height: size, ...style }} />;
   // Posição do tile na grade do tileset, para deslocar o background até ele.
-  const column = frame % DECOR.columns;
-  const row = Math.floor(frame / DECOR.columns);
+  const { columns } = TILESETS[sprite.tileset];
+  const column = sprite.frame % columns;
+  const row = Math.floor(sprite.frame / columns);
   return (
     <span
       className="thumb"
       style={{
         width: size,
         height: size,
-        backgroundImage: `url(${tilesetImageUrl('desk-decor')})`,
+        backgroundImage: `url(${tilesetImageUrl(sprite.tileset)})`,
         backgroundPosition: `-${column * size}px -${row * size}px`,
-        backgroundSize: `${DECOR.columns * size}px auto`,
+        backgroundSize: `${columns * size}px auto`,
         ...style,
       }}
     />
   );
 }
 
-const PREVIEW_SCALE = 4;
+const PREVIEW_SCALE = 3;
 /** Margem em pixels do sprite em volta do que a mesa desenha. */
 const PAD = 2;
 
@@ -66,19 +71,39 @@ const PAD = 2;
 function DeskPreview({ desk, decor }: { desk: CompiledDesk; decor: DeskDecor }) {
   // Só os itens que têm tile na decoração, do fundo para a frente (a ordem vira o zIndex).
   const sprites = deskSprites(desk, decor)
-    .filter((sprite) => FRAMES.has(sprite.item))
     .sort((spriteA, spriteB) => spriteA.z - spriteB.z);
   // Caixa que envolve todos os sprites; `dy` é a base do tile, por isso o topo desconta TILE_PX.
-  const left = Math.min(...sprites.map((sprite) => sprite.dx)) - PAD;
-  const top = Math.min(...sprites.map((sprite) => sprite.dy - TILE_PX)) - PAD;
-  const right = Math.max(...sprites.map((sprite) => sprite.dx + TILE_PX)) + PAD;
-  const bottom = Math.max(...sprites.map((sprite) => sprite.dy)) + PAD;
+  // Reserve espaço para todas as posições, mesmo vazias, para a mesa não se deslocar ao editar.
+  const bounds = deskSprites(desk, {
+    ...decor,
+    slots: { left: DECOR_ITEMS[0], right: DECOR_ITEMS[0], back: WALL_ITEMS[0], floor: FLOOR_ITEMS[0] },
+  });
+  const left = Math.min(...bounds.map((sprite) => sprite.dx)) - PAD;
+  const top = Math.min(...bounds.map((sprite) => sprite.dy - TILE_PX)) - PAD;
+  const right = Math.max(...bounds.map((sprite) => sprite.dx + TILE_PX)) + PAD;
+  const bottom = Math.max(...bounds.map((sprite) => sprite.dy)) + PAD;
   return (
     <div
       className="desk-preview"
+      role="img"
       aria-label="Prévia da mesa"
       style={{ width: (right - left) * PREVIEW_SCALE, height: (bottom - top) * PREVIEW_SCALE }}
     >
+      {deskContactShadows(desk.width * TILE_PX, desk.height * TILE_PX).map((shadow) => (
+        <span
+          key={[shadow.centerX, shadow.centerY].join(':')}
+          style={{
+            position: 'absolute',
+            left: (shadow.centerX - shadow.width / 2 - left) * PREVIEW_SCALE,
+            top: (shadow.centerY - shadow.height / 2 - top) * PREVIEW_SCALE,
+            width: shadow.width * PREVIEW_SCALE,
+            height: shadow.height * PREVIEW_SCALE,
+            borderRadius: '50%',
+            backgroundColor: '#' + CONTACT_SHADOW_COLOR.toString(16),
+            opacity: shadow.alpha,
+          }}
+        />
+      ))}
       {sprites.map((sprite, i) => (
         <Thumb
           key={`${sprite.item}-${sprite.dx}-${sprite.dy}`}
@@ -88,50 +113,12 @@ function DeskPreview({ desk, decor }: { desk: CompiledDesk; decor: DeskDecor }) 
             position: 'absolute',
             left: (sprite.dx - left) * PREVIEW_SCALE,
             top: (sprite.dy - TILE_PX - top) * PREVIEW_SCALE,
-            zIndex: i,
+            zIndex: i + 1,
             transform: sprite.flip ? 'scaleX(-1)' : undefined,
           }}
         />
       ))}
     </div>
-  );
-}
-
-/** Grupo de botões com miniatura; um rádio acessível em vez de um select de IDs. */
-function Picker<T extends string | null>({
-  legend,
-  value,
-  options,
-  thumb,
-  text,
-  onChange,
-}: {
-  legend: string;
-  value: T;
-  options: readonly T[];
-  thumb: (option: T) => string | null;
-  text: (option: T) => string;
-  onChange: (option: T) => void;
-}) {
-  return (
-    <fieldset className="picker">
-      <legend>{legend}</legend>
-      <div role="radiogroup" aria-label={legend}>
-        {options.map((option) => (
-          <button
-            key={option ?? 'nada'}
-            type="button"
-            role="radio"
-            aria-checked={option === value}
-            className={option === value ? 'picker-option selected' : 'picker-option'}
-            onClick={() => onChange(option)}
-          >
-            <Thumb item={thumb(option)} />
-            <span>{text(option)}</span>
-          </button>
-        ))}
-      </div>
-    </fieldset>
   );
 }
 
@@ -143,63 +130,72 @@ interface Props {
   onClose: () => void;
 }
 
-/** Modal de decoração da própria mesa: variante, tela e um item por posição, com prévia. */
+/** Personalização da própria mesa, organizada pelas posições que podem ser alteradas. */
 export function DecorEditor({ spaceId, desk, initial, onClose }: Props) {
   const [decor, setDecor] = useState(initial);
+  const [section, setSection] = useState<(typeof SECTIONS)[number]['key']>('variant');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const activeSlot = SLOTS.find((slot) => slot.key === section);
 
-  const save = () => {
+  const updateSlot = <Key extends SlotKey>(key: Key, value: DeskDecor['slots'][Key]) => {
+    setDecor({ ...decor, slots: { ...decor.slots, [key]: value } });
+  };
+
+  const save = async () => {
+    setError(null);
     setSaving(true);
-    profileApi
-      .setDecor(spaceId, desk.key, decor)
-      .then(onClose)
-      .catch((saveError: unknown) => {
-        setError(errorMessage(saveError));
-        setSaving(false);
-      });
+    try {
+      await profileApi.setDecor(spaceId, desk.key, decor);
+      onClose();
+    } catch (saveError) {
+      setError(errorMessage(saveError));
+      setSaving(false);
+    }
   };
 
   return (
-    <Modal title="Decorar a mesa" onClose={onClose}>
-      <DeskPreview desk={desk} decor={decor} />
-      <Picker
-        legend="Mesa"
-        value={decor.variant}
-        options={DESK_VARIANTS}
-        thumb={(variant) => variant}
-        text={(variant) => label(variant, 'desk')}
-        onChange={(variant) => setDecor({ ...decor, variant })}
-      />
-      <Picker
-        legend="Tela"
-        value={decor.monitor}
-        options={MONITORS}
-        thumb={(monitor) => `monitor-${monitor}`}
-        text={(monitor) => label(monitor)}
-        onChange={(monitor) => setDecor({ ...decor, monitor })}
-      />
-      {/* `null` é a opção "Nada": a posição fica vazia. */}
-      {SLOTS.map((slot) => (
-        <Picker<string | null>
-          key={slot.key}
-          legend={slot.label}
-          value={decor.slots[slot.key]}
-          options={[null, ...slot.options]}
-          thumb={(option) => option}
-          text={(option) => (option === null ? 'Nada' : label(option))}
-          onChange={(value) => setDecor({ ...decor, slots: { ...decor.slots, [slot.key]: value } })}
-        />
-      ))}
-      {error && <p className="error">{error}</p>}
-      <div className="actions">
-        <button type="button" onClick={onClose}>
-          Cancelar
-        </button>
-        <button type="button" className="primary" onClick={save} disabled={saving}>
-          {saving ? 'Salvando…' : 'Salvar'}
-        </button>
+    <CustomizationEditor
+      title="Decorar a mesa"
+      preview={<div className="customization-stage desk-stage"><DeskPreview desk={desk} decor={decor} /></div>}
+      error={error}
+      saving={saving}
+      onClose={onClose}
+      onSave={() => { void save(); }}
+    >
+      <CustomizationNav label="Categorias da mesa" options={SECTIONS} current={section} onChange={setSection} />
+      <div className="customization-section" key={section}>
+        {section === 'variant' && (
+          <CustomizationPicker
+            legend="Acabamento da mesa"
+            value={decor.variant}
+            options={DESK_VARIANTS}
+            text={(variant) => label(variant, 'desk')}
+            preview={(variant) => <Thumb item={variant} />}
+            onChange={(variant) => setDecor({ ...decor, variant })}
+          />
+        )}
+        {section === 'monitor' && (
+          <CustomizationPicker
+            legend="Tipo de tela"
+            value={decor.monitor}
+            options={MONITORS}
+            text={(monitor) => label(monitor)}
+            preview={(monitor) => <Thumb item={`monitor-${monitor}`} />}
+            onChange={(monitor) => setDecor({ ...decor, monitor })}
+          />
+        )}
+        {activeSlot && (
+          <CustomizationPicker
+            legend={activeSlot.legend}
+            value={decor.slots[activeSlot.key]}
+            options={[null, ...activeSlot.options]}
+            text={(option) => option === null ? 'Sem item' : label(option)}
+            preview={(option) => <Thumb item={option} />}
+            onChange={(value) => updateSlot(activeSlot.key, value)}
+          />
+        )}
       </div>
-    </Modal>
+    </CustomizationEditor>
   );
 }

@@ -150,7 +150,7 @@ function overPart(
 
 // ---- roupa ----
 
-type OutfitStyle = 'basic' | 'hoodie' | 'shirt' | 'dress' | 'jacket' | 'sweater';
+type OutfitStyle = 'basic' | 'hoodie' | 'shirt' | 'dress' | 'jacket' | 'sweater' | 'vest' | 'overalls' | 'cardigan';
 
 /** Camada de roupa: pinta tronco e pernas da silhueta com as cores-chave de roupa (A C D F). */
 function outfit(style: OutfitStyle, pose: Pose): Pixels {
@@ -170,6 +170,21 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
       return sleeve ? 'A' : x >= 8 && facing !== 'left' ? 'A' : 'C';
     }
     const facingFront = facing === 'down';
+    if (style === 'vest') {
+      if (sleeve) return 'L';
+      if (facingFront && y <= 2 && x >= 4 + y && x <= 7 - y) return 'W';
+      if (facingFront && x === 5 && y >= 3) return 'A';
+      return x < 7 ? 'D' : 'C';
+    }
+    if (style === 'overalls') {
+      if (y <= 2 && (sleeve || x === 5 || x === 6)) return 'W';
+      if (facingFront && y === 3 && (x === 4 || x === 7)) return 'O';
+      return x < 7 ? 'D' : 'C';
+    }
+    if (style === 'cardigan') {
+      if (facingFront && (x === 5 || x === 6)) return x === 5 && y % 2 === 0 ? 'O' : 'A';
+      return y === 4 || sleeve ? 'C' : 'D';
+    }
     if (style === 'shirt') {
       if (facingFront && y === 1 && x >= 4 && x <= 7) return x === 4 || x === 7 ? 'F' : 'D'; // gola
       if (facingFront && (x === 5 || x === 6) && y >= 2 && y <= 4) return x === 5 ? 'A' : 'D'; // abotoamento
@@ -207,6 +222,7 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
   // Calça escura sobre a pele das pernas; o sapato do corpo continua aparecendo.
   const legPart = seated ? seatedLegs(facing) : legs(facing, phase);
   overPart(frame, legPart, X0, LEGS_Y + dy, (pixelChar, x) => {
+    if (style === 'overalls' && (pixelChar === '3' || pixelChar === '2')) return pixelChar === '2' ? 'A' : 'C';
     if (pixelChar === '3' || pixelChar === '2') return pixelChar === '2' ? 'k' : x % 4 === 1 ? 'g' : 'n';
     return null;
   });
@@ -215,7 +231,7 @@ function outfit(style: OutfitStyle, pose: Pose): Pixels {
 
 // ---- cabelo ----
 
-type HairStyle = 'short' | 'long' | 'spiky' | 'curly' | 'bun' | 'afro';
+type HairStyle = 'short' | 'long' | 'spiky' | 'curly' | 'bun' | 'afro' | 'bob' | 'braid' | 'undercut';
 
 /** Tom do cabelo pela posição na cabeça: brilho no alto à esquerda, sombra nas laterais e embaixo. */
 function hairShade(x: number, y: number, facing: Facing): string {
@@ -297,6 +313,55 @@ const FRONT_HAIR: Partial<Record<HairStyle, { rows: string[]; top: number; dx: n
       'K6K......K6K',
     ],
   },
+  bob: {
+    top: 1,
+    dx: 0,
+    back: 9,
+    rows: [
+      '..KKKKKKKK..',
+      '.K77887777K.',
+      'K7778887777K',
+      'K7777777776K',
+      'K7776...776K',
+      'K76......67K',
+      'K76......67K',
+      'K76......67K',
+      'K76......67K',
+      '.KK......KK.',
+    ],
+  },
+  braid: {
+    top: 1,
+    dx: 0,
+    back: 8,
+    rows: [
+      '..KKKKKKKK..',
+      '.K78867777K.',
+      'K7887667777K',
+      'K776...6776K',
+      'K76......67K',
+      '.KK......67K',
+      '.........K7K',
+      '.........K8K',
+      '.........K6K',
+      '.........K7K',
+      '.........KpK',
+      '..........K.',
+    ],
+  },
+  undercut: {
+    top: 2,
+    dx: 0,
+    back: 4,
+    rows: [
+      '.....KKKKK..',
+      '...KK78877K.',
+      '..K77887776K',
+      '.K777777766K',
+      'K667776..66K',
+      '.KKK.....KK.',
+    ],
+  },
   afro: {
     top: 3,
     dx: -1,
@@ -334,6 +399,11 @@ function frontHair(style: HairStyle, facing: Facing, dy: number): Pixels | null 
     if (!covered) return null;
     return pixelChar === 'K' ? 'K' : hairShade(x, y, facing);
   });
+  if (style === 'braid') {
+    // A trança cai até o ombro e vira junto com a cabeça.
+    const x = facing === 'up' ? X0 + 6 : X0 + 9;
+    stamp(frame, grid(['K7K', 'K8K', 'K6K', 'K7K', 'KpK', '.K.'], 3, 'trança'), x, HEAD_Y + 7 + dy);
+  }
   if (style === 'afro') {
     // Volume lateral do black power, que passa da cabeça.
     const side = facing === 'up' ? ['K7K......K7K'] : ['.......K777K'];
@@ -375,12 +445,32 @@ function hair(style: HairStyle, { facing, seated }: Pose): Pixels {
 
 // ---- acessórios ----
 
-type AccessoryStyle = 'glasses' | 'cap' | 'headphones' | 'beanie' | 'bow';
+type AccessoryStyle = 'glasses' | 'cap' | 'headphones' | 'beanie' | 'bow' | 'round-glasses' | 'bandana' | 'flower-clip';
 
 /** Camada de acessório, presa à cabeça. */
 function accessory(style: AccessoryStyle, { facing, seated }: Pose): Pixels {
   const frame = blank(FRAME_WIDTH, FRAME_HEIGHT);
   const y0 = HEAD_Y + (seated ? 2 : 0);
+  if (style === 'round-glasses') {
+    if (facing === 'down') {
+      stamp(frame, part('óculos redondos', ['..ZZZ..ZZZ..', '.Zc.cZZc.cZ.', '..ZZZ..ZZZ..']), X0, y0 + 3);
+    } else if (facing === 'left') {
+      stamp(frame, part('óculos redondos de lado', ['.ZZZ........', 'Zc.cZZZZ....', '.ZZZ........']), X0, y0 + 3);
+    }
+    return frame;
+  }
+  if (style === 'bandana') {
+    const rows = facing === 'left' ? ['RRpRRRRRRr..', 'rRRRRRRRrRp.', '.........rR.'] :
+      facing === 'up' ? ['.RpRRRRRRpR.', 'rRRRRrRRRRRr', '.....rRp....', '.....Rr.R...'] :
+      ['.RpRRpRRRRR.', 'rRRRRRRRRRRr'];
+    stamp(frame, part('bandana', rows), X0, y0 + 1);
+    return frame;
+  }
+  if (style === 'flower-clip') {
+    const x = facing === 'left' ? X0 + 7 : X0 + 8;
+    stamp(frame, grid(['.Wp.', 'WpZW', '.pW.', '..v.'], 4, 'presilha de flor'), x, y0 + 1);
+    return frame;
+  }
   if (style === 'headphones') {
     // Arco por cima da cabeça e conchas nas orelhas.
     if (facing === 'left') {
@@ -452,9 +542,9 @@ function sheet(layer: Layer): Pixels {
   return sheetPixels;
 }
 
-const OUTFITS: OutfitStyle[] = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater'];
-const HAIRS: HairStyle[] = ['short', 'long', 'spiky', 'curly', 'bun', 'afro'];
-const ACCESSORIES: AccessoryStyle[] = ['glasses', 'cap', 'headphones', 'beanie', 'bow'];
+const OUTFITS: OutfitStyle[] = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan'];
+const HAIRS: HairStyle[] = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'];
+const ACCESSORIES: AccessoryStyle[] = ['glasses', 'cap', 'headphones', 'beanie', 'bow', 'round-glasses', 'bandana', 'flower-clip'];
 
 export const CHARACTER_SHEETS: Record<string, Pixels> = {
   'body/base': sheet(body),

@@ -24,7 +24,7 @@ regras deste documento.
   deixava os pisos de madeira rosados. Usados só nos pisos de madeira e no ladrilho claro.
   `nearest` (arte legada) continua mapeando só para a Resurrect 64.
 - Pisos: pouco contraste dentro do tile (detalhe no tom vizinho, nunca branco sobre pêssego),
-  peças grandes (tábua e ladrilho de 8 px) e duas famílias: madeira quente e neutros claros da
+  tábuas de 8 px e ladrilhos de 16 px e duas famílias: madeira quente e neutros claros da
   cor das paredes. Salas vizinhas não repetem o piso.
 - Todo PNG do repositório usa só cores da paleta, cores-chave (seção 3) e transparência total.
   `scripts/check-palette.ts` verifica isso e roda no CI.
@@ -41,9 +41,9 @@ Vale para toda peça nova ou redesenhada; o que destoa disto volta para a pranch
   madeira escura, metal, branco.
 - **Contorno** no tom mais escuro da rampa do próprio material (ferrugem no tecido pêssego, pinho
   na folha, tinta no grafite), nunca preto puro. É contorno interno: não aumenta a peça.
-- **Sombra de contato** não é desenhada no sprite: o Phaser desenha uma elipse translúcida sob a
-  pegada de cada móvel e avatar (a paleta não tem alfa parcial, e uma sombra opaca ficaria errada
-  sobre pisos diferentes).
+- **Sombra de contato** é desenhada sobre o piso, com elipses translúcidas nas bases do móvel.
+  O sofá em L tem uma sombra para cada trecho. Nas mesas, as sombras realçam os pés e a base
+  do gaveteiro. O jogo, a prévia da mesa e o renderizador de mapas usam a mesma geometria.
 - **Perspectiva** top-down com a frente do móvel aparecendo (3/4 leve).
 - **Fundo calmo, objetos com contraste**: pisos e paredes em cores lisas e claras, sem pontilhado
   nem ruído (testado e descartado: fica granulado); o contraste vai para móveis, plantas e
@@ -164,13 +164,14 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 
 | Tileset | Célula | firstgid | Conteúdo |
 |---------|--------|---------:|----------|
-| `floors` | 16x16 | 1 | 12 pisos (madeira clara e escura, taco, ladrilhos creme e sálvia, xadrez de copa, carpetes cinza, lavanda e azul, cimento, calçada, grama) e 3 tapetes de 16 tiles |
+| `floors` | 16x16 | 1 | 12 pisos (madeira clara e escura, taco, ladrilhos creme, sálvia e névoa para a copa, carpetes cinza, lavanda e azul, cimento, calçada, grama) e 3 tapetes de 16 tiles |
 | `walls` | 16x16 | 101 | 15 tiles: topo, faces clara, sálvia, creme e lilás, janelas, quadro, pôster, relógio, lousa, prateleira, mural, planta pendurada, TV |
 | `furniture` | 16x16 | 201 | 33 móveis pequenos (cadeiras em 4 direções, pufes, 9 plantas, luminária, impressora, extintor etc.) |
 | `desk-decor` | 16x16 | 301 | mesas de 1 tile e metades da mesa larga em 3 variantes, 3 monitores e 23 itens de decoração |
 | `furniture-2x1` | 32x16 | 401 | sofás em 3 cores, mesa de centro, aquário, banco, aparador |
 | `furniture-2x2` | 32x32 | 501 | mesa redonda, estante alta, geladeira, árvore, máquina de lanches, fliperama, vaso grande, lousa de pé |
 | `furniture-3x2` | 48x32 | 601 | mesa de reunião, bancada de copa, pingue-pongue, sofá em L, recepção, pebolim |
+| `desk-decor-extras` | 16x16 | 701 | 10 itens de tampo, parede e chão em tileset próprio para preservar os GIDs do conjunto anterior |
 
 - Tapete: 16 tiles por tapete, um para cada combinação de bordas (máscara N=1, S=2, O=4, L=8),
   pintados pela ferramenta Tapete do editor (`paintRug`). Qualquer retângulo, até 1x1, fecha a borda.
@@ -179,9 +180,9 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 - Divisória (`divider`, `divider-wide-l`/`-r`, `divider-side`): painel baixo sage atrás da mesa
   sem parede, onde o item "Na parede" fica pendurado. A de lado é desenhada para a mesa virada à
   esquerda e espelhada para a direita.
-- Personagem: 1 corpo, 6 cabelos (curto, comprido, espetado, cacheado, coque, black power), 6 roupas
-  (camiseta, moletom, camisa, vestido, jaqueta, suéter), 5 acessórios (óculos, boné, fone, gorro,
-  laço). Rampas: 6 de pele, 8 de cabelo, 8 de roupa.
+- Personagem: 1 corpo, 9 cabelos, 9 roupas e 8 acessórios. O catálogo inclui chanel, trança,
+  raspado na lateral, colete, jardineira, cardigã, óculos redondos, bandana e presilha de flor.
+  Rampas: 6 de pele, 8 de cabelo, 8 de roupa.
 
 ## 10. Arte gerada
 

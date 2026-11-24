@@ -1,4 +1,5 @@
 import { TILESETS, TILESET_IDS, type TilesetId } from './catalog.generated.ts';
+import { isCornerSofa } from './furniture.ts';
 import { TILE_PX } from './constants.ts';
 import { DIR_DELTA, DIRS, type Dir } from './protocol.ts';
 import { INTERACTIVE_ITEMS, type CompiledTable } from './tables.ts';
@@ -222,9 +223,12 @@ export function compileMap(json: unknown): CompileResult {
     const left = Math.floor(asNumber(object.x) / TILE_PX);
     // Linha logo abaixo da pegada (exclusiva): a pegada ocupa de `bottom - footprintHeight` até `bottom - 1`.
     const bottom = Math.ceil(asNumber(object.y) / TILE_PX);
-    const footprintWidth = Math.max(1, Math.round(asNumber(object.width) / TILE_PX) || 1);
-    const footprintHeight = Math.max(1, Math.round(asNumber(object.height) / TILE_PX) || 1);
-    const item = TILESETS[resolved.id].items[resolved.tile];
+    const tileset = TILESETS[resolved.id];
+    const objectWidth = asNumber(object.width);
+    const objectHeight = asNumber(object.height);
+    const footprintWidth = Math.max(1, Math.round((objectWidth > 0 ? objectWidth : tileset.tileWidth) / TILE_PX));
+    const footprintHeight = Math.max(1, Math.round((objectHeight > 0 ? objectHeight : tileset.tileHeight) / TILE_PX));
+    const item = tileset.items[resolved.tile];
     const game = item === undefined ? undefined : INTERACTIVE_ITEMS[item];
     if (item !== undefined && game !== undefined) {
       interactiveTables.push({
@@ -236,10 +240,13 @@ export function compileMap(json: unknown): CompileResult {
         height: footprintHeight,
       });
     }
-    if (!TILESETS[resolved.id].collides.includes(resolved.tile)) continue;
+    if (!tileset.collides.includes(resolved.tile)) continue;
+    const cornerSofa = isCornerSofa(item, footprintWidth * TILE_PX, footprintHeight * TILE_PX);
     // Recortado ao mapa: um objeto com tamanho absurdo num JSON pequeno travaria o servidor.
     for (let y = Math.max(0, bottom - footprintHeight); y < Math.min(height, bottom); y++) {
-      for (let x = Math.max(0, left); x < Math.min(width, left + footprintWidth); x++) block(x, y);
+      // No sofá em L, a fileira da frente contém só o braço direito.
+      const rowLeft = cornerSofa && y === bottom - 1 ? left + 2 : left;
+      for (let x = Math.max(0, rowLeft); x < Math.min(width, left + footprintWidth); x++) block(x, y);
     }
   }
 

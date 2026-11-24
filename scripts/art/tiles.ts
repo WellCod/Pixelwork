@@ -153,4 +153,18 @@ export const DESK_DECOR: TileArt[] = [
   { pixels: deskDecor.dividerWide[0] ?? [], itemId: 'divider-wide-l' },
   { pixels: deskDecor.dividerWide[1] ?? [], itemId: 'divider-wide-r' },
   { pixels: deskDecor.dividerSide, itemId: 'divider-side' },
+];
+
+// Novo tileset para não alterar os GIDs do desk-decor em mapas compactados pelo Tiled.
+export const DESK_DECOR_EXTRAS: TileArt[] = [
+  { pixels: deskDecor.mechanicalKeyboard, itemId: 'mechanical-keyboard' },
+  { pixels: deskDecor.terrarium, itemId: 'terrarium' },
+  { pixels: deskDecor.drawingTablet, itemId: 'drawing-tablet' },
+  { pixels: deskDecor.teaSet, itemId: 'tea-set' },
+  { pixels: deskDecor.handheld, itemId: 'handheld' },
+  { pixels: deskDecor.wallVinyl, itemId: 'wall-vinyl' },
+  { pixels: deskDecor.moonPrint, itemId: 'moon-print' },
+  { pixels: deskDecor.wallPennant, itemId: 'wall-pennant' },
+  { pixels: deskDecor.wovenBasket, itemId: 'woven-basket' },
+  { pixels: deskDecor.floorCorgi, itemId: 'floor-corgi' },
 ]
