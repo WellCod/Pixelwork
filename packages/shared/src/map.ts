@@ -2,13 +2,14 @@ import { TILESETS, TILESET_IDS, type TilesetId } from './catalog.generated.ts';
 import { isCornerSofa } from './furniture.ts';
 import { furnitureSeatLayout, type FurnitureSeat } from './furniture-seats.ts';
 import { TILE_PX } from './constants.ts';
-import { DIR_DELTA, DIRS, type Dir } from './protocol.ts';
+import { DIR_DELTA, DIRS, DeskDecor, type Dir } from './protocol.ts';
 import { gameTableLayout, gameTableSides, type CompiledTable } from './tables.ts';
 
 /** Lado máximo do mapa em tiles (100x100). */
 export const MAX_MAP_TILES = 100;
 /** Chave da zona implícita: todo tile fora de uma zona desenhada pertence a ela. */
 export const OPEN_ZONE_KEY = '__open';
+export const DESK_DEFAULT_DECOR_PROPERTY = 'default_decor';
 /** Formato aceito para `zone_key` e `desk_key`. */
 const KEY_PATTERN = /^[a-z0-9-]{1,40}$/;
 // Bits de espelhamento e rotação que o Tiled guarda no topo do gid.
@@ -39,6 +40,8 @@ export interface CompiledDesk {
    * para pendurar a decoração de parede nela, ou numa divisória quando não há parede.
    */
   wallBehind: boolean;
+  /** Decoração do mapa para a mesa livre e para o próximo ocupante. */
+  defaultDecor?: DeskDecor;
 }
 
 /** Mapa validado e reduzido ao que a simulação e o cliente consultam (grade, zonas, mesas). */
@@ -67,7 +70,7 @@ export type MapError =
   | { code: 'invalid_key'; kind: 'zone' | 'desk'; key: string }
   | { code: 'zone_overlap'; first: string; second: string }
   | { code: 'zone_not_aligned' | 'invalid_zone_type' | 'zone_outside'; key: string }
-  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size'; deskKey: string }
+  | { code: 'chair_blocked' | 'invalid_orientation' | 'desk_outside' | 'desk_size' | 'invalid_desk_decor'; deskKey: string }
   | { code: 'chair_shared'; first: string; second: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'furniture_position'; objectId: number }
@@ -96,6 +99,16 @@ function property(object: Json, name: string): unknown {
     if (isObject(entry) && entry.name === name) return entry.value;
   }
   return undefined;
+}
+
+function parseDeskDefaultDecor(raw: unknown): DeskDecor | undefined {
+  if (typeof raw !== 'string') return undefined;
+  try {
+    const parsed = DeskDecor.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Número finito ou NaN: com NaN as comparações falham e o valor inválido vira erro de validação. */
@@ -393,6 +406,9 @@ export function compileMap(json: unknown): CompileResult {
     const wallBehind = backTiles.every(
       ([backX, backY]) => inside(backX, backY) && (asNumber(walls[backY * width + backX]) & GID_MASK) > 0,
     );
+    const rawDecor = property(object, DESK_DEFAULT_DECOR_PROPERTY);
+    const defaultDecor = parseDeskDefaultDecor(rawDecor);
+    if (rawDecor !== undefined && !defaultDecor) errors.push({ code: 'invalid_desk_decor', deskKey: key });
     desks.push({
       key,
       x,
@@ -403,6 +419,7 @@ export function compileMap(json: unknown): CompileResult {
       chairX: chairTile[0] ?? x,
       chairY: chairTile[1] ?? y,
       wallBehind,
+      ...(defaultDecor ? { defaultDecor } : {}),
     });
     for (let ty = y; ty < y + footprintHeight; ty++) for (let tx = x; tx < x + footprintWidth; tx++) block(tx, ty);
   }

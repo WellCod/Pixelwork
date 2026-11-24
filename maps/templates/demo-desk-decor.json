@@ -1,0 +1,62 @@
+{
+  "mesa-1": {
+    "variant": "white",
+    "monitor": "single",
+    "slots": {
+      "left": "christmas-tree",
+      "right": "christmas-candy-cane",
+      "back": "christmas-string-lights",
+      "floor": "christmas-gift-stack"
+    }
+  },
+  "mesa-2": {
+    "variant": "dark",
+    "monitor": "laptop",
+    "slots": {
+      "left": "grinch-miniature",
+      "right": "grinch-max",
+      "back": "grinch-string-lights",
+      "floor": "grinch-gift-sack"
+    }
+  },
+  "mesa-3": {
+    "variant": "basic",
+    "monitor": "laptop",
+    "slots": {
+      "left": "christmas-gift",
+      "right": "grinch-snow-globe",
+      "back": "christmas-wreath",
+      "floor": null
+    }
+  },
+  "mesa-4": {
+    "variant": "halloween-twilight",
+    "monitor": "single",
+    "slots": {
+      "left": "halloween-pumpkin-lamp",
+      "right": "halloween-skull",
+      "back": "halloween-garland",
+      "floor": "halloween-candy-bucket"
+    }
+  },
+  "mesa-5": {
+    "variant": "dark",
+    "monitor": "laptop",
+    "slots": {
+      "left": "halloween-spellbook",
+      "right": "halloween-potion",
+      "back": "halloween-cobweb",
+      "floor": "halloween-black-cat"
+    }
+  },
+  "mesa-6": {
+    "variant": "halloween-twilight",
+    "monitor": "laptop",
+    "slots": {
+      "left": "halloween-skull",
+      "right": "halloween-pumpkin-lamp",
+      "back": "halloween-cobweb",
+      "floor": null
+    }
+  }
+}

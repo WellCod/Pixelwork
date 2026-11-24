@@ -44,10 +44,11 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
       return reply.code(422).send({ error: 'not_on_chair' });
     }
 
+    const decor = desk.defaultDecor ?? DEFAULT_DECOR;
     try {
       await db
         .insert(deskAssignments)
-        .values({ spaceId, deskKey: desk.key, userId: user.id, decor: DEFAULT_DECOR });
+        .values({ spaceId, deskKey: desk.key, userId: user.id, decor });
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       // Duas unicidades possíveis: a mesa já tem dono, ou o usuário já tem outra mesa neste coworking.
@@ -59,7 +60,7 @@ export function registerDeskRoutes(app: FastifyInstance, deps: AuthDeps): void {
       deskKey: desk.key,
       userId: user.id,
       ownerName: membership.profile.name,
-      decor: DEFAULT_DECOR,
+      decor,
     };
     runtime.setDesk(state);
     return reply.code(201).send(state);

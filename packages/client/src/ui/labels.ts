@@ -143,6 +143,7 @@ const CONTEXT: Record<string, Record<string, string>> = {
     'snake-plant': 'Espada-de-são-jorge', flowers: 'Flores', ficus: 'Fícus', succulent: 'Suculenta', tree: 'Árvore',
     planter: 'Vaso grande', 'ping-pong': 'Pingue-pongue', foosball: 'Pebolim', arcade: 'Fliperama',
     aquarium: 'Aquário', rug: 'Capacho', sideboard: 'Aparador',
+    'christmas-room-tree': 'Árvore do Grinch', 'christmas-room-max': 'Max de rena', 'christmas-room-gifts': 'Presentes de Natal',
     'halloween-cauldron': 'Caldeirão', 'halloween-candelabra': 'Candelabro',
     'halloween-tombstone': 'Lápide', 'halloween-ghost-mat': 'Capacho de fantasma',
     'halloween-familiar-cushion': 'Gato na almofada', 'halloween-pumpkin-pair': 'Dupla de abóboras',

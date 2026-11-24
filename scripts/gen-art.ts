@@ -7,7 +7,7 @@ import { CHARACTER_SHEETS } from './art/character.ts';
 import { FURNITURE_2X1, FURNITURE_2X2, FURNITURE_2X3, FURNITURE_3X2 } from './art/furniture-large.ts';
 import {
   DESK_DECOR, DESK_DECOR_CHRISTMAS, DESK_DECOR_EXTRAS, DESK_DECOR_FESTIVE, DESK_DECOR_GRINCH, DESK_DECOR_HALLOWEEN, FLOORS, FURNITURE, FURNITURE_2X1_HALLOWEEN,
-  FURNITURE_HALLOWEEN, WALLS, type TileArt,
+  FURNITURE_2X2_CHRISTMAS, FURNITURE_CHRISTMAS, FURNITURE_HALLOWEEN, WALLS, type TileArt,
 } from './art/tiles.ts';
 import { blank, stamp, toPng } from './lib/pixels.ts';
 
@@ -84,6 +84,8 @@ tileset('desk-decor-halloween', DESK_DECOR_HALLOWEEN);
 tileset('desk-decor-festive', DESK_DECOR_FESTIVE);
 tileset('desk-decor-grinch', DESK_DECOR_GRINCH);
 tileset('desk-decor-christmas', DESK_DECOR_CHRISTMAS);
+tileset('furniture-christmas', FURNITURE_CHRISTMAS);
+tileset('furniture-2x2-christmas', FURNITURE_2X2_CHRISTMAS, { w: 32, h: 32 });
 tileset('furniture-halloween', FURNITURE_HALLOWEEN);
 tileset('furniture-2x1-halloween', FURNITURE_2X1_HALLOWEEN, { w: 32, h: 16 });
 

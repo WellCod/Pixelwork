@@ -215,7 +215,7 @@ const map = {
     { name: 'pixelwork_next_zone', type: 'string', value: '1' },
   ],
   tilesets: Object.entries(FIRSTGID)
-    .filter(([id]) => id !== 'furniture-2x3' && !id.startsWith('desk-decor-') && !id.endsWith('-halloween'))
+    .filter(([id]) => id !== 'furniture-2x3' && !id.startsWith('desk-decor-') && !id.endsWith('-halloween') && !id.endsWith('-christmas'))
     .map(([id, firstgid]) => ({ firstgid, source: `${id}.tsj` })),
   layers: [
     { id: 1, name: 'floor', type: 'tilelayer', width: MAP_WIDTH, height: MAP_HEIGHT, x: 0, y: 0, opacity: 1, visible: true, data: floor },

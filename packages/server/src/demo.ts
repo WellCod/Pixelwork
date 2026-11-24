@@ -1,15 +1,44 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DESK_DEFAULT_DECOR_PROPERTY, DeskDecor } from '@pixelwork/shared';
+import { propertyValue, type TiledDoc } from '@pixelwork/shared/editor';
 import { orgs, spaces } from '@pixelwork/shared/schema';
 import { and, eq } from 'drizzle-orm';
 import type { Db, Tx } from './db.ts';
 import { uuidv7 } from './ids.ts';
+import { withDemoHolidayArea } from './demo-holiday-area.ts';
 
 export const DEMO_ORG_SLUG = 'demo';
 
 /** Mapa modelo de maps/templates (sem validação: quem usa valida com o schema do mapa). */
 export function loadTemplate(name: string): unknown {
   return JSON.parse(readFileSync(join(import.meta.dirname, '../../../maps/templates', `${name}.json`), 'utf8'));
+}
+
+/** Aplica a montagem da demo aos objetos de mesa pelas suas chaves no mapa. */
+export function withDemoDeskDecor(map: TiledDoc): TiledDoc {
+  const raw: unknown = JSON.parse(readFileSync(join(import.meta.dirname, '../../../maps/templates/demo-desk-decor.json'), 'utf8'));
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('decoração da demo inválida');
+  const defaults = new Map(Object.entries(raw).map(([key, value]) => [key, DeskDecor.parse(value)]));
+
+  return {
+    ...map,
+    layers: map.layers.map((layer) => {
+      if (layer.name !== 'desks' || layer.type !== 'objectgroup') return layer;
+      return { ...layer, objects: layer.objects.map((object) => {
+        const key = propertyValue(object, 'desk_key');
+        const decor = typeof key === 'string' ? defaults.get(key) : undefined;
+        if (!decor) return object;
+        const properties = (object.properties ?? []).filter((property) => property.name !== DESK_DEFAULT_DECOR_PROPERTY);
+        return { ...object, properties: [...properties, { name: DESK_DEFAULT_DECOR_PROPERTY, type: 'string', value: JSON.stringify(decor) }] };
+      }) };
+    }),
+  };
+}
+
+/** Mapa usado na criação e no reset da demo. */
+export function loadDemoTemplate(): TiledDoc {
+  return withDemoHolidayArea(withDemoDeskDecor(loadTemplate('small-office') as TiledDoc));
 }
 
 /** Cria a org Demo e o coworking de demonstração; não mexe no que já existe. */

@@ -118,9 +118,10 @@ const SLOTS: Slot[] = ['back', 'left', 'right', 'floor'];
 /**
  * Tudo o que compõe a mesa (tampo, monitor, divisória e decoração), na posição e ordem em que é
  * desenhado. Usado pelo jogo e pela prévia do editor de decoração, então os dois mostram o mesmo.
- * Mesa livre (sem decoração) aparece com a variação padrão e um monitor.
+ * A mesa livre usa a decoração do mapa ou o modelo básico.
  */
-export function deskSprites(desk: CompiledDesk, decor: DeskDecor | null): DeskSprite[] {
+export function deskSprites(desk: CompiledDesk, assignedDecor: DeskDecor | null): DeskSprite[] {
+  const decor = assignedDecor ?? desk.defaultDecor;
   const TILE = 16;
   const sprites: DeskSprite[] = [];
   const add = (item: string | null, dx: number, dy: number, z: number, flip = false, flipY = false) => {

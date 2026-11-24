@@ -133,6 +133,16 @@ describe('deskSprites', () => {
     expect(panel && calendar && panel.z < calendar.z).toBe(true);
   });
 
+  it('mostra Max na mesa livre do mapa e usa a decoração escolhida pelo dono quando ocupada', () => {
+    const defaultDecor: DeskDecor = {
+      variant: 'dark', monitor: 'laptop', slots: { left: null, right: 'grinch-max', back: null, floor: null },
+    };
+    const demoDesk = desk({ defaultDecor });
+    expect(at(deskSprites(demoDesk, null), 'grinch-max')).toBeDefined();
+    expect(at(deskSprites(demoDesk, decor), 'grinch-max')).toBeUndefined();
+    expect(at(deskSprites(demoDesk, decor), 'duck')).toBeDefined();
+  });
+
   it('mesa livre (sem decoração): variação padrão e um monitor, sem itens', () => {
     expect(deskSprites(desk({ width: 1 }), null).map((sprite) => sprite.item)).toEqual(['basic', 'monitor-single']);
   });

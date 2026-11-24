@@ -183,6 +183,8 @@ linha 4: sentado, uma coluna por direção (baixo, esquerda, direita, cima)
 | `desk-decor-festive` | 16x16 | 1201 | Enfeites de Natal e Ano Novo para estações de trabalho |
 | `desk-decor-grinch` | 16x16 | 1301 | Enfeites da coleção Grinch para estações de trabalho |
 | `desk-decor-christmas` | 16x16 | 1401 | Bengala e luzes para decoração de Natal |
+| `furniture-christmas` | 16x16 | 1501 | Max de rena e presentes natalinos |
+| `furniture-2x2-christmas` | 32x32 | 1601 | Árvore do Grinch |
 
 - Tapete: 16 tiles por tapete, um para cada combinação de bordas (máscara N=1, S=2, O=4, L=8),
   pintados pela ferramenta Tapete do editor (`paintRug`). Qualquer retângulo, até 1x1, fecha a borda.

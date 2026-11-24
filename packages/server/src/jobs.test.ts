@@ -1,9 +1,9 @@
-import { CLOSE_REMOVED, RECONNECT_GRACE_MS } from '@pixelwork/shared';
+import { CLOSE_REMOVED, RECONNECT_GRACE_MS, compileMap, findPath } from '@pixelwork/shared';
 import { deskAssignments, sessions, spaces, users } from '@pixelwork/shared/schema';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DAY_MS, HOUR_MS, cleanupExpiredGuests, cleanupExpiredSessions, nextDemoReset, resetDemo, scheduleJobs, type JobDeps } from './jobs.ts';
-import { loadTemplate } from './demo.ts';
+import { loadDemoTemplate, loadTemplate } from './demo.ts';
 import { Bot, api, loginGuest, startTestServer, until, type TestServer } from './test/harness.ts';
 
 /** Logger mudo para os jobs não sujarem a saída dos testes. */
@@ -92,8 +92,31 @@ describe('jobs da demo', () => {
     expect((await bot.next('desk.updated', (message) => message.desk.deskKey === 'mesa-1' && message.desk.userId === null)).desk.decor).toBeNull();
 
     const row = (await server.db.select({ map: spaces.map }).from(spaces).where(eq(spaces.id, server.spaceId)))[0];
-    expect(row?.map).toEqual(loadTemplate('small-office'));
+    expect(row?.map).toEqual(loadDemoTemplate());
+    const map = compileMap(row?.map);
+    if (!map.ok) throw new Error('mapa restaurado inválido');
+    const decorated = map.map.desks.filter(({ defaultDecor }) => defaultDecor);
+    expect(decorated.map(({ key, defaultDecor }) => [key, defaultDecor?.slots.right])).toEqual([
+      ['mesa-1', 'christmas-candy-cane'], ['mesa-2', 'grinch-max'], ['mesa-3', 'grinch-snow-globe'],
+      ['mesa-4', 'halloween-skull'], ['mesa-5', 'halloween-potion'], ['mesa-6', 'halloween-pumpkin-lamp'],
+    ]);
     expect(await server.db.select().from(deskAssignments).where(eq(deskAssignments.spaceId, server.spaceId))).toEqual([]);
+
+    const middle = decorated.find(({ key }) => key === 'mesa-2');
+    const position = server.app.realtime.runtime(server.spaceId)?.positionOf(guest.id);
+    if (!middle || !position) throw new Error('mesa do Max ou visitante ausente');
+    const path = findPath(map.map, position, { x: middle.chairX, y: middle.chairY });
+    if (!path) throw new Error('mesa do Max inacessível');
+    await bot.walk(server.clock, path);
+    const claim = await api(server, guest, 'POST', `/spaces/${server.spaceId}/desks/mesa-2/claim`);
+    expect(claim.status).toBe(201);
+    expect(claim.json).toMatchObject({ decor: middle.defaultDecor });
+    expect((await api(server, guest, 'DELETE', `/spaces/${server.spaceId}/desks/mesa-2`)).status).toBe(204);
+  });
+
+  it('usa a decoração sazonal apenas no modelo da demo', () => {
+    const base = compileMap(loadTemplate('small-office'));
+    expect(base.ok && base.map.desks.some(({ defaultDecor }) => defaultDecor)).toBe(false);
   });
 
   it('agendamento: reset às 03:00 UTC, com o relógio manual', async () => {

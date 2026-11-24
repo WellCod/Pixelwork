@@ -4,6 +4,7 @@ import type { Pixels } from '../lib/pixels.ts';
 import * as deskDecor from './desk-decor.ts';
 import * as halloween from './halloween.ts';
 import * as festive from './festive-desk.ts';
+import { christmasRoomGifts, christmasRoomMax, christmasRoomTree } from './festive-room.ts';
 import * as smallFurniture from './furniture-small.ts';
 import * as surfaces from './surfaces.ts';
 
@@ -216,6 +217,15 @@ export const DESK_DECOR_GRINCH: TileArt[] = [
   { pixels: festive.grinchMax, itemId: 'grinch-max' },
   { pixels: festive.grinchSnowGlobe, itemId: 'grinch-snow-globe' },
   { pixels: festive.grinchStringLights, itemId: 'grinch-string-lights' },
+];
+
+export const FURNITURE_CHRISTMAS: TileArt[] = [
+  { pixels: christmasRoomGifts(), collides: true, itemId: 'christmas-room-gifts' },
+  { pixels: christmasRoomMax(), itemId: 'christmas-room-max' },
+];
+
+export const FURNITURE_2X2_CHRISTMAS: TileArt[] = [
+  { pixels: christmasRoomTree(), collides: true, itemId: 'christmas-room-tree' },
 ];
 
 export const FURNITURE_HALLOWEEN: TileArt[] = [
