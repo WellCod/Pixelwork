@@ -113,7 +113,26 @@ Ensaio no Windows, Ryzen 7 7735HS, Node 24.14.1, CPython 3.12.13, RTC Python 1.3
 | ---: | ---: | ---: | ---: |
 | 30 | 312 ms | 328 ms | 265–344 ms |
 
-Reprodução com `pnpm exec tsx scripts/reception-worker-smoke.ts caminho/do/python 30`. O ensaio de isolamento de mídia fica em `scripts/reception-rtc-smoke.ts`. O número mede o caminho local sintético e a rede do teste. A medição de voz natural no navegador segue o protocolo da spec.
+Reprodução com `pnpm exec tsx scripts/reception-worker-smoke.ts caminho/do/python 30`. O ensaio de isolamento de mídia fica em `scripts/reception-rtc-smoke.ts`. O número mede o caminho local sintético e a rede do teste.
+
+### Latência da resposta com voz local no navegador
+
+Medição do fim da pergunta até o primeiro bloco audível da resposta, usando o mesmo relógio Web Audio no Chrome. O script injeta quatro perguntas em português no microfone de teste, sobre a localização da Aurora, a entrada em sala trancada, quem está online e um assunto fora do escopo. A resposta volta pela trilha real do LiveKit. A saudação, um turno de aquecimento por sessão e a duração da pergunta ficam fora da amostra. Os percentis usam o método do posto mais próximo.
+
+O ensaio de 25/11/2026 usou Chrome 157.0.8103.79 no Windows 11 Pro, Ryzen 7 7735HS, Node 24.14.1, Python 3.12.13 e LiveKit self-hosted v1.13.11 no Docker Desktop. Navegador, aplicação e modelos na mesma máquina. Faster Whisper Small INT8, Qwen 2.5 1.5B Q4_K_M via llama.cpp e Piper Faber rodaram em CPU. A amostra usa perguntas sintetizadas por software e mede até a trilha recebida, antes da saída física de som.
+
+| Versão | Turnos medidos | Sem resposta | p50 | p95 |
+| --- | ---: | ---: | ---: | ---: |
+| Linha de base (`5ea0376`) | 20 | 0 | 5,44 s | 7,18 s |
+| Voz local otimizada | 20 | 0 | 4,48 s | 5,11 s |
+
+O Whisper passou a decodificar com feixe único e sem timestamps, usando até oito threads conforme a máquina. A trilha começa a receber áudio assim que o Piper sintetiza a primeira frase. Neste ensaio, o p50 caiu 18% e o p95 caiu 29%.
+
+Para reproduzir, execute com a demo de voz ativa.
+
+```bash
+node scripts/reception-browser-bench.ts http://127.0.0.1:5200 caminho/do/python caminho/pt_BR-faber-medium.onnx 20
+```
 
 ## Arquitetura
 

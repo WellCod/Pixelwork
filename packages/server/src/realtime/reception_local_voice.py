@@ -3,6 +3,7 @@
 import asyncio
 import http.client
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -82,8 +83,10 @@ def format_result(intent, result):
 class LocalVoice:
     def __init__(self, config):
         models = Path(config["modelsDir"]).resolve(strict=True)
+        # Reserva parte dos núcleos lógicos para o modelo de texto, o navegador e a mídia.
+        stt_threads = min(8, max(1, (os.cpu_count() or 8) // 2))
         self.stt = WhisperModel(str(models / "whisper-small"), device="cpu", compute_type="int8",
-                                cpu_threads=4, local_files_only=True)
+                                cpu_threads=stt_threads, local_files_only=True)
         self.tts = PiperVoice.load(models / "pt_BR-faber-medium.onnx")
         llm_url = urlparse(config["llmUrl"])
         if (llm_url.scheme, llm_url.hostname) != ("http", "127.0.0.1") or not llm_url.port:
@@ -92,7 +95,8 @@ class LocalVoice:
 
     def transcribe(self, pcm):
         samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768
-        segments, _ = self.stt.transcribe(samples, language="pt", beam_size=3, condition_on_previous_text=False,
+        segments, _ = self.stt.transcribe(samples, language="pt", beam_size=1, without_timestamps=True,
+                                           condition_on_previous_text=False,
                                            initial_prompt="Pixelwork, coworking, sala Aurora, lounge, pingue-pongue, pebolim.")
         return " ".join(s.text.strip() for s in segments if s.no_speech_prob < 0.7).strip()[:400]
 
@@ -123,13 +127,11 @@ class LocalVoice:
         )
 
     def synthesize(self, text, rate):
-        parts = []
         for chunk in self.tts.synthesize(text):
             samples = chunk.audio_int16_array
             if len(samples):
                 positions = np.arange(round(len(samples) * rate / chunk.sample_rate)) * chunk.sample_rate / rate
-                parts.append(np.interp(positions, np.arange(len(samples)), samples).astype("<i2").tobytes())
-        return b"".join(parts)
+                yield np.interp(positions, np.arange(len(samples)), samples).astype("<i2").tobytes()
 
 
 async def converse(voice, source, mic, rate, write: Callable):
@@ -143,16 +145,29 @@ async def converse(voice, source, mic, rate, write: Callable):
     async def speak(text, turn):
         if turn != generation:
             return 0
-        pcm = await asyncio.to_thread(voice.synthesize, text, rate)
+        chunks = voice.synthesize(text, rate)
+        remainder = b""
         sent = 0
-        for offset in range(0, len(pcm), frame_bytes):
+        while turn == generation:
+            chunk = await asyncio.to_thread(next, chunks, None)
             if turn != generation:
                 break
-            part = pcm[offset:offset + frame_bytes].ljust(frame_bytes, b"\x00")
-            await source.capture_frame(rtc.AudioFrame(part, rate, 1, frame_bytes // 2))
-            sent += FRAME_MS
-        if turn == generation:
-            await source.wait_for_playout()
+            if chunk is None:
+                if remainder:
+                    part = remainder.ljust(frame_bytes, b"\x00")
+                    await source.capture_frame(rtc.AudioFrame(part, rate, 1, frame_bytes // 2))
+                    sent += FRAME_MS
+                await source.wait_for_playout()
+                break
+            pcm = remainder + chunk
+            full_frames = len(pcm) // frame_bytes * frame_bytes
+            for offset in range(0, full_frames, frame_bytes):
+                if turn != generation:
+                    break
+                part = pcm[offset:offset + frame_bytes]
+                await source.capture_frame(rtc.AudioFrame(part, rate, 1, frame_bytes // 2))
+                sent += FRAME_MS
+            remainder = pcm[full_frames:]
         return sent
 
     async def respond():
