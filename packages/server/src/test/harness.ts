@@ -9,6 +9,7 @@ import { seedDemo } from '../demo.ts';
 import { createTestDatabase, type TestDatabase } from './database.ts';
 import type { GitHubClient } from '../auth/github.ts';
 import type { MediaService } from '../realtime/media.ts';
+import type { ReceptionVoice } from '../realtime/reception-runtime.ts';
 import { ManualClock } from './manual-clock.ts';
 
 export const TEST_ORIGIN = 'http://localhost:5173';
@@ -45,6 +46,7 @@ export interface TestServer {
 export interface TestServerOptions {
   map?: unknown;
   media?: MediaService;
+  receptionVoice?: ReceptionVoice;
   github?: GitHubClient;
   rateLimit?: boolean;
 }
@@ -57,11 +59,12 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
   const clock = new ManualClock();
   const app = buildApp({
     db: databaseHandle.db,
-    config: TEST_CONFIG,
+    config: { ...TEST_CONFIG, receptionistEnabled: options.receptionVoice !== undefined },
     clock,
     scheduler: clock,
     rateLimit: options.rateLimit ?? false,
     ...(options.media ? { media: options.media } : {}),
+    ...(options.receptionVoice ? { receptionVoice: options.receptionVoice } : {}),
     ...(options.github ? { github: options.github } : {}),
   });
   const baseUrl = await app.listen({ port: 0, host: '127.0.0.1' });

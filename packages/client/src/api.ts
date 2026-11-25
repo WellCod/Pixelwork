@@ -107,6 +107,17 @@ export const orgApi = {
     request<undefined>('DELETE', spacePath(spaceId, `/members/${encodeURIComponent(userId)}`), {}),
 };
 
+export interface ReceptionSettings {
+  enabled: boolean;
+  installationEnabled: boolean;
+  hasMarker: boolean;
+}
+
+export const receptionApi = {
+  settings: (spaceId: string) => request<ReceptionSettings>('GET', spacePath(spaceId, '/reception')),
+  setEnabled: (spaceId: string, enabled: boolean) => request<ReceptionSettings>('PUT', spacePath(spaceId, '/reception'), { enabled }),
+};
+
 export const mapApi = {
   validate: (spaceId: string, map: unknown) =>
     request<{ errors: MapError[]; orphanDesks: string[] }>('POST', spacePath(spaceId, '/map/validate'), { map }),

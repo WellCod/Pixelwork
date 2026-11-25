@@ -47,6 +47,11 @@ export class ProximityController {
     for (const other of near) {
       volumes.set(other.id, forced.has(other.id) ? volumeAt(1) : volumeAt(tileDistance(self, other)));
     }
+    if (world.reception && world.receptionSession?.state === 'active') {
+      const identity = world.receptionSession.identity;
+      audible.add(identity);
+      volumes.set(identity, volumeAt(tileDistance(self, world.reception)));
+    }
     const bubbles = selectBubbles(
       self,
       near.map((other) => ({ ...other, hasCamera: media.hasCamera(other.id) })),

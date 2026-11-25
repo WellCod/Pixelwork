@@ -58,6 +58,7 @@ export interface CompiledMap {
   tables: CompiledTable[];
   furnitureSeats: FurnitureSeat[];
   spawn: { x: number; y: number };
+  reception?: { x: number; y: number };
   tilesets: TilesetId[];
 }
 
@@ -74,7 +75,8 @@ export type MapError =
   | { code: 'chair_shared'; first: string; second: string }
   | { code: 'spawn_count'; found: number }
   | { code: 'furniture_position'; objectId: number }
-  | { code: 'spawn_blocked' | 'spawn_in_meeting' };
+  | { code: 'spawn_blocked' | 'spawn_in_meeting' }
+  | { code: 'reception_count' | 'reception_point' | 'reception_blocked' | 'reception_in_meeting' };
 
 export type CompileResult = { ok: true; map: CompiledMap } | { ok: false; errors: MapError[] };
 
@@ -175,6 +177,11 @@ export function compileMap(json: unknown): CompileResult {
     if (!layer) errors.push({ code: 'missing_layer', layer: name });
     else if (layer.type !== 'objectgroup') errors.push({ code: 'wrong_layer_type', layer: name });
   }
+
+  const receptionLayers = layers.filter(({ name }) => name === 'reception');
+  const receptionLayer = receptionLayers[0];
+  if (receptionLayers.length > 1) errors.push({ code: 'reception_count' });
+  if (receptionLayer && receptionLayer.type !== 'objectgroup') errors.push({ code: 'wrong_layer_type', layer: 'reception' });
 
   // Só tilesets externos do catálogo (`<id>.tsj`); tileset embutido no mapa é recusado.
   const tilesetRefs: TilesetRef[] = [];
@@ -450,6 +457,26 @@ export function compileMap(json: unknown): CompileResult {
     }
   }
 
+  let reception: CompiledMap['reception'];
+  if (receptionLayer) {
+    const points = receptionLayer.objects;
+    if (!Array.isArray(points)) errors.push({ code: 'reception_point' });
+    else if (points.length > 1) errors.push({ code: 'reception_count' });
+    else if (points.length === 1) {
+      const point = points[0] as unknown;
+      const x = isObject(point) ? asNumber(point.x) : NaN;
+      const y = isObject(point) ? asNumber(point.y) : NaN;
+      if (!isObject(point) || point.point !== true || !Number.isFinite(x) || !Number.isFinite(y)) {
+        errors.push({ code: 'reception_point' });
+      } else {
+        const tile = { x: Math.floor(x / TILE_PX), y: Math.floor(y / TILE_PX) };
+        if (!walkableAt(tile.x, tile.y)) errors.push({ code: 'reception_blocked' });
+        else if (zones[zoneIndex[tile.y * width + tile.x] ?? 0]?.type === 'meeting') errors.push({ code: 'reception_in_meeting' });
+        else reception = tile;
+      }
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   // Lados calculados depois de tudo bloquear (móveis e mesas): só tiles onde dá para ficar.
   const tables: CompiledTable[] = interactiveTables.map(({ sideAxis, ...table }) => ({
@@ -480,6 +507,7 @@ export function compileMap(json: unknown): CompileResult {
       tables,
       furnitureSeats,
       spawn,
+      ...(reception ? { reception } : {}),
       tilesets: [...new Set(tilesetRefs.map((tilesetRef) => tilesetRef.id))],
     },
   };

@@ -257,6 +257,7 @@ Restrições (o servidor rejeita com código de erro):
 | `desks`     | objetos   | propriedades `desk_key` e `orientation` (`up`, `down`, `left`, `right`) |
 | `spawn`     | objetos   | exatamente um ponto, em tile caminhável                                  |
 
+- A camada opcional `reception` é do tipo objetos. Aceita até um ponto em um tile caminhável de uma zona aberta. O ponto é compilado em coordenadas de tile. O mapa padrão da demo inclui o ponto perto da entrada.
 - `zone_key` e `desk_key`: únicos no mapa, `[a-z0-9-]{1,40}`. São estáveis entre edições; é por
   eles que trancas, salas de mídia e atribuições de mesa se referem às zonas e mesas.
 - `type` da zona: `open` ou `meeting`. Zonas não se sobrepõem. Tiles fora de qualquer zona
@@ -672,6 +673,12 @@ Decisões da fase 4:
 
 Descartados: mesh P2P (upload multiplicado por participante); mediasoup (nível baixo demais,
 semanas de sinalização); vídeo como textura no canvas (upload de textura por frame sem ganho).
+
+### Recepção com dublês locais
+
+O mapa compilado guarda o ponto opcional da recepção. O recurso local exige configuração na instalação, autorização de admin no coworking e o worker Python. Rotas de configuração seguem `requireMember` e papel de admin. A presença da IA e o lease privado viajam em mensagens JSON, fora do tick binário.
+
+O runtime usa `nextProximity` com posição confirmada e emite o token da sala aberta. O RTC Python assina o microfone do visitante escolhido e limita a trilha publicada para ele. O servidor retira a identidade após encerrar o processo. As ferramentas consultam o mapa e os membros conectados do mesmo runtime por comandos IPC fechados. Áudio e texto seguem efêmeros. Os dublês operam com limites de duração e capacidade, e os registros guardam contadores. [Spec e próximos passos](superpowers/specs/2026-11-25-recepcionista-ia-design.md)
 
 ## 11. Customização
 

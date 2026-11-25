@@ -10,6 +10,7 @@ import { CreditsPage } from './ui/CreditsPage.tsx';
 import { InviteModal } from './ui/InviteModal.tsx';
 import { InvitePage } from './ui/InvitePage.tsx';
 import { MapModal } from './ui/MapModal.tsx';
+import { ReceptionSettingsModal } from './ui/ReceptionSettingsModal.tsx';
 import { errorMessage } from './ui/useWorld.ts';
 
 /** Coworking aberto: o detalhe vindo da API e o mapa já compilado. */
@@ -86,7 +87,7 @@ export function App() {
   const [githubLoginEnabled, setGithubLoginEnabled] = useState(false);
   const [inviteToken, setInviteToken] = useState(inviteTokenFromPath);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
-  const [openModal, setOpenModal] = useState<'create' | 'invite' | 'map' | null>(null);
+  const [openModal, setOpenModal] = useState<'create' | 'invite' | 'map' | 'reception' | null>(null);
   const [switchingSpace, setSwitchingSpace] = useState(false);
   const [editor, setEditor] = useState<{ controller: EditorController; baseVersion: number } | null>(null);
 
@@ -260,6 +261,9 @@ export function App() {
             <button type="button" onClick={() => setOpenModal('map')}>
               Mapa
             </button>
+            <button type="button" onClick={() => setOpenModal('reception')}>
+              Recepção
+            </button>
             <button type="button" onClick={() => setOpenModal('invite')}>
               Convidar
             </button>
@@ -342,6 +346,9 @@ export function App() {
         />
       )}
       {openModal === 'invite' && current && <InviteModal spaceId={current.space.id} onClose={() => setOpenModal(null)} />}
+      {openModal === 'reception' && current?.space.role === 'admin' && (
+        <ReceptionSettingsModal key={current.space.id} spaceId={current.space.id} onClose={() => setOpenModal(null)} />
+      )}
       {openModal === 'map' && current && (
         <MapModal spaceId={current.space.id} baseVersion={current.space.mapVersion} onClose={() => setOpenModal(null)} />
       )}

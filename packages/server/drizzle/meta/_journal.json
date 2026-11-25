@@ -15,6 +15,13 @@
       "when": 1795371362553,
       "tag": "0001_talented_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795618601452,
+      "tag": "0002_modern_chimera",
+      "breakpoints": true
     }
   ]
 }

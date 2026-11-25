@@ -13,6 +13,7 @@ import {
   TILE_PX,
   tilesetImageUrl,
   type ClientMsg,
+  type AvatarSpec,
   type CompiledDesk,
   type ContactShadow,
   type Dir,
@@ -68,6 +69,10 @@ interface Avatar {
   chatTimer: Phaser.Time.TimerEvent | null;
 }
 
+const RECEPTION_AVATAR: AvatarSpec = {
+  body: 'base', skin: 'medium', hair: 'bun', hairColor: 'black', outfit: 'cardigan', outfitColor: 'green', accessory: 'glasses',
+};
+
 const AVATAR_SHADOW_ALPHA = 0.18;
 /** Zoom da câmera em múltiplos do zoom base (`baseZoom`): inteiro, para o pixel art não borrar. */
 const ZOOM_LEVELS = [1, 2, 3] as const;
@@ -90,6 +95,8 @@ function paintContactShadows(graphics: Phaser.GameObjects.Graphics, x: number, b
  */
 export class WorldScene extends Phaser.Scene {
   private meetingDoors: MeetingDoor[] = [];
+  private receptionObjects: Phaser.GameObjects.GameObject[] = [];
+  private receptionRing: Phaser.GameObjects.Ellipse | undefined;
   private readonly avatars = new Map<string, Avatar>();
   private readonly deskObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
   /** Placar sobre cada mesa de jogo, visível só para quem está perto. */
@@ -164,6 +171,7 @@ export class WorldScene extends Phaser.Scene {
         .setOrigin(0, 1).setDepth(bottom);
     }
     drawDeskJoins(this, this.options.world.map.desks);
+    this.renderReception();
     this.renderZoneLabels();
 
     this.mapSize = { width: tilemap.widthInPixels, height: tilemap.heightInPixels };
@@ -261,6 +269,8 @@ export class WorldScene extends Phaser.Scene {
       const positions = Array.from(world.players.values(), (player) => player.id === world.selfId ? world.self : player);
       for (const door of this.meetingDoors) door.update(time, delta, world.zones.get(door.zoneKey)?.locked ?? false, positions);
     }
+    const reception = world.receptionSession;
+    this.receptionRing?.setVisible(reception?.state === 'active' && (this.options.isSpeaking?.(reception.identity) ?? false));
     const ghostOn = this.options.showGhost?.() ?? false;
     this.ghost?.setVisible(ghostOn && world.selfId !== null);
     if (ghostOn) this.ghost?.setPosition(world.confirmed.x * TILE_PX, world.confirmed.y * TILE_PX);
@@ -383,8 +393,12 @@ export class WorldScene extends Phaser.Scene {
   private onWorldEvent(event: WorldEvent): void {
     const { world } = this.options;
     switch (event.type) {
+      case 'reception':
+        this.renderReception();
+        break;
       case 'reset':
         this.rebuild();
+        this.renderReception();
         this.renderTables();
         break;
       case 'table':
@@ -482,6 +496,23 @@ export class WorldScene extends Phaser.Scene {
     for (const id of [...this.avatars.keys()]) this.removeAvatar(id);
     for (const player of this.options.world.players.values()) this.addAvatar(player);
     this.renderDesks();
+  }
+
+  private renderReception(): void {
+    for (const object of this.receptionObjects) object.destroy();
+    this.receptionObjects = [];
+    this.receptionRing = undefined;
+    const reception = this.options.world.reception;
+    if (!reception) return;
+    const x = reception.x * TILE_PX + TILE_PX / 2;
+    const y = (reception.y + 1) * TILE_PX;
+    const texture = ensureAvatarTexture(this, RECEPTION_AVATAR);
+    const sprite = this.add.sprite(x, y, texture, idleFrame('down')).setOrigin(0.5, 1).setDepth(y);
+    const label = new NamePill(this).set('Recepção · IA', reception.status === 'available' ? 'available' : 'away', false)
+      .setPosition(x, y + 1).setDepth(LABEL_DEPTH);
+    const ring = this.add.ellipse(x, y - 1, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setDepth(y - 0.5).setVisible(false);
+    this.receptionRing = ring;
+    this.receptionObjects = [sprite, label, ring];
   }
 
   private addAvatar(player: Player): void {

@@ -121,6 +121,8 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('call.invite'), userId: z.string().min(1) }),
   z.object({ t: z.literal('call.reply'), callId: z.string().min(1), accept: z.boolean() }),
   z.object({ t: z.literal('call.leave') }),
+  z.strictObject({ t: z.literal('reception.start'), consent: z.literal(true) }),
+  z.strictObject({ t: z.literal('reception.stop') }),
   // Teto folgado em unidades UTF-16 só contra abuso; o limite real (em code points, depois do trim) é conferido no servidor.
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
   z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
@@ -138,6 +140,12 @@ export type ClientMsg = z.infer<typeof ClientMsg>;
 /** Movimento do tick já decodificado, com o id completo do jogador. */
 export type TickMove = [id: string, x: number, y: number, dir: Dir];
 
+export interface ReceptionPresence {
+  x: number;
+  y: number;
+  status: 'available' | 'busy' | 'unavailable';
+}
+
 /** Mensagens do servidor para o cliente; só o `tick` vai em binário na rede. */
 export type ServerMsg =
   | {
@@ -150,6 +158,7 @@ export type ServerMsg =
       tables: TableState[];
       /** Mesa em que o próprio jogador está (reabre a janela do jogo ao reconectar). */
       game: GameSeat | null;
+      reception?: ReceptionPresence;
     }
   /**
    * `ts`: hora do servidor no envio (ms), usada para medir a latência do tick. Na rede o tick vai
@@ -166,6 +175,10 @@ export type ServerMsg =
       >;
     }
   | { t: 'zone.state'; zone: ZoneState }
+  | { t: 'reception.state'; reception: ReceptionPresence | null }
+  | { t: 'reception.session'; state: 'starting' }
+  | { t: 'reception.session'; state: 'active'; identity: string }
+  | { t: 'reception.session'; state: 'ended'; reason: 'finished' | 'left' | 'timeout' | 'busy' | 'unavailable' }
   | { t: 'zone.knockRequest'; requestId: string; zoneKey: string; from: string }
   | { t: 'zone.knockResult'; zoneKey: string; allowed: boolean }
   | { t: 'media.join'; room: string; token: string; url: string }

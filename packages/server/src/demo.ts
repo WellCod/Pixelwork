@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DESK_DEFAULT_DECOR_PROPERTY, DeskDecor } from '@pixelwork/shared';
+import { DESK_DEFAULT_DECOR_PROPERTY, DeskDecor, TILE_PX } from '@pixelwork/shared';
 import { propertyValue, type TiledDoc } from '@pixelwork/shared/editor';
 import { orgs, spaces } from '@pixelwork/shared/schema';
 import { and, eq } from 'drizzle-orm';
@@ -40,7 +40,22 @@ export function withDemoDeskDecor(map: TiledDoc): TiledDoc {
 /** Mapa usado na criação e no reset da demo. */
 export function loadDemoTemplate(): TiledDoc {
   const template = withDemoDeskDecor(loadTemplate('small-office') as TiledDoc);
-  return withAuroraConferenceTable(withDemoHolidayArea(template));
+  const map = withAuroraConferenceTable(withDemoHolidayArea(template));
+  const nextLayerId = map.nextlayerid;
+  const nextObjectId = map.nextobjectid;
+  if (typeof nextLayerId !== 'number' || nextObjectId === undefined) throw new Error('IDs do mapa padrão ausentes.');
+  return {
+    ...map,
+    nextlayerid: nextLayerId + 1,
+    nextobjectid: nextObjectId + 1,
+    layers: [...map.layers, {
+      id: nextLayerId, name: 'reception', type: 'objectgroup', draworder: 'topdown', x: 0, y: 0, visible: true, opacity: 1,
+      objects: [{
+        id: nextObjectId, name: 'Recepção', type: '', point: true, x: 18.5 * TILE_PX, y: 12.5 * TILE_PX,
+        width: 0, height: 0, visible: true, rotation: 0,
+      }],
+    }],
+  };
 }
 
 /** Cria a org Demo e o coworking de demonstração; não mexe no que já existe. */

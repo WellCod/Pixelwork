@@ -77,6 +77,35 @@ O firewall precisa deixar entrar TCP 5173 (Vite), TCP 7881 e UDP 7882 (mídia do
 `localhost` ou IP privado continua sendo desenvolvimento: as checagens de produção do `env.ts` valem
 para https em endereço público.
 
+## Recepção de IA em teste local
+
+O NPC **Recepção · IA** aparece em mapas com um ponto de recepção quando a instalação e o coworking autorizam o recurso. Aproxime-se do NPC, leia o aviso e toque em **Conversar com IA**. O modo local detecta os turnos e alterna chamadas de teste às ferramentas de localização, pessoas online e orientação de porta. A saudação e as respostas deste modo são tons sintéticos.
+
+| Decisão | Implementação local |
+| --- | --- |
+| Processo de voz | Python com SDK RTC LiveKit, supervisionado pelo Pixelwork por IPC. [Spec](docs/superpowers/specs/2026-11-25-recepcionista-ia-design.md) |
+| Autoridade de mídia | O servidor emite um token da sala aberta por conversa. A trilha do NPC é autorizada somente ao visitante atendido, e o servidor remove a identidade ao encerrar. |
+| Vários visitantes | Um atendimento por coworking, teto global configurável e encerramento ao sair do raio ou mudar de sala. |
+| Turnos e dados | Fala detectada cancela a reprodução e limpa a fila. Áudio em memória e contadores de uso por sessão. A síntese e as ferramentas de teste rodam localmente. |
+
+### Ativar o modo de teste
+
+1. Crie um ambiente Python 3.12 fora da pasta do projeto e instale o SDK livre com `python -m pip install livekit==1.3.0`.
+2. Aplique `pnpm db:migrate` no banco de desenvolvimento. No `.env`, defina `RECEPTIONIST_ENABLED=true` e `RECEPTIONIST_PYTHON` como o caminho absoluto do executável desse ambiente. Os limites de sessões e de duração estão no `.env.example`.
+3. Entre no coworking como admin, abra **Recepção** e autorize o recurso. A demo restaurada a partir do mapa padrão inclui o ponto. Em outro mapa, adicione no Tiled um ponto em uma camada de objetos chamada `reception`, em área aberta e caminhável.
+
+O modo de teste usa o LiveKit self-hosted e os dublês locais. Voz natural, integração com AgentSession, fallback de TTS e orçamento monetário transacional pertencem à próxima etapa, após a escolha autorizada de provedores. Os limites de sessões e tempo já se aplicam ao modo local.
+
+### Tempo até o primeiro áudio sintético
+
+Ensaio no Windows, Ryzen 7 7735HS, Node 24.14.1, CPython 3.12.13, RTC Python 1.3.0 e LiveKit self-hosted v1.13.11 no Docker Desktop da mesma máquina. Tempo entre o fim do trecho sintético no publicador e o primeiro frame audível no receptor RTC Python, após a saudação e com a mesma conversa aquecida. Foram 30 turnos, sem erro na amostra, com STT, LLM e TTS simulados.
+
+| Turnos | p50 | p95 | Faixa |
+| ---: | ---: | ---: | ---: |
+| 30 | 312 ms | 328 ms | 265–344 ms |
+
+Reprodução com `pnpm exec tsx scripts/reception-worker-smoke.ts caminho/do/python 30`. O ensaio de isolamento de mídia fica em `scripts/reception-rtc-smoke.ts`. O número mede o caminho local sintético e a rede do teste. A medição de voz natural no navegador segue o protocolo da spec.
+
 ## Arquitetura
 
 ```mermaid

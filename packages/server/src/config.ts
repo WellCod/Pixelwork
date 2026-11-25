@@ -11,6 +11,8 @@ export interface AppConfig {
   github: { clientId: string; clientSecret: string };
   /** Confia no X-Forwarded-For (atrás do Caddy em produção). */
   trustProxy: boolean;
+  receptionistEnabled?: boolean;
+  receptionistLimits?: { sessions: number; durationMs: number };
 }
 
 export function configFromEnv(env: Env): AppConfig {
@@ -26,5 +28,7 @@ export function configFromEnv(env: Env): AppConfig {
     },
     github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
     trustProxy: env.TRUST_PROXY,
+    receptionistEnabled: env.RECEPTIONIST_ENABLED,
+    receptionistLimits: { sessions: env.RECEPTIONIST_MAX_SESSIONS, durationMs: env.RECEPTIONIST_DURATION_SECONDS * 1000 },
   };
 }

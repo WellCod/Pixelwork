@@ -20,6 +20,7 @@ import { FurnitureSeatBar } from './ui/FurnitureSeatBar.tsx';
 import { TableBar } from './ui/TableBar.tsx';
 import { MediaControls } from './ui/MediaControls.tsx';
 import { RoomPanel } from './ui/RoomPanel.tsx';
+import { ReceptionBar } from './ui/ReceptionBar.tsx';
 import { Sidebar } from './ui/Sidebar.tsx';
 import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
 import { Welcome } from './ui/Welcome.tsx';
@@ -184,6 +185,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             {!editor && (
               <>
                 <Welcome />
+                <ReceptionBar world={world} send={send} />
                 <ZoneUi world={world} send={send} knock={knock} />
                 <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
                 <TableBar world={world} send={send} />
