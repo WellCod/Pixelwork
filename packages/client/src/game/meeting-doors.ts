@@ -1,6 +1,7 @@
-import { DIR_DELTA, TILE_PX, isWalkable, zoneAt, type CompiledMap, type Tile } from '@pixelwork/shared';
+import { TILE_PX, type CompiledMap, type Tile } from '@pixelwork/shared';
 import type * as Phaser from 'phaser';
 import { LABEL_DEPTH, LABEL_FONT } from './labels.ts';
+import { meetingDoorZone } from './world-actions.ts';
 
 const ANIMATION_MS = 180;
 const CLOSE_DELAY_MS = 450;
@@ -17,11 +18,8 @@ export function createMeetingDoors(scene: Phaser.Scene, map: CompiledMap, tiles:
   const rooms = new Map<string, Tile[]>();
   const staticTiles: Tile[] = [];
   for (const tile of tiles) {
-    const { x, y } = tile;
-    const approaches = [tile, ...Object.values(DIR_DELTA).map(([dx, dy]) => ({ x: x + dx, y: y + dy }))];
-    const zone = approaches.filter((entry) => isWalkable(map, entry.x, entry.y))
-      .map((entry) => zoneAt(map, entry.x, entry.y)).find((entry) => entry.type === 'meeting');
-    if (!zone || !isWalkable(map, x, y)) {
+    const zone = meetingDoorZone(map, tile);
+    if (!zone) {
       staticTiles.push(tile);
       continue;
     }

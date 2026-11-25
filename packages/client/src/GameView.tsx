@@ -1,11 +1,12 @@
-import type { ClientMsg, CompiledMap } from '@pixelwork/shared';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ClientMsg, CompiledMap, Dir } from '@pixelwork/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SpaceDetail } from './api.ts';
 import { EditorPanel } from './editor/EditorPanel.tsx';
 import { EditorScene } from './editor/EditorScene.ts';
 import type { EditorController } from './editor/editor-controller.ts';
 import { createGame, mountGame } from './game/createGame.ts';
 import type { WorldScene } from './game/WorldScene.ts';
+import { collectWorldTargets } from './game/world-actions.ts';
 import { MediaManager } from './media/media-manager.ts';
 import { ProximityController } from './media/proximity-controller.ts';
 import { CallStore } from './net/call-store.ts';
@@ -23,6 +24,9 @@ import { Sidebar } from './ui/Sidebar.tsx';
 import { VideoBubbles, hasVideoBubble } from './ui/VideoBubbles.tsx';
 import { Welcome } from './ui/Welcome.tsx';
 import { ZoneUi } from './ui/ZoneUi.tsx';
+import { MapDestinations } from './ui/MapDestinations.tsx';
+import { WorldActions } from './ui/WorldActions.tsx';
+import { useDoorKnock } from './ui/useDoorKnock.ts';
 import { NetOverlay } from './ui/NetOverlay.tsx';
 import { ReplayModal } from './ui/ReplayModal.tsx';
 import { NetSim } from './net/net-sim.ts';
@@ -60,6 +64,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   // Cena do Phaser em ref: é recriada quando o mapa troca, e os botões leem sempre a atual.
   const worldScene = useRef<WorldScene | null>(null);
   const positionOf = useCallback((id: string) => worldScene.current?.screenPosition(id) ?? null, []);
+  const project = useCallback((x: number, y: number) => worldScene.current?.project(x, y) ?? null, []);
+  const followPath = useCallback((path: Dir[]) => worldScene.current?.followPath(path) ?? false, []);
   const [calls] = useState(() => new CallStore(world));
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [netSim] = useState(() => new NetSim());
@@ -70,6 +76,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   // Estável entre renderizações (só lê o ref da conexão): o GameWindow recria os controles
   // quando o send muda, e isso soltava as teclas seguradas no meio da partida.
   const send = useCallback((message: ClientMsg) => connection.current?.send(message), []);
+
+  const knock = useDoorKnock(world, send);
 
   // Conexão, mídia e chamadas vivem enquanto o coworking for o mesmo, mesmo se o mapa trocar.
   useEffect(() => {
@@ -115,14 +123,16 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   // Editando, a cena é a do editor e ignora mapas que chegam de fora (o salvar dá 409).
   const editorController = editor?.controller ?? null;
   const worldMap = editorController ? null : map;
-  const worldMapJson = editorController ? null : space.map;
+  const worldMapJson = editorController ? null : space.map as Record<string, unknown>;
+
+  const targets = useMemo(() => worldMap && worldMapJson ? collectWorldTargets(worldMap, worldMapJson) : [], [worldMap, worldMapJson]);
 
   // A cena é refeita quando o mapa muda; o estado do mundo e a conexão continuam.
   useEffect(() => {
     const containerElement = gameContainer.current;
     if (!containerElement) return;
     // Modo de edição: monta só a cena do editor, sem ligar o mundo a ela.
-    if (editorController || !worldMap) {
+    if (editorController || !worldMap || !worldMapJson) {
       if (!editorController) return;
       const editorGame = mountGame(containerElement, new EditorScene(editorController));
       if (import.meta.env.DEV) {
@@ -135,7 +145,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
     world.setMap(worldMap);
     const worldGame = createGame(containerElement, {
       world,
-      mapJson: worldMapJson as Record<string, unknown>,
+      mapJson: worldMapJson,
+      targets,
       send: (message) => connection.current?.send(message),
       canMove: () => connection.current?.online ?? false,
       isSpeaking: (id) => media.speaking.has(id),
@@ -148,7 +159,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       worldScene.current = null;
       worldGame.game.destroy(true);
     };
-  }, [editorController, worldMap, worldMapJson, world, media, proximityController, netSim]);
+  }, [editorController, worldMap, worldMapJson, world, media, proximityController, netSim, targets]);
 
   return (
       <div className="main">
@@ -156,6 +167,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           <div ref={gameContainer} className="game" />
           {!editor && <VideoBubbles media={media} world={world} controller={proximityController} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
+          {!editor && connectionStatus === 'online' && <WorldActions world={world} targets={targets} project={project} followPath={followPath} send={send} knock={knock} />}
           <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
           {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
           <div className="hud">
@@ -172,7 +184,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             {!editor && (
               <>
                 <Welcome />
-                <ZoneUi world={world} send={send} />
+                <ZoneUi world={world} send={send} knock={knock} />
                 <DeskBar world={world} spaceId={space.id} isAdmin={space.role === 'admin'} />
                 <TableBar world={world} send={send} />
                 <FurnitureSeatBar world={world} send={send} />
@@ -197,7 +209,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
             />
           )}
           {!editor && (
-            <div className="zoom-controls" aria-label="Zoom do mapa">
+            <div className="zoom-controls" aria-label="Navegação do mapa">
+              <MapDestinations world={world} targets={targets} followPath={followPath} online={connectionStatus === 'online'} />
               <button type="button" title="Afastar (-)" aria-label="Afastar" onClick={() => worldScene.current?.zoom(-1)}>
                 −
               </button>
