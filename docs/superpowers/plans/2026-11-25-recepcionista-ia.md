@@ -37,3 +37,10 @@
 - Medir tempo até o primeiro áudio recebido pelo cliente, segundo o protocolo da spec. Registrar p50, p95, amostra, erros, provedores, versões, máquina e rede. Identificar o ambiente de cada medição e obter aprovação antes de testar um provedor novo ou pago. Rodar a carga comparável dos 10, 25 e 50 bots e verificar o tick binário.
 - Atualizar a tabela de decisões do README ou registrar um ADR, explicar como ativar, publicar os números medidos e comentar as variáveis no `.env.example`. Rodar geração de migration, `pnpm typecheck`, `pnpm lint`, `pnpm test`, a suíte do worker, E2E e build do Docker.
 - Abrir PR da `feat/recepcionista-ia` para revisão. Incluir evidência dos limites, a cobertura de privacidade e a orientação visual como próximo passo previsto.
+
+## Evidência do transporte local
+
+- LiveKit self-hosted v1.13.11, Windows, CPython 3.12.13, SDK RTC Python 1.3.0. Harness: pnpm exec tsx scripts/reception-rtc-smoke.mts caminho/do/python (ambiente descartável com livekit==1.3.0).
+- Com áudio sintético, só o interlocutor autorizado recebeu a resposta. O worker assinou somente o microfone autorizado. Um segundo membro foi bloqueado na publicação e após reconectar com assinatura automática e explícita. A troca de interlocutor usou uma nova identidade RTC.
+- A fila foi esvaziada e a revogação da permissão produziu zero frames audíveis. O SDK não sinalizou desassinatura nesse cenário. A retirada pelo MediaService do Pixelwork foi confirmada pelo desaparecimento do participante. Usar essa retirada como confirmação de revogação.
+- Próximo teste de áudio: validar AgentSession e a interrupção completa de STT/LLM/TTS depois que o worker estiver integrado. Este ensaio cobre transporte e fila RTC.
