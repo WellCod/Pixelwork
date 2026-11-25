@@ -1,0 +1,235 @@
+/* ---- entrada do coworking ---- */
+
+.entry-page {
+  --entry-green: #243f36;
+  --entry-soft-green: #4e715d;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(ellipse at 90% 20%, #e8ecdd 0%, transparent 45%), #f8f4e9;
+}
+
+.entry-header,
+.entry-layout {
+  box-sizing: border-box;
+  width: min(100%, 1296px);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4.5vw, 64px);
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 72px;
+}
+
+.entry-brand {
+  color: var(--entry-green);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1rem;
+  font-weight: 780;
+  text-decoration: none;
+}
+
+.entry-brand > span {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--entry-green);
+}
+
+.entry-brand > span::before {
+  content: '';
+  position: absolute;
+  inset: 7px auto auto 7px;
+  width: 4px;
+  height: 4px;
+  color: #dceac5;
+  background: currentColor;
+  box-shadow: 5px 0, 10px 0, 0 5px, 10px 5px, 0 10px, 5px 10px;
+}
+
+.entry-credits {
+  color: var(--entry-green);
+  font-size: 0.875rem;
+  font-weight: 550;
+  text-underline-offset: 4px;
+}
+
+.entry-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: clamp(24px, 4.5vw, 72px);
+  padding-block: 34px 72px;
+}
+
+.entry-intro h1 {
+  margin: 0;
+  color: var(--entry-green);
+  font-size: clamp(2.5rem, 4.65vw, 4.4rem);
+  line-height: 1.03;
+  letter-spacing: -0.065em;
+}
+
+.entry-intro h1 span {
+  display: block;
+  color: var(--entry-soft-green);
+}
+
+.entry-intro p {
+  max-width: 33ch;
+  margin: 20px 0 0;
+  color: #47574f;
+  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  line-height: 1.55;
+}
+
+.entry-intro .entry-invite {
+  color: var(--entry-green);
+  font-weight: 650;
+}
+
+.entry-intro .error {
+  color: var(--danger-text);
+}
+
+.entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.entry-actions > :is(button, a) {
+  box-sizing: border-box;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 16px;
+  font-weight: 650;
+}
+
+.entry-actions .primary {
+  border-color: var(--entry-green);
+  background: var(--entry-green);
+}
+
+.entry-actions .primary:hover {
+  border-color: #355647;
+  background: #355647;
+}
+
+.entry-actions .entry-github {
+  background: transparent;
+  border-color: #84968a;
+  color: var(--entry-green);
+}
+
+.entry-preview {
+  box-sizing: border-box;
+  min-width: 0;
+  display: grid;
+  grid-template: repeat(2, minmax(0, 1fr)) / minmax(0, 1.12fr) minmax(0, 1fr);
+  aspect-ratio: 1.46;
+  gap: 10px;
+  padding: 12px;
+  background: var(--entry-green);
+  border: 1px solid #203a31;
+  border-radius: 18px;
+  box-shadow: 0 18px 32px rgb(41 55 42 / 17%), 0 3px 0 #102e25;
+}
+
+.entry-room {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #1b3029;
+  color: #f6f4e9;
+}
+
+.entry-room-aurora {
+  grid-row: 1 / span 2;
+  --room-accent: #f5ad92;
+}
+
+.entry-room-lounge {
+  --room-accent: #d4abea;
+}
+
+.entry-room-games {
+  --room-accent: #aaca83;
+}
+
+.entry-room img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.entry-room figcaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-weight: 640;
+}
+
+.entry-room figcaption::before {
+  content: '';
+  flex: 0 0 6px;
+  height: 6px;
+  background: var(--room-accent);
+}
+
+@media (max-width: 800px) {
+  .entry-header {
+    min-height: 58px;
+  }
+
+  .entry-layout {
+    width: min(100%, 620px);
+    flex: initial;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+    padding-block: 20px 32px;
+  }
+
+  .entry-intro h1 {
+    font-size: clamp(2.5rem, 8vw, 3.7rem);
+  }
+
+  .entry-intro p {
+    margin-top: 12px;
+  }
+
+  .entry-actions {
+    margin-top: 18px;
+  }
+
+  .entry-preview {
+    aspect-ratio: 1.24;
+    gap: 7px;
+    padding: 8px;
+    border-radius: 13px;
+  }
+
+  .entry-room figcaption {
+    gap: 6px;
+    padding: 6px 7px;
+    font-size: 0.75rem;
+  }
+}
