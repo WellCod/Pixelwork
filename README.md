@@ -6,11 +6,12 @@ O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSoc
 
 ![Demo do Pixelwork com a Sala Aurora, a espinha de mesas, as áreas de Halloween e Natal, o lounge, a copa, os jogos e o jardim](docs/prints/coworking.png)
 
-[Como rodar](#como-rodar) · [Telas](#telas) · [Arquitetura](#arquitetura) · [Testes](#testes)
+[Como rodar](#como-rodar) · [Telas](#telas) · [Recepcionista com voz local](#recepcionista-com-voz-local) · [Arquitetura](#arquitetura) · [Testes](#testes)
 
 ## O que dá para fazer
 
 - **Explorar o escritório.** Ande pelo teclado ou toque no mapa. No celular, use **Mapa** para escolher um destino. Ao chegar perto de um móvel interativo, aparecem ações como sentar ou jogar.
+- **Falar com a recepcionista.** Na demo com voz local ativada, aproxime-se da **Recepção · IA** e pergunte em português onde fica uma sala, quem está online ou como pedir acesso a uma reunião. Os modelos rodam na máquina que hospeda a demo, sem chave de API.
 - **Conversar e se reunir.** Use voz, vídeo e chat por proximidade, faça chamadas 1:1 e compartilhe a tela. Na Sala Aurora, a mesa tem dez lugares e a porta distingue os estados aberta, fechada e trancada. Visitantes podem bater e pedir acesso.
 - **Personalizar avatar e mesa.** Combine camadas, cores, roupas e acessórios. Escolha itens padrão ou coleções temáticas como Halloween, Natal, Grinch e Ano Novo. A demo inclui decoração de Natal com Max e uma fileira de Halloween.
 - **Jogar pingue-pongue e pebolim.** Jogue 1 contra 1 ou enfrente um bot. Quem passa perto vê o placar sobre a mesa. O servidor simula as partidas a 30 Hz.
@@ -18,6 +19,16 @@ O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSoc
 - **Gerenciar espaços.** Crie coworkings por organização, convide pessoas e defina papéis. Para investigar a simulação, use o painel de rede (F3). Admins também podem abrir o replay.
 
 ## Telas
+
+### Prévia antes do login
+
+![Tela de entrada do Pixelwork com a Sala Aurora, o lounge e a área de jogos em pixel art e o botão de entrar como convidado](docs/prints/entrada-previa.png)
+
+### Atendimento por voz local
+
+![Avatar da Recepção com o indicador de fala no mapa e o painel de atendimento da IA local aberto](docs/prints/recepcao-voz-local.png)
+
+### Mapa, personalização e ações
 
 | Sala Aurora | Editor de mapas |
 | --- | --- |
@@ -46,7 +57,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-Abrir http://localhost:5173 e entrar como convidado. Para ver outra pessoa, abrir num segundo
+Abrir http://localhost:5173 para ver a prévia do escritório e entrar como convidado. Para ver outra pessoa, abrir num segundo
 perfil do navegador (o cookie é por perfil). O login pelo GitHub é opcional; o passo a passo está no
 `.env.example`.
 
@@ -77,18 +88,18 @@ O firewall precisa deixar entrar TCP 5173 (Vite), TCP 7881 e UDP 7882 (mídia do
 `localhost` ou IP privado continua sendo desenvolvimento: as checagens de produção do `env.ts` valem
 para https em endereço público.
 
-## Recepção de IA em teste local
+## Recepcionista com voz local
 
-O NPC **Recepção · IA** aparece em mapas com um ponto de recepção quando a instalação e o coworking autorizam o recurso. Aproxime-se do NPC, leia o aviso e toque em **Conversar com IA**. O modo local detecta os turnos e alterna chamadas de teste às ferramentas de localização, pessoas online e orientação de porta. A saudação e as respostas deste modo são tons sintéticos.
+A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso. Entre como convidado, aproxime-se da **Recepção · IA**, toque em **Conversar com IA** e permita o uso do microfone. Experimente perguntar “Onde fica a sala Aurora?”, “Quem está online agora?” ou “Como entro numa sala trancada?”. Para encerrar, use **Encerrar** ou afaste-se da recepção.
 
 | Decisão | Implementação local |
 | --- | --- |
 | Processo de voz | Python com SDK RTC LiveKit, supervisionado pelo Pixelwork por IPC. [Spec](docs/superpowers/specs/2026-11-25-recepcionista-ia-design.md) |
 | Autoridade de mídia | O servidor emite um token da sala aberta por conversa. A trilha do NPC é autorizada somente ao visitante atendido, e o servidor remove a identidade ao encerrar. |
 | Vários visitantes | Um atendimento por coworking, teto global configurável e encerramento ao sair do raio ou mudar de sala. |
-| Turnos e dados | Fala detectada cancela a reprodução e limpa a fila. Áudio em memória e contadores de uso por sessão. A síntese e as ferramentas de teste rodam localmente. |
+| Turnos e dados | Fala detectada cancela a reprodução e limpa a fila. Áudio e transcrições ficam em memória durante o atendimento. Os logs registram apenas contadores de uso. |
 
-### Ativar o modo de teste
+### Preparar a recepção na demo
 
 1. Crie um ambiente Python 3.12 fora da pasta do projeto e instale o SDK livre com `python -m pip install livekit==1.3.0`.
 2. Aplique `pnpm db:migrate` no banco de desenvolvimento. No `.env`, defina `RECEPTIONIST_ENABLED=true` e `RECEPTIONIST_PYTHON` como o caminho absoluto do executável desse ambiente. Os limites de sessões e de duração estão no `.env.example`.
@@ -103,7 +114,7 @@ O modo de voz usa Faster Whisper para transcrição, Qwen para interpretar a per
 3. Baixe o [llama.cpp](https://github.com/ggml-org/llama.cpp/releases) para a sua máquina e o arquivo [Qwen2.5-1.5B-Instruct Q4_K_M](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF). Inicie o modelo com `llama-server --model caminho/qwen2.5-1.5b-instruct-q4_k_m.gguf --host 127.0.0.1 --port 8099 --ctx-size 2048 --log-disable`.
 4. No `.env`, defina `RECEPTIONIST_LOCAL_MODELS_DIR` como o caminho absoluto do diretório de modelos e `RECEPTIONIST_LOCAL_LLM_URL=http://127.0.0.1:8099`. Reinicie o Pixelwork. O download inicial dos modelos é público. A inferência da voz e do texto roda localmente, sem chave de API.
 
-Com as duas variáveis vazias, a recepção continua usando os dublês. A integração com AgentSession, o fallback de TTS para outros provedores e o orçamento monetário se aplicam a uma futura etapa com provedores externos.
+Com as duas variáveis vazias, a recepção usa os dublês de teste e responde com tons sintéticos. A integração com AgentSession, o fallback de TTS para outros provedores e o orçamento monetário se aplicam a uma futura etapa com provedores externos.
 
 ### Tempo até o primeiro áudio sintético
 
