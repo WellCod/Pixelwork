@@ -6,6 +6,7 @@ import {
   type Dir,
   type GameSeat,
   type Player,
+  type ReceptionDestination,
   type ReceptionPresence,
   type PongDir,
   type PongEvent,
@@ -26,6 +27,7 @@ export type WorldEvent =
   | { type: 'error'; code: string }
   | { type: 'zone'; zone: ZoneState }
   | { type: 'reception' }
+  | { type: 'receptionDestination' }
   | { type: 'mapUpdated'; version: number }
   | { type: 'knockRequest'; requestId: string; zoneKey: string; from: string }
   | { type: 'knockResult'; zoneKey: string; allowed: boolean }
@@ -49,6 +51,7 @@ export class ClientWorld {
   readonly desks = new Map<string, DeskState>();
   readonly zones = new Map<string, ZoneState>();
   reception: ReceptionPresence | null = null;
+  receptionDestination: ReceptionDestination | null = null;
   receptionSession: Extract<ServerMsg, { t: 'reception.session' }> | null = null;
   readonly tables = new Map<string, TableState>();
   /** Mesa em que o próprio jogador está; a janela do jogo fica aberta enquanto existir. */
@@ -78,6 +81,21 @@ export class ClientWorld {
   /** Mapa novo depois de um `map.updated`; quem ficou em tile bloqueado chega pelo tick. */
   setMap(map: CompiledMap): void {
     this.map = map;
+    this.clearReceptionDestination();
+  }
+
+  clearReceptionDestination(): void {
+    if (!this.receptionDestination) return;
+    this.receptionDestination = null;
+    this.emit({ type: 'receptionDestination' });
+  }
+
+  private checkReceptionPerson(id: string): void {
+    if (this.receptionDestination?.kind !== 'person' || this.receptionDestination.id !== id) return;
+    const player = this.players.get(id);
+    if (!player || player.activity === 'call' || player.activity === 'meeting' || zoneAt(this.map, player.x, player.y).type === 'meeting') {
+      this.clearReceptionDestination();
+    }
   }
 
   subscribe(listener: (event: WorldEvent) => void): () => void {
@@ -91,6 +109,7 @@ export class ClientWorld {
       case 'welcome': {
         this.reception = message.reception ?? null;
         this.receptionSession = null;
+        this.receptionDestination = null;
         this.selfId = message.selfId;
         this.players.clear();
         this.shortIds.clear();
@@ -126,6 +145,7 @@ export class ClientWorld {
         for (const [id, x, y, dir] of message.moves) {
           const player = this.players.get(id);
           if (player) Object.assign(player, { x, y, dir });
+          this.checkReceptionPerson(id);
           if (id === this.selfId) this.authoritative = { x, y, dir };
           else this.emit({ type: 'remoteMove', id, x, y, dir });
         }
@@ -148,12 +168,14 @@ export class ClientWorld {
         const shortId = this.players.get(message.id)?.shortId;
         if (shortId !== undefined && this.shortIds.get(shortId) === message.id) this.shortIds.delete(shortId);
         this.players.delete(message.id);
+        this.checkReceptionPerson(message.id);
         this.emit({ type: 'leave', id: message.id });
         break;
       }
       case 'player.update': {
         const player = this.players.get(message.id);
         if (player) Object.assign(player, message.patch);
+        this.checkReceptionPerson(message.id);
         this.emit({ type: 'update', id: message.id });
         break;
       }
@@ -168,11 +190,17 @@ export class ClientWorld {
         this.emit({ type: 'error', code: message.code });
         break;
       case 'map.updated':
+        this.clearReceptionDestination();
         this.emit({ type: 'mapUpdated', version: message.version });
         break;
       case 'reception.state':
         this.reception = message.reception;
         this.emit({ type: 'reception' });
+        break;
+      case 'reception.destination':
+        this.receptionDestination = message.destination;
+        if (message.destination?.kind === 'person') this.checkReceptionPerson(message.destination.id);
+        this.emit({ type: 'receptionDestination' });
         break;
       case 'reception.session':
         this.receptionSession = message;

@@ -5,6 +5,7 @@ import { spaceRoom, type MediaService } from './media.ts';
 
 type Presence = Extract<ServerMsg, { t: 'reception.state' }>['reception'];
 type Session = Extract<ServerMsg, { t: 'reception.session' }>;
+type Destination = Extract<ServerMsg, { t: 'reception.destination' }>;
 
 export interface ReceptionVisitor {
   id: string;
@@ -12,7 +13,7 @@ export interface ReceptionVisitor {
   y: number;
   room: string;
   current: () => boolean;
-  send: (message: Session) => void;
+  send: (message: Session | Destination) => void;
 }
 
 export interface ReceptionVoiceRequest {
@@ -70,7 +71,7 @@ export class ReceptionRuntime {
     private enabled: boolean,
     private readonly deps: ReceptionRuntimeDeps,
     private readonly publish: (state: Presence) => void,
-    private readonly readTool: (input: unknown) => unknown,
+    private readonly readTool: (input: unknown, visitor: ReceptionVisitor) => unknown,
   ) {}
 
   presence(): Presence {
@@ -156,7 +157,7 @@ export class ReceptionRuntime {
         id: lease.id, spaceId: this.spaceId, identity: lease.identity, visitorId: lease.visitor.id, token,
         ended: () => { if (this.lease === lease) this.stop('finished'); },
         tool: (input) => lease.phase === 'active' && lease.visitor.current() && !lease.abort.signal.aborted
-          ? this.readTool(input) : { error: 'invalid_lease' },
+          ? this.readTool(input, lease.visitor) : { error: 'invalid_lease' },
       }, lease.abort.signal);
       if (this.lease !== lease || lease.phase !== 'starting') return;
       if (!lease.visitor.current()) {

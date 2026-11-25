@@ -2,6 +2,7 @@ import { compileMap, DIR_DELTA, frameOf, zoneAt, type Dir, type Tile } from '@pi
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { ClientWorld } from '../net/client-world.ts';
+import { receptionPath } from './reception-path.ts';
 import { actionAt, canKnockAt, collectWorldTargets, destinationRoute, nearbyActions, objectApproach } from './world-actions.ts';
 
 function office(x: number, y: number) {
@@ -65,6 +66,18 @@ describe('ações no mapa', () => {
     expect(inside?.atDoor).toBe(false);
     const arrival = arrive(world.self, inside?.path ?? []);
     expect(zoneAt(world.map, arrival.x, arrival.y).key).toBe('aurora');
+  });
+
+  it('destaca o caminho da recepção até a porta e recalcula a partir da posição atual', () => {
+    const { world, targets } = office(9, 7);
+    world.handle({ t: 'reception.destination', destination: { kind: 'room', key: 'aurora', label: 'Aurora' } });
+    expect(receptionPath(world, targets)).toEqual([{ x: 9, y: 7 }, { x: 9, y: 6 }, { x: 9, y: 5 }]);
+    world.handle({ t: 'reception.session', state: 'ended', reason: 'left' });
+    world.handle({ t: 'zone.state', zone: { zoneKey: 'aurora', locked: true, occupants: ['other'] } });
+    world.handle({ t: 'tick', ack: 0, moves: [['me', 9, 6, 'up']] });
+    expect(receptionPath(world, targets)).toEqual([{ x: 9, y: 6 }, { x: 9, y: 5 }]);
+    world.clearReceptionDestination();
+    expect(receptionPath(world, targets)).toBeNull();
   });
 
   it('leva ao piso em frente ao sofá e usa o assento daquele móvel', () => {
