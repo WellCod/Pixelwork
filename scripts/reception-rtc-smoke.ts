@@ -1,4 +1,4 @@
-// Rode com pnpm exec tsx scripts/reception-rtc-smoke.mts <python> [worker.py].
+// Rode com pnpm exec tsx scripts/reception-rtc-smoke.ts <python> [worker.py].
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ const url = 'ws://127.0.0.1:7880';
 const media = liveKitMedia({ url, apiKey, apiSecret });
 const room = spaceRoom(`reception-smoke-${randomUUID()}`);
 const identities = ['alice', 'bob', 'reception-first', 'reception-next'];
-const tokens = Object.fromEntries(await Promise.all(identities.map(async (identity) => [identity, await media.token(identity, room, ['microphone'])])));
+const tokens = Object.fromEntries(await Promise.all(identities.map(async (identity) => [identity, await media.token(identity, room, ['microphone'])] as const)));
 
 try {
   const child = spawn(python, [probe], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });

@@ -6,6 +6,7 @@ import {
   type Dir,
   type GameSeat,
   type Player,
+  type ReceptionPresence,
   type PongDir,
   type PongEvent,
   type ServerMsg,
@@ -24,6 +25,7 @@ export type WorldEvent =
   | { type: 'chat'; from: string; text: string }
   | { type: 'error'; code: string }
   | { type: 'zone'; zone: ZoneState }
+  | { type: 'reception' }
   | { type: 'mapUpdated'; version: number }
   | { type: 'knockRequest'; requestId: string; zoneKey: string; from: string }
   | { type: 'knockResult'; zoneKey: string; allowed: boolean }
@@ -46,6 +48,8 @@ export class ClientWorld {
   private readonly shortIds = new Map<number, string>();
   readonly desks = new Map<string, DeskState>();
   readonly zones = new Map<string, ZoneState>();
+  reception: ReceptionPresence | null = null;
+  receptionSession: Extract<ServerMsg, { t: 'reception.session' }> | null = null;
   readonly tables = new Map<string, TableState>();
   /** Mesa em que o próprio jogador está; a janela do jogo fica aberta enquanto existir. */
   seat: GameSeat | null = null;
@@ -85,6 +89,8 @@ export class ClientWorld {
   handle(message: ServerMsg): void {
     switch (message.t) {
       case 'welcome': {
+        this.reception = message.reception ?? null;
+        this.receptionSession = null;
         this.selfId = message.selfId;
         this.players.clear();
         this.shortIds.clear();
@@ -163,6 +169,14 @@ export class ClientWorld {
         break;
       case 'map.updated':
         this.emit({ type: 'mapUpdated', version: message.version });
+        break;
+      case 'reception.state':
+        this.reception = message.reception;
+        this.emit({ type: 'reception' });
+        break;
+      case 'reception.session':
+        this.receptionSession = message;
+        this.emit({ type: 'reception' });
         break;
       case 'zone.state':
         this.zones.set(message.zone.zoneKey, message.zone);

@@ -11,6 +11,7 @@ import { resolveMembership } from '../spaces/members.ts';
 import type { Clock, Scheduler } from './clock.ts';
 import type { Metrics } from '../metrics.ts';
 import type { MediaService } from './media.ts';
+import type { ReceptionRuntimeDeps } from './reception-runtime.ts';
 import { SpaceRuntime, type Conn } from './space-runtime.ts';
 
 export interface GatewayDeps {
@@ -21,6 +22,7 @@ export interface GatewayDeps {
   media: MediaService;
   log: { error: (details: unknown, message: string) => void };
   metrics?: Metrics;
+  reception?: ReceptionRuntimeDeps;
   /** Intervalo do ping de heartbeat e da varredura de sessões e runtimes ociosos. */
   heartbeatMs?: number;
   /** Tempo sem ninguém conectado até o runtime sair da memória. */
@@ -94,7 +96,7 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
   /** Lê mapa e mesas do banco e monta o runtime; null se o coworking sumiu ou o mapa salvo não compila. */
   async function buildRuntime(spaceId: string): Promise<SpaceRuntime | null> {
     const rows = await deps.db
-      .select({ map: spaces.map, mapVersion: spaces.mapVersion })
+      .select({ map: spaces.map, mapVersion: spaces.mapVersion, receptionEnabled: spaces.receptionEnabled })
       .from(spaces)
       .where(eq(spaces.id, spaceId));
     const row = rows[0];
@@ -118,7 +120,7 @@ export function attachGateway(server: Server, deps: GatewayDeps): Gateway {
     const desks = assignments.map(
       (assignment): DeskState => ({ ...assignment, decor: DeskDecor.safeParse(assignment.decor).data ?? null }),
     );
-    return new SpaceRuntime(spaceId, compiled.map, row.mapVersion, deps, desks);
+    return new SpaceRuntime(spaceId, compiled.map, row.mapVersion, deps, desks, row.receptionEnabled);
   }
 
   async function loadRuntime(spaceId: string): Promise<SpaceRuntime | null> {

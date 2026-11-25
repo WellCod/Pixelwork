@@ -27,6 +27,9 @@ const BaseEnv = z.object({
   // true atrás de proxy reverso (Caddy em produção).
   TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   RECEPTIONIST_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  RECEPTIONIST_PYTHON: z.string().default(''),
+  RECEPTIONIST_MAX_SESSIONS: z.coerce.number().int().min(1).max(8).default(2),
+  RECEPTIONIST_DURATION_SECONDS: z.coerce.number().int().min(15).max(300).default(120),
   // Liga /internal/stats para o teste de carga. Nunca em produção.
   LOAD_TEST: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
 });

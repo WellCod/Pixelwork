@@ -10,6 +10,7 @@ import { Metrics } from './metrics.ts';
 import { systemClock, type Clock, type Scheduler } from './realtime/clock.ts';
 import { attachGateway, type Gateway } from './realtime/gateway.ts';
 import { liveKitMedia, type MediaService } from './realtime/media.ts';
+import { ReceptionCapacity, type ReceptionVoice } from './realtime/reception-runtime.ts';
 import { registerDeskRoutes } from './spaces/desk-routes.ts';
 import { registerInviteRoutes } from './spaces/invite-routes.ts';
 import { registerMapRoutes } from './spaces/map-routes.ts';
@@ -32,6 +33,7 @@ export interface AppDeps {
   clock?: Clock;
   scheduler?: Scheduler;
   media?: MediaService;
+  receptionVoice?: ReceptionVoice;
   github?: GitHubClient;
   logger?: boolean;
   /** Os testes desligam para criar muitos convidados do mesmo IP. */
@@ -62,6 +64,7 @@ export function buildApp({
   scheduler = systemClock,
   media = liveKitMedia(config.livekit),
   github = githubClient(config.github.clientId, config.github.clientSecret),
+  receptionVoice,
   logger = false,
   rateLimit: rateLimitEnabled = true,
 }: AppDeps): FastifyInstance {
@@ -124,6 +127,9 @@ export function buildApp({
     media,
     log: app.log,
     metrics,
+    ...(config.receptionistEnabled && receptionVoice ? {
+      reception: { voice: receptionVoice, capacity: new ReceptionCapacity(config.receptionistLimits?.sessions ?? 2), scheduler, media, log: app.log, durationMs: config.receptionistLimits?.durationMs ?? 120_000 },
+    } : {}),
   });
   app.decorate('realtime', gateway);
   app.addHook('onClose', () => {

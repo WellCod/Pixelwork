@@ -20,6 +20,7 @@ class Probe:
         self.readers = set()
         self.sources = []
         self.frames = Counter()
+        self.first_audio = {}
         self.attempts = Counter()
         self.subscriptions = Counter()
         self.revoked = set()
@@ -56,6 +57,7 @@ class Probe:
             async for event in stream:
                 if any(abs(sample) > 160 for sample in event.frame.data):
                     self.frames[receiver, sender] += 1
+                    self.first_audio.setdefault((receiver, sender), asyncio.get_running_loop().time())
         finally:
             await stream.aclose()
 
@@ -90,6 +92,9 @@ class Probe:
         assert self.frames[receiver, sender] == 0, f'SFU entregou áudio a {receiver}'
 
     async def run(self):
+        if self.config.get('mode') == 'worker':
+            await self.run_worker()
+            return
         wants_agent = lambda identity: identity.startswith('reception-')
         alice = await self.connect('alice', wants_agent)
         bob = await self.connect('bob', wants_agent)
@@ -139,6 +144,37 @@ class Probe:
         assert self.frames['bob', 'reception-next'] > 0, 'segundo atendimento não entregou áudio'
         print('LiveKit: áudio autorizado em ambos os sentidos; terceiro bloqueado na publicação e reconexão; fila limpa; revogação e troca de interlocutor aprovadas.')
 
+    async def run_worker(self):
+        wants_agent = lambda identity: identity == 'reception-worker'
+        alice = await self.connect('alice', wants_agent)
+        await self.connect('bob', wants_agent)
+        microphone = await self.publish(alice)
+        peer = ('alice', 'reception-worker')
+        clock = asyncio.get_running_loop()
+        print('START_WORKER', flush=True)
+        async with asyncio.timeout(9):
+            while peer not in self.first_audio:
+                await asyncio.sleep(0.02)
+        await asyncio.sleep(0.65)
+        silence = rtc.AudioFrame(bytes(SAMPLES * 2), RATE, 1, SAMPLES)
+        samples = []
+        for _ in range(self.config['trials']):
+            self.first_audio.pop(peer, None)
+            await self.play(microphone, frames=12)
+            sent = clock.time()
+            for _ in range(23):
+                await microphone.capture_frame(silence)
+                await asyncio.sleep(0.02)
+            async with asyncio.timeout(4):
+                while peer not in self.first_audio:
+                    await asyncio.sleep(0.02)
+            samples.append(round(1000 * (self.first_audio[peer] - sent)))
+            await asyncio.sleep(0.63)
+        self.denied('bob', 'reception-worker')
+        samples.sort()
+        print(json.dumps({'trials': len(samples), 'p50_ms': samples[math.ceil(len(samples) * 0.50) - 1],
+                          'p95_ms': samples[math.ceil(len(samples) * 0.95) - 1], 'samples_ms': samples}), flush=True)
+
     async def close(self):
         await asyncio.gather(*(room.disconnect() for room in self.rooms.values()), return_exceptions=True)
         for reader in self.readers:
@@ -150,7 +186,7 @@ class Probe:
 async def main():
     probe = Probe(json.loads(sys.stdin.readline()))
     try:
-        await asyncio.wait_for(probe.run(), timeout=55)
+        await asyncio.wait_for(probe.run(), timeout=90 if probe.config.get('mode') == 'worker' else 55)
     finally:
         await probe.close()
 

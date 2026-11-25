@@ -39,6 +39,8 @@ import type { Metrics } from '../metrics.ts';
 import type { PlayerProfile } from '../spaces/members.ts';
 import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
 import { GameRegistry } from './games.ts';
+import { ReceptionRuntime, type ReceptionRuntimeDeps, type ReceptionVisitor } from './reception-runtime.ts';
+import { readReceptionTool } from './reception-tools.ts';
 import {
   PRIVATE_SOURCES,
   SPACE_SOURCES,
@@ -122,6 +124,7 @@ export interface RuntimeDeps {
   media: MediaService;
   log: { error: (details: unknown, message: string) => void };
   metrics?: Metrics;
+  reception?: ReceptionRuntimeDeps;
 }
 
 /** Estado em memória de um coworking: jogadores, simulação, salas e chamadas. */
@@ -139,6 +142,7 @@ export class SpaceRuntime {
   private readonly rules: StepRules;
   private readonly recorder: Recorder;
   private readonly games: GameRegistry;
+  private readonly reception?: ReceptionRuntime;
 
   constructor(
     readonly spaceId: string,
@@ -146,7 +150,20 @@ export class SpaceRuntime {
     private mapVersion: number,
     private readonly deps: RuntimeDeps,
     assignments: readonly DeskState[] = [],
+    receptionEnabled = false,
   ) {
+    if (deps.reception) {
+      this.reception = new ReceptionRuntime(spaceId, map, receptionEnabled, deps.reception,
+        (reception) => this.broadcast({ t: 'reception.state', reception }),
+        (input) => readReceptionTool({
+          map: this.map,
+          online: [...this.members.entries()].flatMap(([id, member]) => {
+            const pos = this.positionOf(id);
+            return member.connection && pos ? [{ ...pos, name: member.profile.name, activity: member.activity }] : [];
+          }),
+          isLocked: (key) => this.locks.get(key)?.locked ?? false,
+        }, input));
+    }
     // Toda mesa do mapa tem estado; atribuição de mesa que saiu do mapa é ignorada.
     for (const desk of map.desks) {
       this.desks.set(desk.key, { deskKey: desk.key, userId: null, ownerName: null, decor: null });
@@ -293,7 +310,9 @@ export class SpaceRuntime {
     member.lastReceived = 0;
     member.queued = [];
     member.ackDirty = false;
+    this.reception?.stopFor(profile.id, 'left');
     member.connection = connection;
+    const reception = this.reception?.presence();
     // Conexão nova sempre recebe a sala atual, mesmo que seja a mesma de antes.
     member.mediaRoom = null;
     this.send(connection, {
@@ -305,6 +324,7 @@ export class SpaceRuntime {
       desks: [...this.desks.values()],
       tables: this.games.states(),
       game: this.games.seatOf(profile.id),
+      ...(reception ? { reception } : {}),
     });
     // O tick só roda com alguém no mapa; o último a sair o desliga (leave).
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
@@ -370,6 +390,15 @@ export class SpaceRuntime {
         break;
       case 'call.reply':
         this.answerCall(userId, message.callId, message.accept);
+        break;
+      case 'reception.start': {
+        const visitor = this.receptionVisitor(userId, connection);
+        if (visitor && this.reception) this.reception.start(visitor);
+        else this.send(connection, { t: 'reception.session', state: 'ended', reason: 'unavailable' });
+        break;
+      }
+      case 'reception.stop':
+        this.reception?.stopFor(userId, 'finished');
         break;
       case 'call.leave': {
         const call = this.callOf(userId);
@@ -464,6 +493,7 @@ export class SpaceRuntime {
     if (member?.connection !== connection) return;
     member.connection = null;
     member.queued = [];
+    this.reception?.stopFor(userId, 'left');
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
     if (call) this.endCall(call, 'left');
@@ -507,6 +537,7 @@ export class SpaceRuntime {
     this.ticker?.cancel();
     this.ticker = null;
     this.games.close();
+    this.reception?.stop('unavailable');
     for (const knock of this.knocks.values()) knock.timer.cancel();
     for (const call of this.calls.values()) call.timer?.cancel();
     for (const member of this.members.values()) {
@@ -551,6 +582,7 @@ export class SpaceRuntime {
     for (const id of this.seatedOnFurniture.keys()) this.standFromFurniture(id);
     this.map = map;
     this.mapVersion = version;
+    this.reception?.replaceMap(map);
     // Antes do refresh dos jogadores abaixo: quem jogava volta a 'idle'.
     this.games.replaceTables(map.tables);
     const players = new Map(this.world.players);
@@ -619,6 +651,7 @@ export class SpaceRuntime {
     const player = this.world.players.get(userId);
     if (!member || !player) return;
     const zoneKey = zoneAt(this.map, player.x, player.y).key;
+    this.checkReception(userId);
     if (zoneKey === member.zoneKey) return;
     const previousZoneKey = member.zoneKey;
     member.zoneKey = zoneKey;
@@ -832,6 +865,7 @@ export class SpaceRuntime {
     if (room === member.mediaRoom) return;
     const previousRoom = member.mediaRoom;
     member.mediaRoom = room;
+    this.checkReception(userId);
     if (previousRoom) this.removeFromRoom(previousRoom, userId);
     const connection = member.connection;
     if (connection) void this.sendMediaJoin(userId, connection, room);
@@ -857,6 +891,26 @@ export class SpaceRuntime {
     } catch (error) {
       this.deps.log.error({ error, userId, room }, 'falha ao emitir token de mídia');
     }
+  }
+
+  setReceptionEnabled(enabled: boolean): void { this.reception?.setEnabled(enabled); }
+
+  private receptionVisitor(userId: string, connection: Conn): ReceptionVisitor | null {
+    const player = this.world.players.get(userId);
+    const member = this.members.get(userId);
+    if (!player || member?.connection !== connection || member.mediaRoom === null) return null;
+    return {
+      id: userId, x: player.x, y: player.y, room: this.mediaRoomOf(userId),
+      current: () => this.members.get(userId)?.connection === connection,
+      send: (message) => this.send(connection, message),
+    };
+  }
+
+  private checkReception(userId: string): void {
+    if (!this.reception) return;
+    const connection = this.members.get(userId)?.connection;
+    const visitor = connection && this.receptionVisitor(userId, connection);
+    if (visitor) this.reception.check(visitor);
   }
 
   // ---- chat ----
@@ -893,6 +947,7 @@ export class SpaceRuntime {
     }
     if (!member) return;
     member.leaveTimer?.cancel();
+    this.reception?.stopFor(userId, 'left');
     // Desliga a conexão do membro antes de fechar, para o onClose dela não abrir uma tolerância.
     const connection = member.connection;
     member.connection = null;

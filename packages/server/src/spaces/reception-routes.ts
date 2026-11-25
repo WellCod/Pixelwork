@@ -32,6 +32,7 @@ export function registerReceptionRoutes(app: FastifyInstance, deps: AuthDeps): v
     const body = await parseBody(Settings, request, reply);
     if (!body) return reply;
     const [row] = await db.update(spaces).set({ receptionEnabled: body.enabled }).where(eq(spaces.id, access.spaceId)).returning(selection);
+    if (row) app.realtime.runtime(access.spaceId)?.setReceptionEnabled(row.enabled);
     return row ? status(row) : reply.code(404).send({ error: 'not_found' });
   });
 }
