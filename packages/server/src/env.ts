@@ -28,6 +28,8 @@ const BaseEnv = z.object({
   TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   RECEPTIONIST_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   RECEPTIONIST_PYTHON: z.string().default(''),
+  RECEPTIONIST_LOCAL_MODELS_DIR: z.string().default(''),
+  RECEPTIONIST_LOCAL_LLM_URL: z.union([z.literal(''), z.string().regex(/^http:\/\/127\.0\.0\.1:\d{1,5}\/?$/)]).default(''),
   RECEPTIONIST_MAX_SESSIONS: z.coerce.number().int().min(1).max(8).default(2),
   RECEPTIONIST_DURATION_SECONDS: z.coerce.number().int().min(15).max(300).default(120),
   // Liga /internal/stats para o teste de carga. Nunca em produção.
@@ -52,6 +54,9 @@ export function isLocalHost(hostname: string): boolean {
  * localhost), então as chaves de dev continuam valendo.
  */
 const Env = BaseEnv.superRefine((env, context) => {
+  if (env.RECEPTIONIST_ENABLED && Boolean(env.RECEPTIONIST_LOCAL_MODELS_DIR) !== Boolean(env.RECEPTIONIST_LOCAL_LLM_URL)) {
+    context.addIssue({ code: 'custom', path: ['RECEPTIONIST_LOCAL_LLM_URL'], message: 'configure o diretório de modelos e a URL local juntos' });
+  }
   if (!env.PUBLIC_URL.startsWith('https://')) return;
   if (isLocalHost(new URL(env.PUBLIC_URL).hostname)) return;
   const issue = (path: string, message: string) => context.addIssue({ code: 'custom', path: [path], message });

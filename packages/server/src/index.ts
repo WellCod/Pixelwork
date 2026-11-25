@@ -15,7 +15,9 @@ if (rtcUrl.protocol === 'https:') rtcUrl.protocol = 'wss:';
 const receptionVoice = env.RECEPTIONIST_ENABLED && env.RECEPTIONIST_PYTHON
   ? new LocalReceptionWorker(env.RECEPTIONIST_PYTHON, rtcUrl.href, (usage) => {
     process.stdout.write(JSON.stringify({ event: 'reception.usage', ...usage }) + '\n');
-  }) : null;
+  }, env.RECEPTIONIST_LOCAL_MODELS_DIR ? {
+    modelsDir: env.RECEPTIONIST_LOCAL_MODELS_DIR, llmUrl: env.RECEPTIONIST_LOCAL_LLM_URL,
+  } : undefined) : null;
 const app = buildApp({
   db, config: configFromEnv(env), logger: !env.LOAD_TEST, rateLimit: !env.LOAD_TEST,
   ...(receptionVoice ? { receptionVoice } : {}),
