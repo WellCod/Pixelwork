@@ -7,6 +7,7 @@ import type { TiledDoc } from '@pixelwork/shared/editor';
 import type { ConnectionStatus } from './net/connection.ts';
 import { CreateSpaceModal } from './ui/CreateSpaceModal.tsx';
 import { CreditsPage } from './ui/CreditsPage.tsx';
+import { EntryPage } from './ui/EntryPage.tsx';
 import { InviteModal } from './ui/InviteModal.tsx';
 import { InvitePage } from './ui/InvitePage.tsx';
 import { MapModal } from './ui/MapModal.tsx';
@@ -158,21 +159,12 @@ export function App() {
 
   if (state.kind === 'login') {
     return (
-      <main className="center">
-        <h1>Pixelwork</h1>
-        <p>Coworking virtual em pixel art.</p>
-        {inviteToken && <p>Entre para aceitar o convite.</p>}
-        <button type="button" onClick={enterAsGuest}>
-          Entrar como convidado
-        </button>
-        {githubLoginEnabled && (
-          <a className="button primary" href="/auth/github">
-            Entrar com GitHub
-          </a>
-        )}
-        {state.error && <p className="error">{state.error}</p>}
-        <a href="/creditos">Créditos</a>
-      </main>
+      <EntryPage
+        enterAsGuest={enterAsGuest}
+        githubEnabled={githubLoginEnabled}
+        invitePending={Boolean(inviteToken)}
+        error={state.error}
+      />
     );
   }
 
