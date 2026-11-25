@@ -1,11 +1,13 @@
 import { useState } from 'react';
 
-/** Chave do localStorage que marca o card de boas-vindas como visto. */
-const KEY = 'pixelwork.welcome.v1';
+/** Cada modo de entrada apresenta as próprias instruções na primeira visita. */
+function storageKey(): string {
+  return matchMedia('(pointer: coarse)').matches ? 'pixelwork.welcome.touch.v1' : 'pixelwork.welcome.v1';
+}
 
 function welcomeSeen(): boolean {
   try {
-    return localStorage.getItem(KEY) === '1';
+    return localStorage.getItem(storageKey()) === '1';
   } catch {
     return false;
   }
@@ -19,7 +21,7 @@ export function Welcome() {
   const dismiss = () => {
     setOpen(false);
     try {
-      localStorage.setItem(KEY, '1');
+      localStorage.setItem(storageKey(), '1');
     } catch {
       // Navegação privada: o card volta na próxima visita.
     }
@@ -29,15 +31,18 @@ export function Welcome() {
     <section className="hud-card welcome" aria-label="Como usar">
       <h2>Como usar</h2>
       <ul>
-        <li>
-          <kbd>WASD</kbd> ou setas para andar. Clique no mapa se o teclado não responder.
+        <li className="keyboard-only">
+          Use <kbd>WASD</kbd> ou as setas para andar. Você também pode clicar no chão.
         </li>
-        <li>Chegue perto de alguém para ouvir e falar. Quanto mais perto, mais alto.</li>
-        <li>
-          <kbd>Enter</kbd> abre o chat com quem está por perto.
+        <li className="touch-only">
+          Toque no chão para andar.<span className="welcome-map"> Use <strong>Mapa</strong> para escolher um destino.</span>
         </li>
-        <li>Salas de reunião são privadas: quem está dentro pode trancar a porta.</li>
-        <li>Sente na cadeira de uma mesa livre para ocupá-la, decorar e fazer chamadas.</li>
+        <li className="touch-only">Toque em um móvel interativo para se aproximar e ver as ações de sentar ou jogar.</li>
+        <li>Chegue perto de alguém para ouvir e falar.</li>
+        <li className="keyboard-only"><kbd>Enter</kbd> abre o chat com quem está por perto.</li>
+        <li className="touch-only">Toque em <strong>Conversar</strong> para escrever a quem está perto.</li>
+        <li className="keyboard-only">Salas de reunião são privadas. Quem está dentro pode trancar a porta.</li>
+        <li className="keyboard-only">Sente na cadeira de uma mesa livre para ocupá-la, decorar e fazer chamadas.</li>
       </ul>
       <button type="button" className="primary" onClick={dismiss}>
         Entendi
