@@ -2,7 +2,7 @@ import { compileMap } from '@pixelwork/shared';
 import { deskAssignments, sessions, spaces, users } from '@pixelwork/shared/schema';
 import { and, eq, lte, sql } from 'drizzle-orm';
 import type { Db } from './db.ts';
-import { findDemoSpaceId, loadTemplate } from './demo.ts';
+import { findDemoSpaceId, loadDemoTemplate } from './demo.ts';
 import type { Clock, Scheduler } from './realtime/clock.ts';
 import type { Gateway } from './realtime/gateway.ts';
 
@@ -10,7 +10,6 @@ export const HOUR_MS = 3_600_000;
 export const DAY_MS = 24 * HOUR_MS;
 /** Reset da demo às 03:00 UTC (meia-noite em Brasília), quando quase ninguém está online. */
 export const DEMO_RESET_UTC_HOUR = 3;
-export const DEMO_TEMPLATE = 'small-office';
 
 export interface JobDeps {
   db: Db;
@@ -49,7 +48,7 @@ export async function cleanupExpiredSessions(deps: Pick<JobDeps, 'db' | 'clock'>
 export async function resetDemo(deps: JobDeps): Promise<number | null> {
   const spaceId = await findDemoSpaceId(deps.db, deps.demoSpaceSlug);
   if (!spaceId) return null;
-  const template = loadTemplate(DEMO_TEMPLATE);
+  const template = loadDemoTemplate();
   const compiled = compileMap(template);
   if (!compiled.ok) throw new Error('template da demo não compila');
 
