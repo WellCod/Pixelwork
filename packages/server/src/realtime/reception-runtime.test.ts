@@ -2,9 +2,9 @@ import { PROXIMITY_EXIT_TILES, TILE_PX, type Dir } from '@pixelwork/shared';
 import { spaces } from '@pixelwork/shared/schema';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { eq } from 'drizzle-orm';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FakeMedia } from '../test/fake-media.ts';
-import { Bot, loginGuest, startTestServer, until } from '../test/harness.ts';
+import { Bot, loginGuest, startTestServer, until, type TestServer } from '../test/harness.ts';
 import { spaceRoom } from './media.ts';
 import type { ReceptionVoice, ReceptionVoiceRequest } from './reception-runtime.ts';
 
@@ -16,16 +16,21 @@ function fixture() {
 }
 
 describe('atendimento local da recepção', () => {
+  let server: TestServer;
+  const starts: ReceptionVoiceRequest[] = [];
+  const stops: string[] = [];
+  const voice: ReceptionVoice = {
+    ready: () => true,
+    start: (request) => { starts.push(request); return Promise.resolve(); },
+    stop: (id) => { stops.push(id); return Promise.resolve(); },
+  };
+  const media = new FakeMedia();
+  beforeAll(async () => {
+    server = await startTestServer({ map: fixture(), media, receptionVoice: voice });
+  });
+  afterAll(async () => { await server.stop(); });
+
   it('exige consentimento, ocupa uma vaga e retira a identidade após sair do raio', async () => {
-    const starts: ReceptionVoiceRequest[] = [];
-    const stops: string[] = [];
-    const voice: ReceptionVoice = {
-      ready: () => true,
-      start: (request) => { starts.push(request); return Promise.resolve(); },
-      stop: (id) => { stops.push(id); return Promise.resolve(); },
-    };
-    const media = new FakeMedia();
-    const server = await startTestServer({ map: fixture(), media, receptionVoice: voice });
     const bots: Bot[] = [];
     try {
       await server.db.update(spaces).set({ receptionEnabled: true }).where(eq(spaces.id, server.spaceId));
@@ -64,7 +69,6 @@ describe('atendimento local da recepção', () => {
       expect(started.tool({ name: 'list_online_people' })).toEqual({ error: 'invalid_lease' });
     } finally {
       await Promise.all(bots.map((bot) => bot.close()));
-      await server.stop();
     }
   });
 });
