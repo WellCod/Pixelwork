@@ -52,6 +52,14 @@ export function describeMapError(error: MapError): string {
       return `O móvel ${error.objectId} não tem posição numérica (x e y).`;
     case 'invalid_orientation':
       return `A mesa ${error.deskKey} precisa de orientation up, down, left ou right.`;
+    case 'reception_count':
+      return 'O mapa aceita uma camada reception com até um ponto.';
+    case 'reception_point':
+      return 'Marque a recepção como um objeto do tipo ponto no Tiled.';
+    case 'reception_blocked':
+      return 'Coloque a recepção em um tile caminhável dentro do mapa.';
+    case 'reception_in_meeting':
+      return 'Coloque a recepção em uma área aberta.';
     case 'spawn_count':
       return `A camada spawn precisa de exatamente um ponto (encontrei ${error.found}).`;
     case 'spawn_blocked':
