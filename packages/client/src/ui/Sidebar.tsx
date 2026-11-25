@@ -1,5 +1,5 @@
 import { isSingleEmoji, type Player, type Status } from '@pixelwork/shared';
-import { useState, type SubmitEvent } from 'react';
+import { useId, useState, type SubmitEvent } from 'react';
 import { orgApi, profileApi } from '../api.ts';
 import { seatedPose } from '../game/presence.ts';
 import type { CallStore } from '../net/call-store.ts';
@@ -35,6 +35,8 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
   useCalls(calls);
   useMedia(media);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const panelId = useId();
   // Chamada só sai da própria mesa (o servidor confere de novo).
   const seatedAtOwnDesk =
     world.selfId !== null && seatedPose(world.map, world.desks, world.selfId, world.self.x, world.self.y) !== null;
@@ -55,81 +57,93 @@ export function Sidebar({ world, media, spaceId, calls, isAdmin }: SidebarProps)
   };
 
   return (
-    <aside className="sidebar">
-      <section>
-        <h3>Pessoas ({people.length})</h3>
-        {error && <p className="error">{error}</p>}
-        <ul className="people">
-          {people.map((player) => {
-            const speaking = media.speaking.has(player.id);
-            return (
-              <li key={player.id} className={speaking ? 'speaking' : undefined}>
-                <span className={`dot dot-${player.status}`} role="img" aria-label={STATUS_LABEL[player.status]} />
-                <div className="person">
-                  <div className="person-name">
-                    {player.name}
-                    {player.statusEmoji && <span className="emoji"> {player.statusEmoji}</span>}
-                    {player.id === world.selfId && <span className="you"> (você)</span>}
-                    {speaking && (
-                      <span className="speaking-badge" title="Falando">
-                        <MicIcon />
-                        <span className="visually-hidden">falando</span>
-                      </span>
+    <aside className="sidebar people-sidebar" aria-label="Pessoas e perfil" data-expanded={expanded}>
+      <button
+        type="button"
+        className="people-toggle"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={() => setExpanded((open) => !open)}
+      >
+        <span>Pessoas ({people.length})</span>
+        <span className="people-toggle-chevron" aria-hidden="true" />
+      </button>
+      <div id={panelId} className="people-sidebar-content">
+        <section>
+          <h3 className="people-heading">Pessoas ({people.length})</h3>
+          {error && <p className="error">{error}</p>}
+          <ul className="people">
+            {people.map((player) => {
+              const speaking = media.speaking.has(player.id);
+              return (
+                <li key={player.id} className={speaking ? 'speaking' : undefined}>
+                  <span className={`dot dot-${player.status}`} role="img" aria-label={STATUS_LABEL[player.status]} />
+                  <div className="person">
+                    <div className="person-name">
+                      {player.name}
+                      {player.statusEmoji && <span className="emoji"> {player.statusEmoji}</span>}
+                      {player.id === world.selfId && <span className="you"> (você)</span>}
+                      {speaking && (
+                        <span className="speaking-badge" title="Falando">
+                          <MicIcon />
+                          <span className="visually-hidden">falando</span>
+                        </span>
+                      )}
+                    </div>
+                    {player.title && <div className="person-title">{player.title}</div>}
+                    {/* Linha de detalhes: status (se não for disponível), atividade e texto livre. */}
+                    <div className="person-status">
+                      {[
+                        player.status !== 'available' ? STATUS_LABEL[player.status] : null,
+                        player.activity === 'call'
+                          ? 'Em chamada'
+                          : player.activity === 'meeting'
+                            ? 'Em reunião'
+                            : player.activity === 'game'
+                              ? 'Jogando'
+                              : null,
+                        player.statusText,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  </div>
+                  <div className="person-actions">
+                    {canCall(player) && (
+                      <button
+                        type="button"
+                        className="call-button"
+                        disabled={!seatedAtOwnDesk}
+                        title={seatedAtOwnDesk ? `Ligar para ${player.name}` : 'Sente na sua mesa para ligar'}
+                        onClick={() => calls.call(player.id)}
+                      >
+                        <PhoneIcon />
+                        <span>Ligar</span>
+                      </button>
+                    )}
+                    {/* Admin remove qualquer outra pessoa; a própria saída fica no painel de perfil. */}
+                    {isAdmin && player.id !== world.selfId && (
+                      <button type="button" className="call-button subtle" onClick={() => removeMember(player)}>
+                        Remover
+                      </button>
                     )}
                   </div>
-                  {player.title && <div className="person-title">{player.title}</div>}
-                  {/* Linha de detalhes: status (se não for disponível), atividade e texto livre. */}
-                  <div className="person-status">
-                    {[
-                      player.status !== 'available' ? STATUS_LABEL[player.status] : null,
-                      player.activity === 'call'
-                        ? 'Em chamada'
-                        : player.activity === 'meeting'
-                          ? 'Em reunião'
-                          : player.activity === 'game'
-                            ? 'Jogando'
-                            : null,
-                      player.statusText,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </div>
-                </div>
-                <div className="person-actions">
-                  {canCall(player) && (
-                    <button
-                      type="button"
-                      className="call-button"
-                      disabled={!seatedAtOwnDesk}
-                      title={seatedAtOwnDesk ? `Ligar para ${player.name}` : 'Sente na sua mesa para ligar'}
-                      onClick={() => calls.call(player.id)}
-                    >
-                      <PhoneIcon />
-                      <span>Ligar</span>
-                    </button>
-                  )}
-                  {/* Admin remove qualquer outra pessoa; a própria saída fica no painel de perfil. */}
-                  {isAdmin && player.id !== world.selfId && (
-                    <button type="button" className="call-button subtle" onClick={() => removeMember(player)}>
-                      Remover
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        {!seatedAtOwnDesk && people.length > 1 && <p className="muted">Para ligar, sente na cadeira da sua mesa.</p>}
-      </section>
-      {selfPlayer && (
-        <details className="me-details">
-          <summary>
-            <AvatarPreview spec={selfPlayer.avatar} scale={1} />
-            <span>Seu perfil e status</span>
-          </summary>
-          <MePanel key={selfPlayer.id} me={selfPlayer} spaceId={spaceId} />
-        </details>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+          {!seatedAtOwnDesk && people.length > 1 && <p className="muted">Para ligar, sente na cadeira da sua mesa.</p>}
+        </section>
+        {selfPlayer && (
+          <details className="me-details">
+            <summary>
+              <AvatarPreview spec={selfPlayer.avatar} scale={1} />
+              <span>Seu perfil e status</span>
+            </summary>
+            <MePanel key={selfPlayer.id} me={selfPlayer} spaceId={spaceId} />
+          </details>
+        )}
+      </div>
     </aside>
   );
 }

@@ -1,5 +1,6 @@
 import { CHAT_MAX_CHARS, chatRecipients, type ClientMsg } from '@pixelwork/shared';
-import { useEffect, useRef, useState, type SubmitEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type SubmitEvent } from 'react';
+import { flushSync } from 'react-dom';
 import { focusIsFree, isTyping } from '../input-focus.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 
@@ -16,23 +17,24 @@ export function ChatBox({ world, send }: { world: ClientWorld; send: (message: C
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
+  const openChat = useCallback(() => {
+    // No toque, o foco precisa acontecer no mesmo evento para abrir o teclado virtual.
+    flushSync(() => setOpen(true));
+    input.current?.focus();
+  }, []);
+
   // Atalho global: Enter em qualquer lugar da página abre o campo do chat.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Com foco num botão, Enter é dele (Atender, Salvar, Deixar entrar…).
       if (event.key === 'Enter' && focusIsFree() && !isTyping()) {
         event.preventDefault();
-        setOpen(true);
+        openChat();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  // O input só existe depois de aberto, então o foco vem num efeito após o render.
-  useEffect(() => {
-    if (open) input.current?.focus();
-  }, [open]);
+  }, [openChat]);
 
   // Mostra o erro de chat que o servidor devolver (limite de taxa, tamanho inválido).
   useEffect(
@@ -62,10 +64,16 @@ export function ChatBox({ world, send }: { world: ClientWorld; send: (message: C
 
   if (!open) {
     return (
-      <div className="chat-hint">
-        Enter para conversar com quem está perto
-        {error && <span className="error"> · {error}</span>}
-      </div>
+      <>
+        <div className="chat-hint keyboard-only">
+          Enter para conversar com quem está perto
+          {error && <span className="error"> · {error}</span>}
+        </div>
+        <div className="chat-touch touch-only">
+          <button type="button" onClick={openChat}>Conversar</button>
+          {error && <span className="chat-touch-error error" role="status">{error}</span>}
+        </div>
+      </>
     );
   }
 
@@ -75,6 +83,8 @@ export function ChatBox({ world, send }: { world: ClientWorld; send: (message: C
         ref={input}
         value={text}
         maxLength={CHAT_MAX_CHARS}
+        aria-label="Mensagem para quem está perto"
+        enterKeyHint="send"
         placeholder="Mensagem para quem está perto"
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
