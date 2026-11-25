@@ -9,7 +9,7 @@ export const CATEGORIES: { label: string; items: readonly string[] }[] = [
     label: 'Escritório',
     items: [
       'desk', 'chair', 'chair-back', 'chair-left', 'chair-right', 'printer', 'bookshelf', 'bookshelf-tall',
-      'whiteboard', 'meeting-table', 'meeting-table-long', 'meeting-table-round', 'reception', 'trash-bin',
+      'whiteboard', 'meeting-table', 'meeting-table-long', 'meeting-table-conference', 'meeting-table-round', 'reception', 'trash-bin',
       'coat-rack', 'fire-extinguisher', 'cardboard-box', 'door',
     ],
   },

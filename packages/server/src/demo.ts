@@ -6,6 +6,7 @@ import { orgs, spaces } from '@pixelwork/shared/schema';
 import { and, eq } from 'drizzle-orm';
 import type { Db, Tx } from './db.ts';
 import { uuidv7 } from './ids.ts';
+import { withAuroraConferenceTable } from './demo-aurora.ts';
 import { withDemoHolidayArea } from './demo-holiday-area.ts';
 
 export const DEMO_ORG_SLUG = 'demo';
@@ -38,7 +39,8 @@ export function withDemoDeskDecor(map: TiledDoc): TiledDoc {
 
 /** Mapa usado na criação e no reset da demo. */
 export function loadDemoTemplate(): TiledDoc {
-  return withDemoHolidayArea(withDemoDeskDecor(loadTemplate('small-office') as TiledDoc));
+  const template = withDemoDeskDecor(loadTemplate('small-office') as TiledDoc);
+  return withAuroraConferenceTable(withDemoHolidayArea(template));
 }
 
 /** Cria a org Demo e o coworking de demonstração; não mexe no que já existe. */

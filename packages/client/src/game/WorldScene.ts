@@ -3,6 +3,7 @@ import {
   CONTACT_SHADOW_COLOR,
   deskContactShadows,
   findPath,
+  frameOf,
   furnitureContactShadows,
   isCornerSofa,
   STEP_MS,
@@ -21,7 +22,8 @@ import * as Phaser from 'phaser';
 import type { ClientWorld, WorldEvent } from '../net/client-world.ts';
 import { idleFrame, seatedFrame } from './avatar-compose.ts';
 import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-texture.ts';
-import { LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, zonePill } from './labels.ts';
+import { LABEL_DEPTH, LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, zonePill } from './labels.ts';
+import { createMeetingDoors, type MeetingDoor } from './meeting-doors.ts';
 import { Mover } from './mover.ts';
 import { drawDeskJoins } from './desk-joins.ts';
 import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
@@ -68,7 +70,6 @@ const AVATAR_SHADOW_ALPHA = 0.18;
 /** Zoom da câmera em múltiplos do zoom base (`baseZoom`): inteiro, para o pixel art não borrar. */
 const ZOOM_LEVELS = [1, 2, 3] as const;
 const SPEAKING_COLOR = 0x63c74d;
-const LABEL_DEPTH = 100_000;
 
 const sheetKey = (id: string) => `sheet:${id}`;
 const tilesKey = (id: string) => `tiles:${id}`;
@@ -86,6 +87,7 @@ function paintContactShadows(graphics: Phaser.GameObjects.Graphics, x: number, b
  * dos outros.
  */
 export class WorldScene extends Phaser.Scene {
+  private meetingDoors: MeetingDoor[] = [];
   private readonly avatars = new Map<string, Avatar>();
   private readonly deskObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
   /** Placar sobre cada mesa de jogo, visível só para quem está perto. */
@@ -117,7 +119,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create(): void {
-    const { mapJson } = this.options;
+    const { mapJson, world } = this.options;
+    const doorTiles: { x: number; y: number }[] = [];
     this.cache.tilemap.add('office', { format: Phaser.Tilemaps.Formats.TILED_JSON, data: embedTilesets(mapJson) });
     const tilemap = this.make.tilemap({ key: 'office' });
     const tilesets = TILESET_IDS.flatMap((id) => tilemap.addTilesetImage(id, tilesKey(id)) ?? []);
@@ -139,6 +142,10 @@ export class WorldScene extends Phaser.Scene {
       if (tileset.collides.includes(tile.frame)) {
         paintContactShadows(shadows, object.x, object.y, furnitureContactShadows(item, tileWidth, tileHeight));
       }
+      if (item === 'door') {
+        doorTiles.push({ x: Math.floor(object.x / TILE_PX), y: Math.ceil(object.y / TILE_PX) - 1 });
+        continue;
+      }
       const image = this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame).setOrigin(0, 1).setDepth(object.y);
       if (isCornerSofa(item, tileWidth, tileHeight)) {
         // A fileira de trás fica atrás de quem anda no vão, na frente do sofá.
@@ -146,6 +153,13 @@ export class WorldScene extends Phaser.Scene {
         this.add.image(object.x, object.y, sheetKey(tile.id), tile.frame)
           .setOrigin(0, 1).setDepth(object.y - TILE_PX).setCrop(0, 0, tileWidth, TILE_PX);
       }
+    }
+    const doors = createMeetingDoors(this, world.map, doorTiles);
+    this.meetingDoors = doors.animated;
+    for (const door of doors.staticTiles) {
+      const bottom = (door.y + 1) * TILE_PX;
+      this.add.image(door.x * TILE_PX, bottom, sheetKey('furniture'), frameOf('furniture', 'door'))
+        .setOrigin(0, 1).setDepth(bottom);
     }
     drawDeskJoins(this, this.options.world.map.desks);
     this.renderZoneLabels();
@@ -227,7 +241,7 @@ export class WorldScene extends Phaser.Scene {
    * rota automática. Depois anima cada avatar pelo `Mover` e escolhe o quadro (andando, sentado
    * ou parado).
    */
-  override update(_time: number, delta: number): void {
+  override update(time: number, delta: number): void {
     const { world } = this.options;
     const typing = isTyping();
     const held = typing
@@ -241,6 +255,10 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const self = world.selfId ? this.avatars.get(world.selfId) : undefined;
+    if (this.meetingDoors.length) {
+      const positions = Array.from(world.players.values(), (player) => player.id === world.selfId ? world.self : player);
+      for (const door of this.meetingDoors) door.update(time, delta, world.zones.get(door.zoneKey)?.locked ?? false, positions);
+    }
     const ghostOn = this.options.showGhost?.() ?? false;
     this.ghost?.setVisible(ghostOn && world.selfId !== null);
     if (ghostOn) this.ghost?.setPosition(world.confirmed.x * TILE_PX, world.confirmed.y * TILE_PX);
@@ -259,15 +277,16 @@ export class WorldScene extends Phaser.Scene {
       avatar.sprite.setPosition(x, y).setDepth(depth);
       avatar.shadow.setPosition(x, y - 1).setDepth(depth - 0.6).setVisible(!furnitureSeat);
       avatar.ring.setPosition(x, y - 1).setDepth(depth - 0.5).setVisible(this.options.isSpeaking?.(id) ?? false);
-      avatar.label.setPosition(Math.round(x), Math.round(y) + 1);
-      avatar.title.setPosition(Math.round(x), Math.round(y) + 13);
+      const northTableSeat = furnitureSeat?.kind === 'table' && furnitureSeat.facing === 'down';
+      const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
+      const showTitle = avatar.title.value !== '' && (near || avatar.hovered);
+      const labelY = Math.round(y) + (northTableSeat ? (showTitle ? -44 : -32) : 1);
+      avatar.label.setPosition(Math.round(x), labelY);
+      avatar.title.setPosition(Math.round(x), labelY + 12).setVisible(showTitle);
       if (avatar.chat) {
         const offset = this.options.hasVideoBubble?.(id) ? CHAT_OFFSET_OVER_VIDEO : CHAT_OFFSET;
         avatar.chat.setPosition(Math.round(x), Math.round(y) - offset);
       }
-
-      const near = self !== undefined && isNear(self.mover.x, self.mover.y, avatar.mover.x, avatar.mover.y);
-      avatar.title.setVisible(avatar.title.value !== '' && (near || avatar.hovered));
 
       // Tecla segurada contra o tampo não tira o banco se o avatar continua no mesmo lugar.
       const walking = moving || (facing === undefined && id === world.selfId && held !== undefined);

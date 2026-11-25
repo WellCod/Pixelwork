@@ -131,7 +131,7 @@ const CONTEXT: Record<string, Record<string, string>> = {
   furniture: {
     desk: 'Mesa', chair: 'Cadeira', 'chair-back': 'Cadeira (de costas)', 'chair-left': 'Cadeira (esquerda)',
     'chair-right': 'Cadeira (direita)', printer: 'Impressora', bookshelf: 'Estante', 'bookshelf-tall': 'Estante alta',
-    whiteboard: 'Lousa de pé', 'meeting-table': 'Mesa de reunião (peça)', 'meeting-table-long': 'Mesa de reunião',
+    whiteboard: 'Lousa de pé', 'meeting-table': 'Mesa de reunião (peça)', 'meeting-table-long': 'Mesa de reunião', 'meeting-table-conference': 'Mesa de reunião (10 lugares)',
     'meeting-table-round': 'Mesa redonda', reception: 'Recepção', 'trash-bin': 'Lixeira', 'coat-rack': 'Cabideiro',
     'fire-extinguisher': 'Extintor', 'cardboard-box': 'Caixa', door: 'Porta', sofa: 'Sofazinho',
     'sofa-peach': 'Sofá pêssego', 'sofa-sage': 'Sofá sálvia', 'sofa-blue': 'Sofá azul', 'sofa-l': 'Sofá em L',

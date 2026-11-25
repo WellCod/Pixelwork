@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { PNG } from 'pngjs';
 import { CHARACTER_SHEETS } from './art/character.ts';
-import { FURNITURE_2X1, FURNITURE_2X2, FURNITURE_2X3, FURNITURE_3X2 } from './art/furniture-large.ts';
+import { FURNITURE_2X1, FURNITURE_2X2, FURNITURE_2X3, FURNITURE_3X2, FURNITURE_5X2 } from './art/furniture-large.ts';
 import {
   DESK_DECOR, DESK_DECOR_CHRISTMAS, DESK_DECOR_EXTRAS, DESK_DECOR_FESTIVE, DESK_DECOR_GRINCH, DESK_DECOR_HALLOWEEN, FLOORS, FURNITURE, FURNITURE_2X1_HALLOWEEN,
   FURNITURE_2X2_CHRISTMAS, FURNITURE_CHRISTMAS, FURNITURE_HALLOWEEN, WALLS, type TileArt,
@@ -88,6 +88,8 @@ tileset('furniture-christmas', FURNITURE_CHRISTMAS);
 tileset('furniture-2x2-christmas', FURNITURE_2X2_CHRISTMAS, { w: 32, h: 32 });
 tileset('furniture-halloween', FURNITURE_HALLOWEEN);
 tileset('furniture-2x1-halloween', FURNITURE_2X1_HALLOWEEN, { w: 32, h: 16 });
+
+tileset('furniture-5x2', FURNITURE_5X2, { w: 80, h: 32 });
 
 for (const [path, pixels] of Object.entries(CHARACTER_SHEETS)) {
   write(`characters/${path}.png`, PNG.sync.write(toPng(pixels)));

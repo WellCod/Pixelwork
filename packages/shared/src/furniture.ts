@@ -39,7 +39,7 @@ export function furnitureContactShadows(item: string | undefined, width: number,
   if (item === 'desk' || item === 'basic' || item === 'dark' || item === 'white' || item === 'coffee-table') {
     return deskContactShadows(width, height);
   }
-  if (item === 'meeting-table-long' || item === 'meeting-table-round') {
+  if (item === 'meeting-table-long' || item === 'meeting-table-conference' || item === 'meeting-table-round') {
     return [ellipse(width / 2 + 0.5, -3, width - 8, 5, 0.14)];
   }
   return [ellipse(width / 2 + 0.5, -1.5, width - 3, 5, 0.14)];

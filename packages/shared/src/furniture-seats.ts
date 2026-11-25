@@ -43,6 +43,16 @@ export function furnitureSeatLayout(
       make(index, 'sofa', index * TILE_PX + TILE_PX / 2, 15, 'down', [[index, 1]], 16.1),
     );
   }
+  const conferenceWidth = item === 'meeting-table-conference' ? 5 : item === 'meeting-table-long' ? 3 : 0;
+  if (conferenceWidth === width && height === 2) {
+    return Array.from({ length: width * 2 }, (_, index) => {
+      const col = index % width;
+      const chairX = item === 'meeting-table-long' ? 12 + col * 12 : col * TILE_PX + TILE_PX / 2;
+      return index < width
+        ? make(index, 'table', chairX, 8, 'down', [[col, -1]], 32.1)
+        : make(index, 'table', chairX, 32, 'up', [[col, 2]], 32.1);
+    });
+  }
   if (item === 'meeting-table-round' && width === 2 && height === 2) {
     return [
       make(0, 'table', 16, 11, 'down', [[0, -1], [1, -1]]),

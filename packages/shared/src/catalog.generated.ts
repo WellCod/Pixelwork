@@ -1,6 +1,6 @@
 // Gerado por scripts/gen-catalog.ts a partir de assets/manifest.json. Não editar.
 
-export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3', 'desk-decor-halloween', 'furniture-halloween', 'furniture-2x1-halloween', 'desk-decor-festive', 'desk-decor-grinch', 'desk-decor-christmas', 'furniture-christmas', 'furniture-2x2-christmas'] as const;
+export const TILESET_IDS = ['floors', 'walls', 'furniture', 'desk-decor', 'furniture-2x1', 'furniture-2x2', 'furniture-3x2', 'desk-decor-extras', 'furniture-2x3', 'desk-decor-halloween', 'furniture-halloween', 'furniture-2x1-halloween', 'desk-decor-festive', 'desk-decor-grinch', 'desk-decor-christmas', 'furniture-christmas', 'furniture-2x2-christmas', 'furniture-5x2'] as const;
 export const BODY_IDS = ['base'] as const;
 export const HAIR_IDS = ['short', 'long', 'spiky', 'curly', 'bun', 'afro', 'bob', 'braid', 'undercut'] as const;
 export const OUTFIT_IDS = ['basic', 'hoodie', 'shirt', 'dress', 'jacket', 'sweater', 'vest', 'overalls', 'cardigan', 'halloween-witch-robe', 'halloween-vampire-cape', 'christmas-sweater', 'new-year-jacket', 'grinch-coat', 'grinch-fur'] as const;
@@ -592,6 +592,18 @@ export const TILESETS: Record<TilesetId, { tileWidth: number; tileHeight: number
     "items": {
       "0": "christmas-room-tree"
     }
+  },
+  "furniture-5x2": {
+    "tileWidth": 80,
+    "tileHeight": 32,
+    "columns": 8,
+    "tilecount": 8,
+    "collides": [
+      0
+    ],
+    "items": {
+      "0": "meeting-table-conference"
+    }
   }
 };
 
@@ -719,6 +731,13 @@ export const CREDITS: readonly Credit[] = [
   {
     "kind": "tileset",
     "id": "furniture-2x2-christmas",
+    "license": "own",
+    "author": "Pixelwork",
+    "source": null
+  },
+  {
+    "kind": "tileset",
+    "id": "furniture-5x2",
     "license": "own",
     "author": "Pixelwork",
     "source": null
