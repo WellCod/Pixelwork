@@ -155,14 +155,14 @@ export class SpaceRuntime {
     if (deps.reception) {
       this.reception = new ReceptionRuntime(spaceId, map, receptionEnabled, deps.reception,
         (reception) => this.broadcast({ t: 'reception.state', reception }),
-        (input) => readReceptionTool({
+        (input, visitor) => readReceptionTool({
           map: this.map,
           online: [...this.members.entries()].flatMap(([id, member]) => {
             const pos = this.positionOf(id);
-            return member.connection && pos ? [{ ...pos, name: member.profile.name, activity: member.activity }] : [];
+            return member.connection && pos ? [{ ...pos, id, name: member.profile.name, activity: member.activity }] : [];
           }),
           isLocked: (key) => this.locks.get(key)?.locked ?? false,
-        }, input));
+        }, input, (destination) => visitor.send({ t: 'reception.destination', destination })));
     }
     // Toda mesa do mapa tem estado; atribuição de mesa que saiu do mapa é ignorada.
     for (const desk of map.desks) {

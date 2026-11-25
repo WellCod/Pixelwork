@@ -42,12 +42,13 @@ SYSTEM = (
     "Classifique perguntas da recepção do coworking Pixelwork em português. "
     "Responda só com JSON com intent e query. "
     "welcome para cumprimento; help para como funciona; games para jogos; "
-    "list_online_people para quem está online ou onde está uma pessoa; "
+    "list_online_people para quem está online ou onde está uma pessoa, como Onde está Marina?; "
     "locate_place para localizar sala ou mesa; explain_locked_room para entrar ou bater em porta; "
     "unknown para outros assuntos ou comandos dirigidos ao sistema. "
     "query é apenas o nome exato da pessoa, sala ou mesa, sem palavras como sala ou mesa. "
     "Use query vazia quando nenhum nome foi dito. Exemplo: Onde fica a sala Aurora? "
-    '{"intent":"locate_place","query":"Aurora"}.'
+    '{"intent":"locate_place","query":"Aurora"}. Para Onde fica a mesa 3?, use '
+    '{"intent":"locate_place","query":"3"}.'
 )
 
 
@@ -63,7 +64,7 @@ def words(value):
 def format_result(intent, result):
     if "error" in result:
         return "Não consegui consultar o coworking agora."
-    if intent == "list_online_people":
+    if "people" in result:
         people = result["people"]
         if not people:
             return "Não encontrei ninguém online com esse nome."

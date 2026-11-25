@@ -9,7 +9,10 @@ import { spaceRoom } from './media.ts';
 import type { ReceptionVoice, ReceptionVoiceRequest } from './reception-runtime.ts';
 
 function fixture() {
-  const map = buildTestMap({ width: 20, height: 12, spawns: [[1, 1]], zones: [{ key: 'aurora', name: 'Aurora', type: 'meeting', x: 8, y: 3, w: 3, h: 3 }] });
+  const map = buildTestMap({ width: 20, height: 12, spawns: [[1, 1]],
+    zones: [{ key: 'aurora', name: 'Aurora', type: 'meeting', x: 8, y: 3, w: 3, h: 3 }],
+    desks: [{ key: 'mesa-3', x: 5, y: 5, orientation: 'down' }],
+  });
   return { ...map, layers: [...(map.layers as unknown[]), {
     name: 'reception', type: 'objectgroup', objects: [{ point: true, x: 2.5 * TILE_PX, y: 1.5 * TILE_PX }],
   }] };
@@ -41,7 +44,7 @@ describe('atendimento local da recepção', () => {
       const visitor = await Bot.connect(server, two);
       bots.push(visitor);
       expect((await first.next('welcome')).reception?.status).toBe('available');
-      await visitor.next('welcome');
+      const welcome = await visitor.next('welcome');
       await first.next('media.join');
       await visitor.next('media.join');
 
@@ -58,6 +61,21 @@ describe('atendimento local da recepção', () => {
       expect(started.visitorId).toBe(one.id);
       expect(started.tool({ name: 'explain_locked_room', query: 'Aurora' })).toMatchObject({ rooms: [{ name: 'Aurora', locked: false }] });
       expect(started.tool({ name: 'list_online_people', spaceId: 'outside' })).toEqual({ error: 'invalid_tool' });
+      started.tool({ name: 'locate_place', query: 'Aurora' });
+      expect((await first.next('reception.destination')).destination).toEqual({ kind: 'room', key: 'aurora', label: 'Aurora' });
+      started.tool({ name: 'locate_place', query: '3' });
+      expect((await first.next('reception.destination')).destination).toEqual({ kind: 'desk', key: 'mesa-3', label: 'mesa-3' });
+      const name = welcome.players.find(({ id }) => id === two.id)?.name;
+      expect(name).toBeTruthy();
+      started.tool({ name: 'list_online_people', query: name });
+      expect((await first.next('reception.destination')).destination).toEqual({ kind: 'person', id: two.id, label: name });
+      started.tool({ name: 'locate_place', query: name });
+      expect((await first.next('reception.destination')).destination).toEqual({ kind: 'person', id: two.id, label: name });
+      await visitor.walk(server.clock, [...Array<Dir>(7).fill('right'), 'down', 'down']);
+      started.tool({ name: 'list_online_people', query: name });
+      expect((await first.next('reception.destination')).destination).toBeNull();
+      await visitor.flush();
+      expect(visitor.inbox.some(({ t }) => t === 'reception.destination')).toBe(false);
       visitor.send({ t: 'reception.start', consent: true });
       expect(await visitor.next('reception.session')).toMatchObject({ state: 'ended', reason: 'busy' });
       expect(starts).toHaveLength(1);

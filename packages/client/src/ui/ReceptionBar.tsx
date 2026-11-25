@@ -2,6 +2,16 @@ import { nextProximity, type ClientMsg } from '@pixelwork/shared';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useWorld } from './useWorld.ts';
 
+export function ReceptionRoute({ world }: { world: ClientWorld }) {
+  useWorld(world);
+  const destination = world.receptionDestination;
+  if (!destination) return null;
+  return <section className="hud-card" aria-label="Trajeto da recepção">
+    <span role="status">Destino · {destination.label}</span>
+    <button type="button" onClick={() => world.clearReceptionDestination()}>Limpar trajeto</button>
+  </section>;
+}
+
 export function ReceptionBar({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
   useWorld(world);
   const { reception, receptionSession, self, selfId } = world;

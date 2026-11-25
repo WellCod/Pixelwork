@@ -26,6 +26,7 @@ import { ensureAvatarTexture, preloadCharacterLayers, walkAnim } from './avatar-
 import { LABEL_DEPTH, LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, tablePlaque, zonePill } from './labels.ts';
 import { createMeetingDoors, type MeetingDoor } from './meeting-doors.ts';
 import { Mover } from './mover.ts';
+import { receptionPath } from './reception-path.ts';
 import { drawDeskJoins } from './desk-joins.ts';
 import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
@@ -97,6 +98,7 @@ export class WorldScene extends Phaser.Scene {
   private meetingDoors: MeetingDoor[] = [];
   private receptionObjects: Phaser.GameObjects.GameObject[] = [];
   private receptionRing: Phaser.GameObjects.Ellipse | undefined;
+  private receptionTrail!: Phaser.GameObjects.Graphics;
   private readonly avatars = new Map<string, Avatar>();
   private readonly deskObjects = new Map<string, Phaser.GameObjects.GameObject[]>();
   /** Placar sobre cada mesa de jogo, visível só para quem está perto. */
@@ -135,6 +137,8 @@ export class WorldScene extends Phaser.Scene {
     const tilesets = TILESET_IDS.flatMap((id) => tilemap.addTilesetImage(id, tilesKey(id)) ?? []);
     tilemap.createLayer('floor', tilesets).setDepth(-2);
     tilemap.createLayer('walls', tilesets).setDepth(-1);
+    this.receptionTrail = this.add.graphics().setDepth(-1.25);
+    this.renderReceptionTrail();
 
     // Sombras acima do piso e abaixo das paredes e dos sprites.
     const shadows = this.add.graphics().setDepth(-1.5);
@@ -232,6 +236,12 @@ export class WorldScene extends Phaser.Scene {
     }
     this.unsubscribe = this.options.world.subscribe((event) => {
       this.onWorldEvent(event);
+      const target = world.receptionDestination;
+      if (event.type === 'receptionDestination' || event.type === 'reset' ||
+        (target && (event.type === 'selfStep' || event.type === 'selfCorrected' || event.type === 'zone' ||
+          (event.type === 'remoteMove' && target.kind === 'person' && event.id === target.id)))) {
+        this.renderReceptionTrail();
+      }
     });
     // `game.destroy` emite DESTROY sem SHUTDOWN; sem os dois, a cena morta segue recebendo eventos.
     const stop = () => {
@@ -244,6 +254,28 @@ export class WorldScene extends Phaser.Scene {
       releaseFocus();
       this.onPointerDown(pointer, over);
     });
+  }
+
+  private renderReceptionTrail(): void {
+    const trail = this.receptionTrail.clear();
+    const points = receptionPath(this.options.world, this.options.targets);
+    const end = points?.at(-1);
+    if (!points || !end) return;
+    const center = (tile: number) => (tile + 0.5) * TILE_PX;
+    const draw = (width: number, color: number) => {
+      trail.lineStyle(width, color, 1).beginPath();
+      for (const [index, point] of points.entries()) {
+        if (index === 0) trail.moveTo(center(point.x), center(point.y));
+        else trail.lineTo(center(point.x), center(point.y));
+      }
+      trail.strokePath();
+    };
+    if (points.length > 1) {
+      draw(5, 0x143d59);
+      draw(2, 0x52e4fd);
+    }
+    trail.fillStyle(0x143d59, 1).fillCircle(center(end.x), center(end.y), 6);
+    trail.fillStyle(0x52e4fd, 1).fillCircle(center(end.x), center(end.y), 4);
   }
 
   /**

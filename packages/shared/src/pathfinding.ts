@@ -73,17 +73,20 @@ export function findPath(
   map: CompiledMap,
   from: Tile,
   to: Tile,
-  options: { canEnter?: PathRule; stopAt?: number } = {},
+  options: { canEnter?: PathRule; stopAt?: number; goal?: (x: number, y: number) => boolean } = {},
 ): Dir[] | null {
-  const { canEnter, stopAt = 0 } = options;
+  const { canEnter, stopAt = 0, goal } = options;
   const width = map.width;
   // Cada tile vira um número (y * width + x) para caber em Map e no heap sem alocar objeto.
   const index = (x: number, y: number) => y * width + x;
   // Manhattan até o alvo: heurística admissível com passos de 4 direções e custo 1.
   const distance = (x: number, y: number) => Math.abs(x - to.x) + Math.abs(y - to.y);
-  if (distance(from.x, from.y) <= stopAt) return [];
+  const arrived = goal ?? ((x: number, y: number) => distance(x, y) <= stopAt);
+  // Com vários destinos possíveis, usa Dijkstra para alcançar o primeiro tile elegível.
+  const heuristic = goal ? () => 0 : distance;
+  if (arrived(from.x, from.y)) return [];
   // Alvo intransitável só serve com stopAt (parar ao lado de uma mesa, por exemplo).
-  if (stopAt === 0 && !isWalkable(map, to.x, to.y)) return null;
+  if (!goal && stopAt === 0 && !isWalkable(map, to.x, to.y)) return null;
 
   const start = index(from.x, from.y);
   /** Custo conhecido (passos desde a origem) de cada tile já alcançado: o `g` do A*. */
@@ -91,12 +94,12 @@ export function findPath(
   /** De onde se chegou a cada tile e com que direção, para remontar o caminho no fim. */
   const came = new Map<number, { prev: number; dir: Dir }>();
   const open = new MinHeap();
-  open.push(start, distance(from.x, from.y));
+  open.push(start, heuristic(from.x, from.y));
 
   for (let node = open.pop(); node !== undefined; node = open.pop()) {
     const x = node % width;
     const y = Math.floor(node / width);
-    if (distance(x, y) <= stopAt) {
+    if (arrived(x, y)) {
       // Volta pelos predecessores até a origem e inverte para ter a ordem de andar.
       const path: Dir[] = [];
       for (let cameFrom = came.get(node); cameFrom; cameFrom = came.get(cameFrom.prev)) path.push(cameFrom.dir);
@@ -114,7 +117,7 @@ export function findPath(
       if (neighborCost >= (cost.get(neighbor) ?? Infinity)) continue;
       cost.set(neighbor, neighborCost);
       came.set(neighbor, { prev: node, dir });
-      open.push(neighbor, neighborCost + distance(neighborX, neighborY));
+      open.push(neighbor, neighborCost + heuristic(neighborX, neighborY));
     }
   }
   return null;

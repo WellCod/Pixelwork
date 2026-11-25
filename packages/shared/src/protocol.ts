@@ -147,6 +147,10 @@ export interface ReceptionPresence {
   status: 'available' | 'busy' | 'unavailable';
 }
 
+export type ReceptionDestination = {
+  label: string;
+} & ({ kind: 'room' | 'desk'; key: string } | { kind: 'person'; id: string });
+
 /** Mensagens do servidor para o cliente; só o `tick` vai em binário na rede. */
 export type ServerMsg =
   | {
@@ -177,6 +181,7 @@ export type ServerMsg =
     }
   | { t: 'zone.state'; zone: ZoneState }
   | { t: 'reception.state'; reception: ReceptionPresence | null }
+  | { t: 'reception.destination'; destination: ReceptionDestination | null }
   | { t: 'reception.session'; state: 'starting' }
   | { t: 'reception.session'; state: 'active'; identity: string }
   | { t: 'reception.session'; state: 'ended'; reason: 'finished' | 'left' | 'timeout' | 'busy' | 'unavailable' }
