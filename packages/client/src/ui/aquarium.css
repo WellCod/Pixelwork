@@ -1,0 +1,69 @@
+.modal.aquarium-modal {
+  box-sizing: border-box;
+  width: min(900px, calc(100vw - 24px));
+  padding: clamp(12px, 2vw, 24px);
+  border-color: #42667a;
+  border-radius: 18px;
+  background: #152b42;
+  color: #effafa;
+}
+
+.modal.aquarium-modal h2 {
+  margin: 0 0 14px;
+  color: #effafa;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+}
+
+.aquarium-glass {
+  overflow: hidden;
+  border: 4px solid #102132;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px #426c80;
+  background: #173f63;
+}
+
+.aquarium-glass canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.aquarium-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.aquarium-controls button {
+  min-height: 44px;
+  border-color: #496a7e;
+  background: #223d54;
+  color: #effafa;
+}
+
+.aquarium-controls button:hover,
+.aquarium-controls button:focus-visible {
+  background: #315675;
+}
+
+.aquarium-controls button span {
+  margin-left: 4px;
+  color: #bdd5dd;
+}
+
+.aquarium-controls button[aria-pressed="true"] span {
+  color: #92eeae;
+}
+
+.aquarium-controls button:last-child {
+  margin-inline-start: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aquarium-modal {
+    animation: none;
+  }
+}

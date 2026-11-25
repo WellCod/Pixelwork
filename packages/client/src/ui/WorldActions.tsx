@@ -37,19 +37,27 @@ function ActionMarker({ x, y, project, label, name, disabled, onClick }: {
   return <button ref={ref} type="button" className="world-action" aria-label={name} disabled={disabled} onClick={onClick}>{label}</button>;
 }
 
-export function WorldActions({ world, targets, project, followPath, send, knock }: {
+export function WorldActions({ world, targets, project, followPath, send, knock, onAquariumOpen }: {
   world: ClientWorld;
   targets: WorldTargets;
   project: Project;
   followPath: (path: Dir[]) => boolean;
   send: (message: ClientMsg) => void;
   knock: DoorKnock;
+  onAquariumOpen: () => void;
 }) {
   useWorld(world);
   const actions = nearbyActions(world, targets);
   return (
     <div className="world-actions" role="group" aria-label="Ações no mapa">
+      {!world.seat && targets.filter(({ kind }) => kind === 'aquarium').map(({ id, bounds, label }) => (
+        <ActionMarker key={id} x={(bounds.x + bounds.width / 2) * TILE_PX} y={(bounds.y + bounds.height) * TILE_PX + 2}
+          project={project} label={label} name={label} disabled={false} onClick={() => {
+            if (followPath([])) onAquariumOpen();
+          }} />
+      ))}
       {actions.map(({ target, approach }) => {
+        if (target.kind === 'aquarium') return null;
         const { bounds } = target;
         const ready = approach.path.length === 0;
         const pending = target.kind === 'door' && knock.pending === target.zoneKey;

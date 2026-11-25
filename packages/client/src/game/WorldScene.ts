@@ -31,7 +31,7 @@ import { drawDeskJoins } from './desk-joins.ts';
 import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
 import { embedTilesets, objectLayer, propertyValue, resolveGid } from './tiled.ts';
-import { objectApproach, type WorldTargets } from './world-actions.ts';
+import { aquariumAt, objectApproach, type WorldTargets } from './world-actions.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
 export interface WorldSceneOptions {
@@ -49,6 +49,7 @@ export interface WorldSceneOptions {
   onFollowChange?: (id: string | null) => void;
   /** Se o avatar tem balão de vídeo em HTML por cima; o chat sobe para não ficar atrás dele. */
   hasVideoBubble?: (id: string) => boolean;
+  onAquariumOpen: () => void;
 }
 
 /** Base do balão de chat acima do pé do avatar, sem e com o balão de vídeo (76 px de tela, 2x). */
@@ -356,6 +357,12 @@ export class WorldScene extends Phaser.Scene {
   private onPointerDown(pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]): void {
     const { world } = this.options;
     if (!world.selfId) return;
+    const tile = { x: Math.floor(pointer.worldX / TILE_PX), y: Math.floor(pointer.worldY / TILE_PX) };
+    if (!world.seat && aquariumAt(this.options.targets, tile)) {
+      this.cancelAuto();
+      this.options.onAquariumOpen();
+      return;
+    }
     const clicked = over
       .map((gameObject) => gameObject.getData('id') as string | undefined)
       .find((id) => id && id !== world.selfId);
@@ -364,9 +371,6 @@ export class WorldScene extends Phaser.Scene {
       this.setFollowing(clicked);
       return;
     }
-    const tx = Math.floor(pointer.worldX / TILE_PX);
-    const ty = Math.floor(pointer.worldY / TILE_PX);
-    const tile = { x: tx, y: ty };
     const path = objectApproach(world, this.options.targets, tile)
       ?? findPath(world.map, world.self, tile, { canEnter: world.canEnter });
     this.followPath(path ?? []);
