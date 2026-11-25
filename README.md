@@ -11,7 +11,7 @@ O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSoc
 ## O que dá para fazer
 
 - **Explorar o escritório.** Ande pelo teclado ou toque no mapa. No celular, use **Mapa** para escolher um destino. Ao chegar perto de um móvel interativo, aparecem ações como sentar ou jogar.
-- **Falar com a recepcionista.** Na demo com voz local ativada, aproxime-se da **Recepção · IA** e pergunte em português onde fica uma sala, quem está online ou como pedir acesso a uma reunião. Os modelos rodam na máquina que hospeda a demo, sem chave de API.
+- **Falar com a recepcionista.** Peça uma rota por voz até uma sala, mesa ou pessoa e siga o destaque no mapa. A recepcionista atende em português, com modelos locais e sem chave de API.
 - **Conversar e se reunir.** Use voz, vídeo e chat por proximidade, faça chamadas 1:1 e compartilhe a tela. Na Sala Aurora, a mesa tem dez lugares e a porta distingue os estados aberta, fechada e trancada. Visitantes podem bater e pedir acesso.
 - **Personalizar avatar e mesa.** Combine camadas, cores, roupas e acessórios. Escolha itens padrão ou coleções temáticas como Halloween, Natal, Grinch e Ano Novo. A demo inclui decoração de Natal com Max e uma fileira de Halloween.
 - **Jogar pingue-pongue e pebolim.** Jogue 1 contra 1 ou enfrente um bot. Quem passa perto vê o placar sobre a mesa. O servidor simula as partidas a 30 Hz.
@@ -27,6 +27,12 @@ O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSoc
 ### Atendimento por voz local
 
 ![Avatar da Recepção com o indicador de fala no mapa e o painel de atendimento da IA local aberto](docs/prints/recepcao-voz-local.png)
+
+### Rota até a sala Aurora
+
+![Demo do Pixelwork com um trajeto azul entre o visitante e a porta da sala Aurora e o painel Destino · Sala Aurora](docs/prints/rota-recepcao-aurora.png)
+
+[Como pedir uma rota por voz](#pedir-uma-rota-por-voz)
 
 ### Mapa, personalização e ações
 
@@ -90,7 +96,13 @@ para https em endereço público.
 
 ## Recepcionista com voz local
 
-A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso. Entre como convidado, aproxime-se da **Recepção · IA**, toque em **Conversar com IA** e permita o uso do microfone. Experimente perguntar “Onde fica a sala Aurora?”, “Quem está online agora?” ou “Como entro numa sala trancada?”. Para encerrar, use **Encerrar** ou afaste-se da recepção.
+A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso. Entre como convidado, aproxime-se da **Recepção · IA**, toque em **Conversar com IA** e permita o uso do microfone. Para encerrar a conversa, use **Encerrar** ou afaste-se da recepção.
+
+### Pedir uma rota por voz
+
+1. Com o atendimento aberto, pergunte **“Onde fica a sala Aurora?”**. Você também pode pedir **“Onde fica a mesa 3?”** ou **“Onde está [nome da pessoa]?”**.
+2. Siga o trajeto azul. O caminho para uma sala de reunião termina na porta. A busca por pessoa destaca quem está online em uma área aberta e fora de chamada.
+3. O trajeto aparece só no seu mapa e continua visível após o atendimento. Use **Limpar trajeto** para removê-lo.
 
 | Decisão | Implementação local |
 | --- | --- |
