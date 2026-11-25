@@ -1,0 +1,1 @@
+ALTER TABLE "spaces" ADD COLUMN "reception_enabled" boolean DEFAULT false NOT NULL;

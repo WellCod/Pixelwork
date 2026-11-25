@@ -276,6 +276,8 @@ describe('multi-coworking', () => {
       'PUT /spaces/:spaceId/map': { map: TEST_MAP, baseVersion: 1 },
       'GET /spaces/:spaceId/map/export': undefined,
       'GET /spaces/:spaceId/replay': undefined,
+      'GET /spaces/:spaceId/reception': undefined,
+      'PUT /spaces/:spaceId/reception': { enabled: true },
     };
 
     it('toda rota /spaces/:spaceId/... responde 404 para quem não é membro', async () => {

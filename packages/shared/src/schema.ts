@@ -106,6 +106,7 @@ export const spaces = pgTable(
     slug: text('slug').notNull(),
     map: jsonb('map').notNull(),
     mapVersion: integer('map_version').notNull().default(1),
+    receptionEnabled: boolean('reception_enabled').notNull().default(false),
   },
   (table) => [unique('spaces_org_slug').on(table.orgId, table.slug)],
 );

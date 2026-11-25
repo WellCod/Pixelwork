@@ -26,6 +26,7 @@ const BaseEnv = z.object({
   HOST: z.string().default('127.0.0.1'),
   // true atrás de proxy reverso (Caddy em produção).
   TRUST_PROXY: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  RECEPTIONIST_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   // Liga /internal/stats para o teste de carga. Nunca em produção.
   LOAD_TEST: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
 });

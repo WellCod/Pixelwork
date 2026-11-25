@@ -14,6 +14,7 @@ import { registerDeskRoutes } from './spaces/desk-routes.ts';
 import { registerInviteRoutes } from './spaces/invite-routes.ts';
 import { registerMapRoutes } from './spaces/map-routes.ts';
 import { registerOrgRoutes } from './spaces/org-routes.ts';
+import { registerReceptionRoutes } from './spaces/reception-routes.ts';
 import { registerProfileRoutes } from './spaces/profile-routes.ts';
 import { registerSpaceRoutes } from './spaces/routes.ts';
 
@@ -106,6 +107,7 @@ export function buildApp({
     if (rateLimitEnabled) await scopedApp.register(rateLimit, { max: RATE_LIMIT_PER_MINUTE, timeWindow: '1 minute' });
     registerAuthRoutes(scopedApp, { db, config, clock });
     registerSpaceRoutes(scopedApp, { db, config, clock });
+    registerReceptionRoutes(scopedApp, { db, config, clock });
     registerProfileRoutes(scopedApp, { db, config, clock });
     registerDeskRoutes(scopedApp, { db, config, clock });
     registerGitHubRoutes(scopedApp, { db, config, clock, github });
