@@ -1,6 +1,7 @@
 import { DIR_DELTA, KNOCK_TIMEOUT_MS, zoneAt, type ClientMsg } from '@pixelwork/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
+import type { DoorKnock } from './useDoorKnock.ts';
 import { useWorld } from './useWorld.ts';
 
 /** Pedido de entrada (batida na porta) recebido por quem está dentro da sala. */
@@ -14,12 +15,9 @@ interface KnockRequest {
  * Tranca da sala (para quem está dentro), batida na porta (para quem está num tile vizinho de
  * uma sala trancada) e os pedidos que chegam para quem está dentro.
  */
-export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
+export function ZoneUi({ world, send, knock }: { world: ClientWorld; send: (message: ClientMsg) => void; knock: DoorKnock }) {
   useWorld(world);
   const [requests, setRequests] = useState<KnockRequest[]>([]);
-  // Chave da sala em que se bateu e ainda se espera resposta.
-  const [knockingZoneKey, setKnockingZoneKey] = useState<string | null>(null);
-  const [knockResult, setKnockResult] = useState<string | null>(null);
   // Timers pendentes, para cancelar todos ao desmontar e não mexer em estado depois disso.
   const pendingTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
@@ -33,7 +31,7 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: Cl
     pendingTimers.current.add(timer);
   }, []);
 
-  // Escuta batidas recebidas (quem está dentro) e a resposta da própria batida (quem está fora).
+  // Escuta as batidas recebidas por quem está dentro.
   useEffect(() => {
     const timersAtMount = pendingTimers.current;
     const unsubscribe = world.subscribe((event) => {
@@ -48,11 +46,6 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: Cl
             ),
           KNOCK_TIMEOUT_MS,
         );
-      }
-      if (event.type === 'knockResult') {
-        setKnockingZoneKey(null);
-        setKnockResult(event.allowed ? 'Pode entrar.' : 'Não liberaram a entrada.');
-        runLater(() => setKnockResult(null), 5_000);
       }
     });
     return () => {
@@ -98,23 +91,14 @@ export function ZoneUi({ world, send }: { world: ClientWorld; send: (message: Cl
           <span>{lockedDoorZone.name} está trancada</span>
           <button
             type="button"
-            disabled={knockingZoneKey === lockedDoorZone.key}
-            onClick={() => {
-              setKnockResult(null);
-              setKnockingZoneKey(lockedDoorZone.key);
-              send({ t: 'zone.knock', zoneKey: lockedDoorZone.key });
-              // Se o resultado se perder (queda de conexão), o botão não fica preso em "Aguardando…".
-              runLater(
-                () => setKnockingZoneKey((zoneKey) => (zoneKey === lockedDoorZone.key ? null : zoneKey)),
-                KNOCK_TIMEOUT_MS + 2_000,
-              );
-            }}
+            disabled={knock.pending === lockedDoorZone.key}
+            onClick={() => knock.request(lockedDoorZone.key)}
           >
-            {knockingZoneKey === lockedDoorZone.key ? 'Aguardando…' : 'Bater na porta'}
+            {knock.pending === lockedDoorZone.key ? 'Aguardando…' : 'Bater na porta'}
           </button>
         </div>
       )}
-      {knockResult && !insideZoneState && <div className="zone-card">{knockResult}</div>}
+      {knock.result && !insideZoneState && <div className="zone-card" role="status">{knock.result}</div>}
       {/* Pedidos de entrada só aparecem para quem está dentro da sala a que se referem. */}
       {insideZoneState &&
         requests

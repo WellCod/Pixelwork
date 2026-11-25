@@ -29,11 +29,13 @@ import { drawDeskJoins } from './desk-joins.ts';
 import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
 import { embedTilesets, objectLayer, propertyValue, resolveGid } from './tiled.ts';
+import { objectApproach, type WorldTargets } from './world-actions.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
 export interface WorldSceneOptions {
   world: ClientWorld;
   mapJson: Record<string, unknown>;
+  targets: WorldTargets;
   send: (msg: ClientMsg) => void;
   /** Fora do ar a predição andaria sozinha e voltaria no welcome: o input fica parado. */
   canMove?: () => boolean;
@@ -322,9 +324,10 @@ export class WorldScene extends Phaser.Scene {
     }
     const tx = Math.floor(pointer.worldX / TILE_PX);
     const ty = Math.floor(pointer.worldY / TILE_PX);
-    const path = findPath(world.map, world.self, { x: tx, y: ty }, { canEnter: world.canEnter });
-    this.setFollowing(null);
-    this.route = path ?? [];
+    const tile = { x: tx, y: ty };
+    const path = objectApproach(world, this.options.targets, tile)
+      ?? findPath(world.map, world.self, tile, { canEnter: world.canEnter });
+    this.followPath(path ?? []);
   }
 
   /**
@@ -362,6 +365,14 @@ export class WorldScene extends Phaser.Scene {
     if (this.following === id) return;
     this.following = id;
     this.options.onFollowChange?.(id);
+  }
+
+  /** Destinos e ações no mapa usam a mesma fila do clique no chão. */
+  followPath(path: Dir[]): boolean {
+    if (!this.options.world.selfId || this.options.world.seat || (this.options.canMove && !this.options.canMove())) return false;
+    this.setFollowing(null);
+    this.route = [...path];
+    return true;
   }
 
   /** Botão "Parar" do card de seguir. */
@@ -546,13 +557,18 @@ export class WorldScene extends Phaser.Scene {
   screenPosition(id: string): { x: number; y: number } | null {
     const avatar = this.avatars.get(id);
     if (!avatar) return null;
-    // Mundo -> canvas pela janela visível da câmera e pelo zoom; canvas -> CSS pelo devicePixelRatio.
+    return this.project(avatar.sprite.x, avatar.sprite.y - avatar.sprite.height);
+  }
+
+  /** Posição de um objeto do mapa no mesmo espaço usado pelos controles HTML. */
+  project(x: number, y: number): { x: number; y: number } | null {
+    if (!this.sys.isActive()) return null;
     const camera = this.cameras.main;
     const view = camera.worldView;
     const scale = canvasToCss(camera.zoom);
     return {
-      x: (avatar.sprite.x - view.x) * scale,
-      y: (avatar.sprite.y - avatar.sprite.height - view.y) * scale,
+      x: (x - view.x) * scale,
+      y: (y - view.y) * scale,
     };
   }
 
