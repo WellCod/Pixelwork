@@ -14,6 +14,7 @@ type Target = { id: string; bounds: Bounds; label: string; name: string } & (
   | { kind: 'seat'; seats: FurnitureSeat[] }
   | { kind: 'game'; table: CompiledTable }
   | { kind: 'door'; zoneKey: string; inside: Tile; outside: Tile[] }
+  | { kind: 'aquarium' }
 );
 export type WorldTargets = ReturnType<typeof collectWorldTargets>;
 type ActionMessage = Extract<ClientMsg, { t: 'furniture.sit' | 'game.join' | 'zone.knock' }>;
@@ -62,6 +63,9 @@ export function collectWorldTargets(map: CompiledMap, mapJson: Record<string, un
     const y = Math.ceil(object.y / TILE_PX) - height;
     const bounds = { x, y, width, height };
     const id = `${item}@${x},${y}`;
+    if (item === 'aquarium') {
+      targets.set(id, { id, kind: 'aquarium', bounds, label: 'Ver aquário', name: 'Ver aquário' });
+    }
     const seats = seatsByFurniture.get(id);
     if (seats?.[0]) targets.set(id, { id, kind: 'seat', bounds, seats, label: 'Sentar', name: SEAT_NAME[seats[0].kind] });
     if (item !== 'door') continue;
@@ -77,6 +81,7 @@ export function collectWorldTargets(map: CompiledMap, mapJson: Record<string, un
 }
 
 function availableSpots(world: ClientWorld, target: Target, occupied: ReadonlySet<string>): Spot[] {
+  if (target.kind === 'aquarium') return [];
   if (target.kind === 'seat') {
     return target.seats.filter(({ key }) => !occupied.has(key)).flatMap(({ key, approaches }) =>
       approaches.map(([x, y]) => ({ tile: { x, y }, message: { t: 'furniture.sit', seatKey: key } })));
@@ -131,6 +136,10 @@ export function objectApproach(world: ClientWorld, targets: WorldTargets, tile: 
   const target = targets.find((entry) => (entry.kind === 'door' || blocked) && inBounds(entry.bounds, tile));
   if (!target) return null;
   return closestApproach(world, availableSpots(world, target, occupiedSeats(world)))?.path ?? null;
+}
+
+export function aquariumAt(targets: WorldTargets, tile: Tile): boolean {
+  return targets.some((target) => target.kind === 'aquarium' && inBounds(target.bounds, tile));
 }
 
 export function actionAt(world: ClientWorld, target: Target): ActionMessage | null {

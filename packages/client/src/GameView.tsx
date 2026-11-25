@@ -13,6 +13,7 @@ import { CallStore } from './net/call-store.ts';
 import { ClientWorld } from './net/client-world.ts';
 import { Connection, type ConnectionStatus } from './net/connection.ts';
 import { CallUi } from './ui/CallUi.tsx';
+import { AquariumModal } from './ui/AquariumModal.tsx';
 import { ChatBox } from './ui/ChatBox.tsx';
 import { DeskBar } from './ui/DeskBar.tsx';
 import { GameWindow } from './ui/GameWindow.tsx';
@@ -72,6 +73,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
   const [netSim] = useState(() => new NetSim());
   const [followedPlayerId, setFollowedPlayerId] = useState<string | null>(null);
   const [replayOpen, setReplayOpen] = useState(false);
+  const [aquariumOpen, setAquariumOpen] = useState(false);
+  const openAquarium = useCallback(() => setAquariumOpen(true), []);
   const netStats = useCallback(() => connection.current?.stats ?? null, []);
 
   // Estável entre renderizações (só lê o ref da conexão): o GameWindow recria os controles
@@ -154,13 +157,14 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
       showGhost: () => netSim.overlay,
       onFollowChange: setFollowedPlayerId,
       hasVideoBubble: (id) => hasVideoBubble(media, proximityController, id),
+      onAquariumOpen: openAquarium,
     });
     worldScene.current = worldGame.scene;
     return () => {
       worldScene.current = null;
       worldGame.game.destroy(true);
     };
-  }, [editorController, worldMap, worldMapJson, world, media, proximityController, netSim, targets]);
+  }, [editorController, worldMap, worldMapJson, world, media, proximityController, netSim, targets, openAquarium]);
 
   return (
       <div className="main">
@@ -168,7 +172,8 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           <div ref={gameContainer} className="game" />
           {!editor && <VideoBubbles media={media} world={world} controller={proximityController} positionOf={positionOf} />}
           <RoomPanel media={media} world={world} />
-          {!editor && connectionStatus === 'online' && <WorldActions world={world} targets={targets} project={project} followPath={followPath} send={send} knock={knock} />}
+          {!editor && connectionStatus === 'online' && <WorldActions world={world} targets={targets} project={project} followPath={followPath} send={send} knock={knock} onAquariumOpen={openAquarium} />}
+          {!editor && aquariumOpen && <AquariumModal onClose={() => setAquariumOpen(false)} />}
           <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
           {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
           <div className="hud">
