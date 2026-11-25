@@ -48,7 +48,7 @@ export interface CatalogInput {
 
 const Tsj = z.object({
   // Célula de 16 px (pisos, paredes, móveis pequenos) ou maior para móveis de várias células.
-  tilewidth: z.union([z.literal(16), z.literal(32), z.literal(48)]),
+  tilewidth: z.union([z.literal(16), z.literal(32), z.literal(48), z.literal(80)]),
   tileheight: z.union([z.literal(16), z.literal(32), z.literal(48)]),
   columns: z.number().int().positive(),
   tilecount: z.number().int().positive(),

@@ -277,6 +277,23 @@ export const FURNITURE_3X2: TileArt[] = [
   { pixels: foosball, collides: true, itemId: 'foosball' },
 ];
 
+/** Tileset de mesas de conferência, com um assento por coluna em cada lado. */
+export const FURNITURE_5X2: TileArt[] = [{
+  itemId: 'meeting-table-conference',
+  collides: true,
+  pixels: make(80, 32, (canvas) => {
+    for (const center of [8, 24, 40, 56, 72]) {
+      canvas.box(center - 4, 0, 8, 8, RAMPS.charcoal);
+      canvas.box(center - 4, 24, 8, 8, RAMPS.charcoal);
+    }
+    canvas.box(1, 7, 78, 18, { outline: 'bark', dark: 'rosewood', base: 'taupe', light: 'oakSeam' });
+    canvas.hline(3, 21, 74, 'oakSeam').hline(3, 23, 74, 'rosewood');
+    canvas.rect(34, 11, 12, 8, 'dusk').rect(35, 12, 10, 5, 'slate').px(43, 15, 'sage');
+    canvas.rect(7, 12, 5, 4, 'white').hline(8, 13, 3, 'ice');
+    canvas.rect(62, 15, 5, 4, 'white').hline(63, 16, 3, 'ice');
+  }),
+}];
+
 // ---- 2x3: mesas de jogos na vertical, com a mesma luz dos sprites horizontais ----
 
 const pingPongVertical = make(32, 48, (canvas) => {

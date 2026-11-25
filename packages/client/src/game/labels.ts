@@ -5,6 +5,7 @@ import * as Phaser from 'phaser';
 export const LABEL_FONT = '"Inter Variable", system-ui, sans-serif';
 /** Texto do Phaser rasterizado em alta resolução: nítido no zoom 1, 2 e 3 da câmera. */
 const RESOLUTION = 8;
+export const LABEL_DEPTH = 100_000;
 
 const STATUS_COLOR: Record<Status, number> = { available: 0x1ebc73, focus: 0xe83b3b, away: 0xf79617 };
 
