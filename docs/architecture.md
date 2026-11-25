@@ -674,6 +674,12 @@ Decisões da fase 4:
 Descartados: mesh P2P (upload multiplicado por participante); mediasoup (nível baixo demais,
 semanas de sinalização); vídeo como textura no canvas (upload de textura por frame sem ganho).
 
+### Recepção com dublês locais
+
+O mapa compilado guarda o ponto opcional da recepção. O recurso local exige configuração na instalação, autorização de admin no coworking e o worker Python. Rotas de configuração seguem `requireMember` e papel de admin. A presença da IA e o lease privado viajam em mensagens JSON, fora do tick binário.
+
+O runtime usa `nextProximity` com posição confirmada e emite o token da sala aberta. O RTC Python assina o microfone do visitante escolhido e limita a trilha publicada para ele. O servidor retira a identidade após encerrar o processo. As ferramentas consultam o mapa e os membros conectados do mesmo runtime por comandos IPC fechados. Áudio e texto seguem efêmeros. Os dublês operam com limites de duração e capacidade, e os registros guardam contadores. [Spec e próximos passos](superpowers/specs/2026-11-25-recepcionista-ia-design.md)
+
 ## 11. Customização
 
 Avatar (`users.avatar`), IDs gerados do manifesto (ver `docs/art.md`):
