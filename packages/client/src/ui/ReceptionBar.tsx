@@ -5,9 +5,10 @@ import { useWorld } from './useWorld.ts';
 export function ReceptionBar({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
   useWorld(world);
   const { reception, receptionSession, self, selfId } = world;
+  const localVoice = reception?.voice === 'local';
   if (receptionSession?.state === 'starting' || receptionSession?.state === 'active') {
     return <section className="hud-card" aria-label="Atendimento da recepção">
-      <span>{receptionSession.state === 'starting' ? 'Conectando à recepção…' : 'Recepção · IA em teste local'}</span>
+      <span>{receptionSession.state === 'starting' ? 'Conectando à recepção…' : 'Recepção · IA local'}</span>
       <button type="button" onClick={() => send({ t: 'reception.stop' })}>Encerrar</button>
     </section>;
   }
@@ -18,7 +19,8 @@ export function ReceptionBar({ world, send }: { world: ClientWorld; send: (messa
   return <section className="hud-card" aria-label="Recepção de IA">
     <strong>Recepção · IA</strong>
     {reception.status === 'available' && <>
-      <span>Modo de teste com áudio sintético. Ao iniciar, seu microfone será processado durante o atendimento.</span>
+      <span>{localVoice ? 'Ao iniciar, a IA processa seu microfone localmente durante o atendimento.'
+        : 'Modo de teste com áudio sintético. Ao iniciar, seu microfone será processado durante o atendimento.'}</span>
       <button type="button" className="primary" onClick={() => send({ t: 'reception.start', consent: true })}>Conversar com IA</button>
     </>}
     {reception.status === 'busy' && <span>Em atendimento</span>}

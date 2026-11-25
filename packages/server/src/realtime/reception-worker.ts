@@ -8,7 +8,8 @@ const MAX_LINE = 12_288;
 const Output = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('ready') }),
   z.strictObject({ t: z.literal('tool'), input: z.unknown() }),
-  z.strictObject({ t: z.literal('usage'), inputMs: z.number().int().nonnegative(), outputMs: z.number().int().nonnegative() }),
+  z.strictObject({ t: z.literal('usage'), inputMs: z.number().int().nonnegative(), outputMs: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative().optional(), outputTokens: z.number().int().nonnegative().optional() }),
 ]);
 
 interface Running {
@@ -16,17 +17,22 @@ interface Running {
   closed: Promise<void>;
 }
 
-/** Processo por lease com o pipeline determinístico local. O token RTC viaja pelo stdin. */
+/** Processo por lease. O token RTC viaja pelo stdin. */
 export class LocalReceptionWorker implements ReceptionVoice {
   private readonly jobs = new Map<string, Running>();
   private readonly script = join(import.meta.dirname, 'reception_worker.py');
 
   constructor(private readonly python: string, private readonly rtcUrl: string, private readonly usage: (counts: {
     sessionId: string; spaceId: string; inputMs: number; outputMs: number; inputTokens: number; outputTokens: number;
-  }) => void) {}
+  }) => void, private readonly local?: { modelsDir: string; llmUrl: string }) {}
+
+  get mode(): 'local' | undefined { return this.local ? 'local' : undefined; }
 
   ready(): boolean {
-    return existsSync(this.python) && existsSync(this.script);
+    const local = this.local;
+    return existsSync(this.python) && existsSync(this.script) && (!local ||
+      ['whisper-small/model.bin', 'whisper-small/tokenizer.json', 'pt_BR-faber-medium.onnx', 'pt_BR-faber-medium.onnx.json']
+        .every((file) => existsSync(join(local.modelsDir, file))));
   }
 
   start(request: ReceptionVoiceRequest, signal: AbortSignal): Promise<void> {
@@ -39,6 +45,7 @@ export class LocalReceptionWorker implements ReceptionVoice {
         TEMP: process.env.TEMP,
         TMP: process.env.TMP,
         PYTHONIOENCODING: 'utf-8',
+        PYTHONDONTWRITEBYTECODE: '1',
       },
     });
     // O SDK escreve diagnósticos no stderr. O supervisor registra a falha operacional por lease.
@@ -48,11 +55,13 @@ export class LocalReceptionWorker implements ReceptionVoice {
     signal.addEventListener('abort', stop, { once: true });
     let inputMs = 0;
     let outputMs = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
     const closed = new Promise<void>((resolve) => {
       child.once('close', () => {
         signal.removeEventListener('abort', stop);
         this.jobs.delete(request.id);
-        this.usage({ sessionId: request.id, spaceId: request.spaceId, inputMs, outputMs, inputTokens: 0, outputTokens: 0 });
+        this.usage({ sessionId: request.id, spaceId: request.spaceId, inputMs, outputMs, inputTokens, outputTokens });
         resolve();
       });
     });
@@ -61,7 +70,7 @@ export class LocalReceptionWorker implements ReceptionVoice {
     return new Promise<void>((resolve, reject) => {
       let buffer = '';
       let ready = false;
-      const deadline = setTimeout(() => { stop(); reject(new Error('tempo de conexão da recepção excedido')); }, 8_000);
+      const deadline = setTimeout(() => { stop(); reject(new Error('tempo de conexão da recepção excedido')); }, this.local ? 25_000 : 8_000);
       child.once('error', () => { clearTimeout(deadline); reject(new Error('processo da recepção indisponível')); });
       child.once('close', () => {
         clearTimeout(deadline);
@@ -87,10 +96,12 @@ export class LocalReceptionWorker implements ReceptionVoice {
           } else {
             inputMs += result.data.inputMs;
             outputMs += result.data.outputMs;
+            inputTokens += result.data.inputTokens ?? 0;
+            outputTokens += result.data.outputTokens ?? 0;
           }
         }
       });
-      child.stdin.write(`${JSON.stringify({ url: this.rtcUrl, token: request.token, visitorId: request.visitorId })}\n`);
+      child.stdin.write(`${JSON.stringify({ url: this.rtcUrl, token: request.token, visitorId: request.visitorId, local: this.local })}\n`);
     });
   }
 

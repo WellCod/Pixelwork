@@ -1,4 +1,4 @@
-"""Pipeline de teste da recepção. Lê PCM local e devolve áudio sintético pela trilha RTC."""
+"""Conexão RTC da recepção, com voz local opcional e dublê para testes."""
 
 import asyncio
 import json
@@ -39,6 +39,12 @@ async def play(source, frequency):
 
 
 async def worker(config):
+    local_voice = None
+    if config.get("local"):
+        from reception_local_voice import LocalVoice
+
+        local_voice = await asyncio.to_thread(LocalVoice, config["local"])
+
     room = rtc.Room()
     visitor_id = config["visitorId"]
     live = asyncio.get_running_loop()
@@ -68,6 +74,12 @@ async def worker(config):
             for publication in participant.track_publications.values():
                 select(publication, participant)
         write({"t": "ready"})
+
+        if local_voice:
+            from reception_local_voice import converse
+
+            await converse(local_voice, source, await asyncio.wait_for(published_mic, timeout=20), RATE, write)
+            return
 
         playback = asyncio.create_task(play(source, 400))
         mic = await asyncio.wait_for(published_mic, timeout=20)

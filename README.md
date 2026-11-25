@@ -94,7 +94,16 @@ O NPC **Recepção · IA** aparece em mapas com um ponto de recepção quando a 
 2. Aplique `pnpm db:migrate` no banco de desenvolvimento. No `.env`, defina `RECEPTIONIST_ENABLED=true` e `RECEPTIONIST_PYTHON` como o caminho absoluto do executável desse ambiente. Os limites de sessões e de duração estão no `.env.example`.
 3. Entre no coworking como admin, abra **Recepção** e autorize o recurso. A demo restaurada a partir do mapa padrão inclui o ponto. Em outro mapa, adicione no Tiled um ponto em uma camada de objetos chamada `reception`, em área aberta e caminhável.
 
-O modo de teste usa o LiveKit self-hosted e os dublês locais. Voz natural, integração com AgentSession, fallback de TTS e orçamento monetário transacional pertencem à próxima etapa, após a escolha autorizada de provedores. Os limites de sessões e tempo já se aplicam ao modo local.
+### Usar voz local em português
+
+O modo de voz usa Faster Whisper para transcrição, Qwen para interpretar a pergunta e Piper para falar a resposta. O modelo escolhe entre intenções permitidas. As consultas ao mapa, à porta e à lista de pessoas passam pelo servidor do Pixelwork, que fornece os dados para a resposta falada. Áudio e texto são processados em memória e os logs registram contadores de uso. Os limites de sessões e tempo valem nos dois modos.
+
+1. No mesmo ambiente Python do passo anterior, instale `python -m pip install faster-whisper==1.2.1 piper-tts==1.3.0`.
+2. Baixe os arquivos públicos de [Faster Whisper Small](https://huggingface.co/Systran/faster-whisper-small/tree/main) (`config.json`, `model.bin`, `tokenizer.json` e `vocabulary.txt`) para a subpasta `whisper-small` do diretório de modelos. Salve `pt_BR-faber-medium.onnx` e `pt_BR-faber-medium.onnx.json` da [voz Piper Faber](https://huggingface.co/rhasspy/piper-voices/tree/main/pt/pt_BR/faber/medium) na raiz desse diretório.
+3. Baixe o [llama.cpp](https://github.com/ggml-org/llama.cpp/releases) para a sua máquina e o arquivo [Qwen2.5-1.5B-Instruct Q4_K_M](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF). Inicie o modelo com `llama-server --model caminho/qwen2.5-1.5b-instruct-q4_k_m.gguf --host 127.0.0.1 --port 8099 --ctx-size 2048 --log-disable`.
+4. No `.env`, defina `RECEPTIONIST_LOCAL_MODELS_DIR` como o caminho absoluto do diretório de modelos e `RECEPTIONIST_LOCAL_LLM_URL=http://127.0.0.1:8099`. Reinicie o Pixelwork. O download inicial dos modelos é público. A inferência da voz e do texto roda localmente, sem chave de API.
+
+Com as duas variáveis vazias, a recepção continua usando os dublês. A integração com AgentSession, o fallback de TTS para outros provedores e o orçamento monetário se aplicam a uma futura etapa com provedores externos.
 
 ### Tempo até o primeiro áudio sintético
 

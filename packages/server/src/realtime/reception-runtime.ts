@@ -26,6 +26,7 @@ export interface ReceptionVoiceRequest {
 }
 
 export interface ReceptionVoice {
+  readonly mode?: 'local' | undefined;
   ready(): boolean;
   start(request: ReceptionVoiceRequest, signal: AbortSignal): Promise<void>;
   stop(id: string): Promise<void>;
@@ -75,7 +76,8 @@ export class ReceptionRuntime {
   presence(): Presence {
     const point = this.map.reception;
     if (!this.enabled || !point) return null;
-    return { ...point, status: this.lease ? 'busy' : this.deps.voice.ready() ? 'available' : 'unavailable' };
+    return { ...point, ...(this.deps.voice.mode ? { voice: this.deps.voice.mode } : {}),
+      status: this.lease ? 'busy' : this.deps.voice.ready() ? 'available' : 'unavailable' };
   }
 
   setEnabled(enabled: boolean): void {

@@ -141,6 +141,7 @@ export type ClientMsg = z.infer<typeof ClientMsg>;
 export type TickMove = [id: string, x: number, y: number, dir: Dir];
 
 export interface ReceptionPresence {
+  voice?: 'local';
   x: number;
   y: number;
   status: 'available' | 'busy' | 'unavailable';
