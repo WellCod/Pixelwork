@@ -1,10 +1,6 @@
 # Pixelwork
 
-Coworking virtual em pixel art 2D. Entre como convidado, explore o escritório, converse por voz e vídeo com quem está perto e participe de reuniões privadas. Cada equipe pode montar seu próprio mapa, personalizar avatares e decorar suas mesas.
-
-O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSocket, PostgreSQL e LiveKit. O servidor valida o movimento e o acesso às salas, enquanto o cliente prevê os passos e interpola os avatares.
-
-![Demo do Pixelwork com a Sala Aurora, a espinha de mesas, as áreas de Halloween e Natal, o lounge, a copa, os jogos e o jardim](docs/prints/coworking.png)
+Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas personalizáveis e uma recepcionista de IA com voz local em português.
 
 [Como rodar](#como-rodar) · [Telas](#telas) · [Recepcionista com voz local](#recepcionista-com-voz-local) · [Arquitetura](#arquitetura) · [Testes](#testes)
 
@@ -35,6 +31,8 @@ O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSoc
 [Como pedir uma rota por voz](#pedir-uma-rota-por-voz)
 
 ### Mapa, personalização e ações
+
+![Visão geral do coworking com a Sala Aurora, mesas de trabalho, áreas temáticas, lounge, copa, jogos e jardim](docs/prints/coworking.png)
 
 | Sala Aurora | Editor de mapas |
 | --- | --- |
