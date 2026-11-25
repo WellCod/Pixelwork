@@ -1,54 +1,37 @@
 # Pixelwork
 
-Coworking virtual 2D em pixel art. Empresas têm coworkings com mapa próprio; as pessoas andam pelo
-mapa, conversam por áudio e vídeo com quem está perto, decoram a própria mesa, entram em salas de
-reunião que podem ser trancadas e fazem chamadas a partir da mesa.
+Coworking virtual em pixel art 2D. Entre como convidado, explore o escritório, converse por voz e vídeo com quem está perto e participe de reuniões privadas. Cada equipe pode montar seu próprio mapa, personalizar avatares e decorar suas mesas.
 
-Projeto de portfólio. O foco é o núcleo de tempo real: servidor autoritativo, predição no cliente,
-proximidade e autorização de mídia feitas no servidor.
+O projeto explora colaboração em tempo real com React, Phaser, Fastify, WebSocket, PostgreSQL e LiveKit. O servidor valida o movimento e o acesso às salas, enquanto o cliente prevê os passos e interpola os avatares.
 
-![Ana e Bruno conversando por vídeo na área aberta; Carla trabalha na mesa decorada](docs/prints/coworking.png)
+![Demo do Pixelwork com a Sala Aurora, a espinha de mesas, as áreas de Halloween e Natal, o lounge, a copa, os jogos e o jardim](docs/prints/coworking.png)
+
+[Como rodar](#como-rodar) · [Telas](#telas) · [Arquitetura](#arquitetura) · [Testes](#testes)
 
 ## O que dá para fazer
 
-- Entrar como convidado (ou com o GitHub) e andar pelo coworking de demonstração, vendo os outros
-  com movimento suave.
-- Chegar perto de alguém liga o áudio e o balão de vídeo; se afastar desliga. Chat em balão para
-  quem está perto.
-- Salas de reunião viram salas de mídia separadas: trancar, bater na porta, aprovar. Quem é
-  recusado não recebe nem o token da sala.
-- Chamada 1:1 a partir da própria mesa, com qualquer pessoa do coworking; compartilhamento de tela
-  em reuniões e chamadas.
-- Status, emoji, cargo por coworking, avatar por camadas com troca de paleta, mesa decorável.
-- Várias empresas e coworkings por conta, convites com limite de usos e validade.
-- Mapas: upload do JSON do Tiled, export em zip que volta a abrir no Tiled, editor dentro do app
-  com desfazer e refazer. Quem está online vê o mapa novo sem recarregar.
-- Indicador de quem está falando (no mapa e na lista), zoom do mapa em degraus inteiros, card de
-  primeiros passos e decoração de mesa escolhida por miniaturas.
-- Clicar no chão para andar até lá (A*) e clicar em alguém para seguir a pessoa.
-- Overlay de rede (F3): RTT, jitter, passos pendentes, correções, posição confirmada pelo
-  servidor e simulador de latência para ver a predição e a reconciliação funcionando.
-- Replay da simulação para admins: a gravação das entradas do servidor reproduzida no navegador
-  com o mesmo `step` puro.
-- Pingpong na mesa de jogos: sozinho contra um bot ou 1x1 com quem chegar do outro lado. A
-  partida é simulada pelo servidor a 30 Hz (módulo puro em `shared`), o cliente prevê a própria
-  raquete e extrapola a bola, os dois adversários se ouvem e quem está perto vê o placar sobre a
-  mesa ([desenho](docs/superpowers/specs/2026-11-22-pingpong-design.md)).
+- **Explorar o escritório.** Ande pelo teclado ou toque no mapa. No celular, use **Mapa** para escolher um destino. Ao chegar perto de um móvel interativo, aparecem ações como sentar ou jogar.
+- **Conversar e se reunir.** Use voz, vídeo e chat por proximidade, faça chamadas 1:1 e compartilhe a tela. Na Sala Aurora, a mesa tem dez lugares e a porta distingue os estados aberta, fechada e trancada. Visitantes podem bater e pedir acesso.
+- **Personalizar avatar e mesa.** Combine camadas, cores, roupas e acessórios. Escolha itens padrão ou coleções temáticas como Halloween, Natal, Grinch e Ano Novo. A demo inclui decoração de Natal com Max e uma fileira de Halloween.
+- **Jogar pingue-pongue e pebolim.** Jogue 1 contra 1 ou enfrente um bot. Quem passa perto vê o placar sobre a mesa. O servidor simula as partidas a 30 Hz.
+- **Editar o mapa.** Mova móveis, altere pisos e tapetes, organize mesas individuais, em fileiras ou em espinha e gire as estações de trabalho e mesas de jogos. O editor tem desfazer e refazer e os mapas podem ser importados e exportados no formato do Tiled. Visitantes podem experimentar o editor na demo.
+- **Gerenciar espaços.** Crie coworkings por organização, convide pessoas e defina papéis. Para investigar a simulação, use o painel de rede (F3). Admins também podem abrir o replay.
 
 ## Telas
 
-![Coworking de demonstração: mesas por equipe, sala de reunião, lounge, copa, jogos e jardim](docs/prints/coworking.png)
+| Sala Aurora | Editor de mapas |
+| --- | --- |
+| ![Mesa de conferência com dez lugares e porta da Sala Aurora trancada](docs/prints/reuniao.png) | ![Editor de mapas com a paleta de móveis por categoria e as zonas do escritório](docs/prints/editor.png) |
 
-O coworking de demonstração inteiro, desenhado por `scripts/render-map.ts`.
+| Personalização de avatar | Decoração da mesa |
+| --- | --- |
+| ![Editor de avatar com a coleção Grinch selecionada](docs/prints/avatar.png) | ![Editor de decoração com a coleção Natal e a prévia da mesa](docs/prints/mesa-decorar.png) |
 
-| | |
-|---|---|
-| ![Sala de reunião trancada, vista de dentro](docs/prints/reuniao.png) | ![Editor de mapa com a paleta de móveis por categoria](docs/prints/editor.png) |
-| Sala de reunião trancada: quem bate na porta espera a aprovação de quem está dentro. | Editor de mapa no app, com móveis por categoria, validado pelo mesmo `compileMap` do upload. |
-| ![Editor de avatar por camadas com troca de paleta](docs/prints/avatar.png) | ![Decoração da mesa larga com prévia ao vivo](docs/prints/mesa-decorar.png) |
-| Avatar por camadas: corpo, roupa, cabelo e acessório, com as cores trocadas no cliente. | Mesa larga própria: variação, tela e itens por posição, com prévia ao vivo. |
+| Destinos no celular | Ações no mapa |
+| --- | --- |
+| <img src="docs/prints/mapa-celular.png" width="230" alt="Menu com os destinos do coworking no celular"> | <img src="docs/prints/jogos-celular.png" width="230" alt="Avatar ao lado da mesa de pingue-pongue com a ação Jogar no celular"> |
 
-Os prints de tela saem do app rodando localmente com o coworking de demo.
+Capturas feitas na demo local. O mapa de demonstração é restaurado diariamente à meia-noite, no horário de Brasília.
 
 ## Como rodar
 
@@ -205,14 +188,10 @@ e um coworking inteiro recebe os movimentos de todos. Para crescer:
 4. **LiveKit em cluster:** o LiveKit já escala horizontalmente com Redis; o servidor só emite
    tokens.
 
-O deploy numa VPS está preparado (Caddy com TLS, app, Postgres, LiveKit), mas não foi feito; ver
-`docs/deploy.md`.
+O [guia de deploy](docs/deploy.md) descreve como rodar a aplicação em uma VPS com Caddy, TLS, PostgreSQL e LiveKit.
 
 ## Arte
 
-A arte é original e gerada em código (`pnpm assets:art`, a partir de `scripts/art/`), na paleta
-Resurrect 64 e num guia de estilo próprio (luz de cima à esquerda, contorno no tom do material,
-fundo claro e calmo): 12 pisos, 3 tapetes, 15 paredes, 54 móveis em quatro tamanhos de célula, mesa
-larga com 33 itens de decoração e avatares com 9 cabelos, 9 roupas e 8 acessórios. Peça desenhada à
-mão substitui a gerada sem mudar código. Licenças aceitas e créditos em
-`docs/art.md` e na página `/creditos` do app.
+A pixel art é gerada em código com `pnpm assets:art`, a partir de `scripts/art/`. A paleta Resurrect 64 e os tons de carvalho são usados em pisos, tapetes, móveis e avatares. O catálogo reúne itens padrão e temáticos, com prévias no editor e na personalização.
+
+O guia de estilo, as licenças e os créditos estão em [docs/art.md](docs/art.md) e na página `/creditos` do app.
