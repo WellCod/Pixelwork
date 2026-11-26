@@ -539,6 +539,10 @@ a.button {
   pointer-events: none;
 }
 
+.room-panel:has(.screen) {
+  z-index: 4;
+}
+
 .room-panel figure {
   position: relative;
   margin: 0;
@@ -564,6 +568,43 @@ a.button {
 .room-panel .screen video {
   max-height: 50vh;
   object-fit: contain;
+}
+
+.room-panel .screen-controls {
+  right: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: fit-content;
+  max-width: calc(100% - 12px);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--ink);
+  text-shadow: none;
+}
+
+.screen-controls button {
+  min-height: 36px;
+  padding: 4px 8px;
+  pointer-events: auto;
+}
+
+.room-panel .screen:fullscreen {
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+
+.room-panel .screen:fullscreen video {
+  height: 100%;
+  max-height: none;
+}
+
+.room-panel .screen:fullscreen .screen-controls {
+  left: 12px;
+  bottom: 12px;
 }
 
 .room-grid {
