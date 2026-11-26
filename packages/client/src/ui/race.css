@@ -1,0 +1,86 @@
+.modal.race-modal {
+  box-sizing: border-box;
+  width: min(710px, calc(100vw - 24px));
+  padding: clamp(12px, 2vw, 22px);
+  background: #1e2840;
+  color: #f0effc;
+  border-color: #626b8e;
+}
+
+.modal.race-modal h2 {
+  color: inherit;
+}
+
+.race-score,
+.race-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.race-score strong { color: #8de7ef; }
+.race-score span + span strong { color: #ffb487; }
+
+.race-track {
+  position: relative;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 2px solid #626b8e;
+  border-radius: 9px;
+}
+
+.race-track canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.race-status {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border: 1px solid #8794b4;
+  border-radius: 8px;
+  color: #fff0d4;
+  background: #1e2840f2;
+  font-size: clamp(1rem, 3vw, 1.3rem);
+  text-align: center;
+}
+
+.race-controls button {
+  min-height: 44px;
+}
+
+.race-controls button:not(.primary) {
+  border-color: #697695;
+  background: #2d3c57;
+  color: #f0effc;
+}
+
+.race-controls button:not(.primary):hover {
+  background: #405372;
+}
+
+.race-controls button:last-child {
+  margin-inline-start: auto;
+}
+
+.race-hint {
+  margin: 10px 0 0;
+  color: #c5c9e3;
+}
+
+.race-error {
+  position: absolute;
+  z-index: 4;
+  inset-inline-start: 12px;
+  bottom: 52px;
+  max-width: calc(100% - 24px);
+}

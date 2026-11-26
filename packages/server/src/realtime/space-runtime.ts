@@ -39,6 +39,7 @@ import type { Metrics } from '../metrics.ts';
 import type { PlayerProfile } from '../spaces/members.ts';
 import { TokenBucket, WindowCounter, type Clock, type Scheduler, type Timer } from './clock.ts';
 import { GameRegistry } from './games.ts';
+import { RaceRegistry } from './races.ts';
 import { ReceptionRuntime, type ReceptionRuntimeDeps, type ReceptionVisitor } from './reception-runtime.ts';
 import { readReceptionTool } from './reception-tools.ts';
 import {
@@ -142,6 +143,7 @@ export class SpaceRuntime {
   private readonly rules: StepRules;
   private readonly recorder: Recorder;
   private readonly games: GameRegistry;
+  private readonly races: RaceRegistry;
   private readonly reception?: ReceptionRuntime;
 
   constructor(
@@ -188,6 +190,10 @@ export class SpaceRuntime {
       activityChanged: (userId) => this.refresh(userId),
       observeFrame: (seconds) => deps.metrics?.gameFrame.observe(seconds),
     });
+    this.races = new RaceRegistry(deps.clock, deps.scheduler, (userId, message) => {
+      const connection = this.members.get(userId)?.connection;
+      if (connection) this.send(connection, message);
+    }, (userId) => this.refresh(userId));
   }
 
   /** Gravação desde a última troca de mapa (ou desde que encheu), para o replay. */
@@ -329,6 +335,7 @@ export class SpaceRuntime {
     // O tick só roda com alguém no mapa; o último a sair o desliga (leave).
     this.ticker ??= this.deps.scheduler.setInterval(() => this.tick(), TICK_MS);
     this.games.reconnected(profile.id);
+    this.races.reconnect(profile.id);
     this.syncMedia(profile.id);
   }
 
@@ -355,7 +362,7 @@ export class SpaceRuntime {
       case 'move': {
         member.lastReceived = message.seq;
         // Com a janela do jogo aberta as teclas são da raquete: o passo é confirmado sem andar.
-        if (this.games.seatOf(userId)) {
+        if (this.games.seatOf(userId) || this.races.has(userId)) {
           member.lastSeq = message.seq;
           member.ackDirty = true;
           break;
@@ -417,7 +424,8 @@ export class SpaceRuntime {
       case 'game.join': {
         // Quem está em chamada atendida não senta para jogar.
         const position = this.world.players.get(userId);
-        const error = position ? this.games.join(userId, message.tableKey, position, Boolean(this.callOf(userId)?.active)) : 'table_not_at_side';
+        const error = this.races.has(userId) ? 'race_busy'
+          : position ? this.games.join(userId, message.tableKey, position, Boolean(this.callOf(userId)?.active)) : 'table_not_at_side';
         if (error) this.send(connection, { t: 'error', code: error });
         else this.standFromFurniture(userId);
         break;
@@ -436,6 +444,34 @@ export class SpaceRuntime {
         break;
       case 'game.input':
         this.games.input(userId, message.seq, message.dir);
+        break;
+      case 'race.join': {
+        const position = this.world.players.get(userId);
+        const cabinet = this.map.arcades.find(({ key }) => key === message.cabinet);
+        const error = this.games.seatOf(userId) || this.callOf(userId) ? 'race_busy'
+          : position ? this.races.join(userId, cabinet, position) : 'race_not_at_arcade';
+        if (error) this.send(connection, { t: 'error', code: error });
+        else {
+          this.standFromFurniture(userId);
+          if (member.queued.length) {
+            member.lastSeq = member.queued.at(-1)?.seq ?? member.lastSeq;
+            member.ackDirty = true;
+            member.queued = [];
+          }
+        }
+        break;
+      }
+      case 'race.solo':
+        this.races.solo(userId);
+        break;
+      case 'race.restart':
+        this.races.restart(userId);
+        break;
+      case 'race.leave':
+        this.races.leave(userId);
+        break;
+      case 'race.steer':
+        this.races.steer(userId, message.dir);
         break;
     }
   }
@@ -473,7 +509,7 @@ export class SpaceRuntime {
   private sitOnFurniture(userId: string, seatKey: string): 'furniture_seat_unavailable' | 'furniture_seat_taken' | null {
     const player = this.world.players.get(userId);
     const seat = this.map.furnitureSeats.find((candidate) => candidate.key === seatKey);
-    if (!player || !seat || this.games.seatOf(userId) || !canReachFurnitureSeat(seat, player.x, player.y)) {
+    if (!player || !seat || this.games.seatOf(userId) || this.races.has(userId) || !canReachFurnitureSeat(seat, player.x, player.y)) {
       return 'furniture_seat_unavailable';
     }
     if (this.seatedOnFurniture.get(userId) === seatKey) return null;
@@ -498,6 +534,7 @@ export class SpaceRuntime {
     const call = this.callOf(userId);
     if (call) this.endCall(call, 'left');
     this.games.disconnected(userId);
+    this.races.leave(userId);
     member.leaveTimer = this.deps.scheduler.setTimeout(() => this.leave(userId), RECONNECT_GRACE_MS);
   }
 
@@ -537,6 +574,7 @@ export class SpaceRuntime {
     this.ticker?.cancel();
     this.ticker = null;
     this.games.close();
+    this.races.close();
     this.reception?.stop('unavailable');
     for (const knock of this.knocks.values()) knock.timer.cancel();
     for (const call of this.calls.values()) call.timer?.cancel();
@@ -585,6 +623,7 @@ export class SpaceRuntime {
     this.reception?.replaceMap(map);
     // Antes do refresh dos jogadores abaixo: quem jogava volta a 'idle'.
     this.games.replaceTables(map.tables);
+    this.races.close();
     const players = new Map(this.world.players);
     for (const [id, player] of players) {
       let destination = relocate(map, player.x, player.y);
@@ -781,7 +820,7 @@ export class SpaceRuntime {
       return;
     }
     const id = randomUUID();
-    if (this.callOf(targetUserId) || this.activityOf(targetUserId) === 'meeting' || this.games.seatOf(targetUserId)) {
+    if (this.callOf(targetUserId) || this.activityOf(targetUserId) === 'meeting' || this.games.seatOf(targetUserId) || this.races.has(targetUserId)) {
       this.send(connection, { t: 'call.ended', callId: id, reason: 'busy' });
       return;
     }
@@ -824,7 +863,7 @@ export class SpaceRuntime {
   /** Atividade mostrada aos outros, em ordem de prioridade: chamada, jogo, reunião. */
   private activityOf(userId: string): Activity {
     if (this.callOf(userId)?.active) return 'call';
-    if (this.games.seatOf(userId)) return 'game';
+    if (this.games.seatOf(userId) || this.races.has(userId)) return 'game';
     const player = this.world.players.get(userId);
     if (player && zoneAt(this.map, player.x, player.y).type === 'meeting') return 'meeting';
     return 'idle';
@@ -966,6 +1005,7 @@ export class SpaceRuntime {
     }
     // Saiu do mapa (fim da tolerância de reconexão): desistência na mesa em que estava.
     this.games.leave(userId);
+    this.races.leave(userId);
     this.seatedOnFurniture.delete(userId);
     if (member.mediaRoom) this.removeFromRoom(member.mediaRoom, userId);
     this.members.delete(userId);

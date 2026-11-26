@@ -1,6 +1,6 @@
 import {
   DIR_DELTA, TILESETS, TILE_PX, findPath, isWalkable, zoneAt,
-  type ClientMsg, type CompiledMap, type CompiledTable, type Dir, type FurnitureSeat, type Tile,
+  type Arcade, type ClientMsg, type CompiledMap, type CompiledTable, type Dir, type FurnitureSeat, type Tile,
 } from '@pixelwork/shared';
 import type { ClientWorld } from '../net/client-world.ts';
 import { objectLayer, resolveGid } from './tiled.ts';
@@ -15,9 +15,10 @@ type Target = { id: string; bounds: Bounds; label: string; name: string } & (
   | { kind: 'game'; table: CompiledTable }
   | { kind: 'door'; zoneKey: string; inside: Tile; outside: Tile[] }
   | { kind: 'aquarium' }
+  | { kind: 'arcade'; arcade: Arcade }
 );
 export type WorldTargets = ReturnType<typeof collectWorldTargets>;
-type ActionMessage = Extract<ClientMsg, { t: 'furniture.sit' | 'game.join' | 'zone.knock' }>;
+type ActionMessage = Extract<ClientMsg, { t: 'furniture.sit' | 'game.join' | 'zone.knock' | 'race.join' }>;
 interface Spot { tile: Tile; message: ActionMessage }
 interface Approach extends Spot { path: Dir[] }
 
@@ -52,6 +53,9 @@ export function collectWorldTargets(map: CompiledMap, mapJson: Record<string, un
     return { id: table.key, kind: 'game', bounds: table, table, label: `Jogar ${game}`, name: `Jogar ${game}` };
   });
   const targets = new Map(tables.map((table) => [table.id, table]));
+  for (const arcade of map.arcades) {
+    targets.set(arcade.key, { id: arcade.key, kind: 'arcade', arcade, bounds: arcade, label: 'Jogar corrida', name: 'Jogar corrida' });
+  }
   for (const object of objectLayer(mapJson, 'furniture')) {
     const tile = object.gid ? resolveGid(mapJson, object.gid) : null;
     if (!tile) continue;
@@ -82,6 +86,8 @@ export function collectWorldTargets(map: CompiledMap, mapJson: Record<string, un
 
 function availableSpots(world: ClientWorld, target: Target, occupied: ReadonlySet<string>): Spot[] {
   if (target.kind === 'aquarium') return [];
+  if (target.kind === 'arcade') return target.arcade.spots
+    .map((tile) => ({ tile, message: { t: 'race.join', cabinet: target.arcade.key } }));
   if (target.kind === 'seat') {
     return target.seats.filter(({ key }) => !occupied.has(key)).flatMap(({ key, approaches }) =>
       approaches.map(([x, y]) => ({ tile: { x, y }, message: { t: 'furniture.sit', seatKey: key } })));
@@ -114,7 +120,7 @@ function closestApproach(world: ClientWorld, spots: Spot[], maxSteps = Infinity)
 }
 
 export function nearbyActions(world: ClientWorld, targets: WorldTargets) {
-  if (!world.selfId || world.seat || world.players.get(world.selfId)?.seatedAt) return [];
+  if (!world.selfId || world.seat || world.race || world.players.get(world.selfId)?.seatedAt) return [];
   const occupied = occupiedSeats(world);
   const actions = targets.flatMap((target) => {
     const approach = closestApproach(world, availableSpots(world, target, occupied), NEAR_STEPS);
@@ -143,10 +149,14 @@ export function aquariumAt(targets: WorldTargets, tile: Tile): boolean {
 }
 
 export function actionAt(world: ClientWorld, target: Target): ActionMessage | null {
-  if (!world.selfId || world.seat || world.players.get(world.selfId)?.seatedAt) return null;
+  if (!world.selfId || world.seat || world.race || world.players.get(world.selfId)?.seatedAt) return null;
   const spots = availableSpots(world, target, occupiedSeats(world));
   if (!at(world.self, world.confirmed)) return null;
   return spots.find(({ tile }) => at(world.confirmed, tile))?.message ?? null;
+}
+
+export function arcadeAt(targets: WorldTargets, tile: Tile) {
+  return targets.find((target) => target.kind === 'arcade' && inBounds(target.bounds, tile));
 }
 
 /** Busca uma chegada caminhável dentro da área. Uma sala trancada pode levar à sua porta. */

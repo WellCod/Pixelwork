@@ -3,6 +3,7 @@ export * from './avatar.ts';
 export * from './catalog.generated.ts';
 export * from './constants.ts';
 export * from './map.ts';
+export * from './racing.ts';
 export * from './furniture.ts';
 export * from './furniture-seats.ts';
 export * from './protocol.ts';

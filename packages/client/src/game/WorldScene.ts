@@ -31,7 +31,7 @@ import { drawDeskJoins } from './desk-joins.ts';
 import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
 import { embedTilesets, objectLayer, propertyValue, resolveGid } from './tiled.ts';
-import { aquariumAt, objectApproach, type WorldTargets } from './world-actions.ts';
+import { actionAt, aquariumAt, arcadeAt, objectApproach, type WorldTargets } from './world-actions.ts';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 
 export interface WorldSceneOptions {
@@ -358,9 +358,15 @@ export class WorldScene extends Phaser.Scene {
     const { world } = this.options;
     if (!world.selfId) return;
     const tile = { x: Math.floor(pointer.worldX / TILE_PX), y: Math.floor(pointer.worldY / TILE_PX) };
-    if (!world.seat && aquariumAt(this.options.targets, tile)) {
+    if (!world.seat && !world.race && aquariumAt(this.options.targets, tile)) {
       this.cancelAuto();
       this.options.onAquariumOpen();
+      return;
+    }
+    const arcade = arcadeAt(this.options.targets, tile);
+    const join = arcade && actionAt(world, arcade);
+    if (join?.t === 'race.join') {
+      if (this.followPath([])) this.options.send(join);
       return;
     }
     const clicked = over
@@ -415,7 +421,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Destinos e ações no mapa usam a mesma fila do clique no chão. */
   followPath(path: Dir[]): boolean {
-    if (!this.options.world.selfId || this.options.world.seat || (this.options.canMove && !this.options.canMove())) return false;
+    if (!this.options.world.selfId || this.options.world.seat || this.options.world.race || (this.options.canMove && !this.options.canMove())) return false;
     this.setFollowing(null);
     this.route = [...path];
     return true;

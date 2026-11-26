@@ -14,6 +14,7 @@ import { ClientWorld } from './net/client-world.ts';
 import { Connection, type ConnectionStatus } from './net/connection.ts';
 import { CallUi } from './ui/CallUi.tsx';
 import { AquariumModal } from './ui/AquariumModal.tsx';
+import { RaceWindow } from './ui/RaceWindow.tsx';
 import { ChatBox } from './ui/ChatBox.tsx';
 import { DeskBar } from './ui/DeskBar.tsx';
 import { GameWindow } from './ui/GameWindow.tsx';
@@ -201,6 +202,7 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
           </div>
           {!editor && <ChatBox world={world} send={send} />}
           {!editor && <GameWindow world={world} send={send} />}
+          {!editor && <RaceWindow world={world} send={send} />}
           {!editor && <NetOverlay sim={netSim} world={world} stats={netStats} />}
           {!editor && space.role === 'admin' && (
             <button type="button" className="replay-toggle" title="Replay da simulação" onClick={() => setReplayOpen(true)}>
