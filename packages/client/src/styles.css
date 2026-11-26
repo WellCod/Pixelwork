@@ -627,7 +627,7 @@ a.button {
   display: flex;
   flex-direction: column-reverse;
   box-sizing: border-box;
-  width: min(380px, 85%);
+  max-width: min(680px, 85%);
   max-height: 100%;
   pointer-events: auto;
   box-shadow: var(--shadow);
@@ -636,7 +636,7 @@ a.button {
 .room-panel .screen[data-floating='true'] video {
   aspect-ratio: 16 / 9;
   min-height: 0;
-  max-height: 35vh;
+  max-height: none;
 }
 
 .room-panel .screen[data-floating='true'] .screen-controls {
@@ -655,6 +655,34 @@ a.button {
 
 .screen-drag:active {
   cursor: grabbing;
+}
+
+.screen-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-sm) 0 0 0;
+  cursor: nwse-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.screen-resize::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 5px);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.screen-resize:focus-visible {
+  outline-offset: -3px;
 }
 
 .room-panel .screen:fullscreen {
