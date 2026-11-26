@@ -16,6 +16,7 @@ export function MediaControls({ media, onReconnect }: { media: MediaManager; onR
   useMedia(media);
   const preview = useRef<HTMLVideoElement>(null);
   const localVideoTrack = media.localVideo();
+  const screenLabel = media.screenOn ? 'Parar de compartilhar' : 'Compartilhar tela';
 
   // Liga a trilha da própria câmera ao <video> da prévia e solta ao trocar de trilha ou desmontar.
   useEffect(() => {
@@ -49,17 +50,27 @@ export function MediaControls({ media, onReconnect }: { media: MediaManager; onR
         <CamIcon off={!media.camOn} />
         <span>{media.camOn ? 'Câmera' : 'Sem câmera'}</span>
       </button>
-      {/* Compartilhar tela só existe em sala privada (reunião ou chamada). */}
       {media.isPrivate && (
-        <button
-          type="button"
-          className={media.screenOn ? 'media-toggle on' : 'media-toggle'}
-          aria-pressed={media.screenOn}
-          onClick={() => void media.setScreenShare(!media.screenOn)}
-        >
-          <ScreenIcon />
-          <span>{media.screenOn ? 'Parar de compartilhar' : 'Compartilhar tela'}</span>
-        </button>
+        <>
+          <button
+            type="button"
+            className={media.screenOn ? 'media-toggle on' : 'media-toggle'}
+            aria-label={screenLabel}
+            title={screenLabel}
+            disabled={!media.connected || media.screenPending}
+            onClick={() => void media.setScreenShare(!media.screenOn)}
+          >
+            <ScreenIcon />
+            <span>{screenLabel}</span>
+          </button>
+          <span className="muted" role="status">
+            {media.screenOn
+              ? 'Tela visível para os participantes'
+              : media.screenPending
+                ? 'Abrindo compartilhamento…'
+                : 'Tela disponível nesta reunião ou chamada'}
+          </span>
+        </>
       )}
       {media.camOn && (
         <div className="self-preview">
