@@ -12,6 +12,33 @@ const MOVE_WINDOW: Record<string, [number, number]> = {
   ArrowDown: [0, 24],
 };
 
+interface FloatingLayout {
+  x: number;
+  y: number;
+  width: number;
+}
+
+const FLOATING_LAYOUT_KEY = 'pixelwork:floating-presentation-layout';
+const DEFAULT_FLOATING_LAYOUT: FloatingLayout = { x: 80, y: 65, width: 380 };
+const MAX_FLOATING_WIDTH = 680;
+
+function readFloatingLayout(): FloatingLayout | undefined {
+  try {
+    const stored = localStorage.getItem(FLOATING_LAYOUT_KEY);
+    if (stored === null) return;
+    const value: unknown = JSON.parse(stored);
+    if (!value || typeof value !== 'object') return;
+    const { x, y, width } = value as Partial<Record<keyof FloatingLayout, unknown>>;
+    if (
+      typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 100 &&
+      typeof y === 'number' && Number.isFinite(y) && y >= 0 && y <= 100 &&
+      typeof width === 'number' && Number.isFinite(width) && width > 0 && width <= MAX_FLOATING_WIDTH
+    ) return { x, y, width };
+  } catch {
+    // O modo flutuante também funciona quando o navegador bloqueia o armazenamento.
+  }
+}
+
 function positionInMap(screen: HTMLElement, left: number, top: number) {
   const area = screen.offsetParent;
   if (!area) return;
@@ -60,12 +87,13 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const [mode, setMode] = useState<'panel' | 'minimized' | 'floating'>('panel');
-  const [position, setPosition] = useState({ x: 80, y: 65 });
-  const [width, setWidth] = useState(380);
+  const [layout, setLayout] = useState(DEFAULT_FLOATING_LAYOUT);
+  const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; y: number; resize: DOMRect | null } | null>(null);
   const resizeAnchor = useRef<DOMRect | null>(null);
   const minimized = mode === 'minimized';
   const floating = mode === 'floating' && !fullscreen;
+  const { x, y, width } = layout;
 
   useEffect(() => {
     const syncFullscreen = () => setFullscreen(document.fullscreenElement === screenRef.current);
@@ -80,8 +108,22 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     resizeAnchor.current = null;
     // Mede a nova altura após a quebra de linha dos botões para manter o canto superior no lugar.
     const nextPosition = positionInMap(screen, anchor.left, anchor.top);
-    if (nextPosition) setPosition(nextPosition);
+    if (nextPosition) setLayout((current) => ({ ...current, ...nextPosition }));
   }, [width]);
+
+  useEffect(() => {
+    if (!floating || dragging) return;
+    try {
+      localStorage.setItem(FLOATING_LAYOUT_KEY, JSON.stringify(layout));
+    } catch {
+      // A janela conserva os ajustes em memória se não puder salvá-los.
+    }
+  }, [dragging, floating, layout]);
+
+  function toggleFloating() {
+    if (!floating) setLayout(readFloatingLayout() ?? layout);
+    setMode(floating ? 'panel' : 'floating');
+  }
 
   async function toggleFullscreen() {
     const screen = screenRef.current;
@@ -113,18 +155,18 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     const screen = screenRef.current;
     if (!screen) return;
     const nextPosition = positionInMap(screen, left, top);
-    if (nextPosition) setPosition(nextPosition);
+    if (nextPosition) setLayout((current) => ({ ...current, ...nextPosition }));
   }
 
   function resizeWindow(bounds: DOMRect, delta: number) {
     const area = screenRef.current?.offsetParent;
     if (!area) return;
-    const maximum = Math.floor(Math.min(680, area.clientWidth * 0.85));
+    const maximum = Math.floor(Math.min(MAX_FLOATING_WIDTH, area.clientWidth * 0.85));
     const minimum = Math.min(240, maximum);
     const nextWidth = Math.max(minimum, Math.min(maximum, Math.round(bounds.width + delta)));
     if (nextWidth === width) return;
     resizeAnchor.current = bounds;
-    setWidth(nextWidth);
+    setLayout((current) => ({ ...current, width: nextWidth }));
   }
 
   function startDrag(event: PointerEvent<HTMLButtonElement>, resize = false) {
@@ -135,6 +177,7 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
       ? { x: event.clientX, y: event.clientY, resize: bounds }
       : { x: event.clientX - bounds.left, y: event.clientY - bounds.top, resize: null };
     event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
   }
 
   function moveDrag(event: PointerEvent<HTMLButtonElement>) {
@@ -148,6 +191,11 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     } else {
       moveWindow(horizontal, vertical);
     }
+  }
+
+  function endDrag() {
+    drag.current = null;
+    setDragging(false);
   }
 
   function moveWithKeys(event: KeyboardEvent<HTMLButtonElement>, resize = false) {
@@ -169,9 +217,9 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
       data-floating={floating}
       style={floating ? {
         width,
-        left: `${position.x}%`,
-        top: `${position.y}%`,
-        transform: `translate(-${position.x}%, -${position.y}%)`,
+        left: `${x}%`,
+        top: `${y}%`,
+        transform: `translate(-${x}%, -${y}%)`,
       } : undefined}
     >
       {floating && (
@@ -182,7 +230,7 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
           title="Arraste o canto ou use as setas para redimensionar"
           onPointerDown={(event) => startDrag(event, true)}
           onPointerMove={moveDrag}
-          onLostPointerCapture={() => { drag.current = null; }}
+          onLostPointerCapture={endDrag}
           onKeyDown={(event) => moveWithKeys(event, true)}
         />
       )}
@@ -196,14 +244,14 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
             title="Arraste ou use as setas para mover a apresentação"
             onPointerDown={startDrag}
             onPointerMove={moveDrag}
-            onLostPointerCapture={() => { drag.current = null; }}
+            onLostPointerCapture={endDrag}
             onKeyDown={moveWithKeys}
           >
             Mover
           </button>
         )}
         {!minimized && !fullscreen && (
-          <button type="button" onClick={() => setMode(floating ? 'panel' : 'floating')}>
+          <button type="button" onClick={toggleFloating}>
             {floating ? 'Voltar ao painel' : 'Flutuante'}
           </button>
         )}
