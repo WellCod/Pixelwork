@@ -99,7 +99,7 @@ para https em endereço público.
 
 1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
 2. Na área de jogos, cada pessoa vai até um fliperama diferente e escolhe **Jogar corrida**. Quem entra primeiro fica na sala de espera. A contagem regressiva começa quando o segundo jogador entra pela outra máquina.
-3. Usem **←** e **→** ou os botões na tela para desviar dos cones. Vence quem cruzar primeiro a linha dos **1.200 m**.
+3. Segurem **↑** para acelerar e **↓** para frear. Usem **←** e **→** para desviar dos cones e **Shift** para o turbo, que recarrega após o uso. Os botões na tela também funcionam por toque. Vence quem cruzar primeiro a linha dos **1.200 m**.
 
 Para praticar sozinho, escolha **Jogar sozinho** na sala de espera.
 

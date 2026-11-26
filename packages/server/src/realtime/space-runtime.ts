@@ -473,6 +473,12 @@ export class SpaceRuntime {
       case 'race.steer':
         this.races.steer(userId, message.dir);
         break;
+      case 'race.pedal':
+        this.races.pedal(userId, message.pedal);
+        break;
+      case 'race.turbo':
+        this.races.turbo(userId);
+        break;
     }
   }
 

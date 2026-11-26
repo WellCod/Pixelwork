@@ -140,6 +140,8 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('race.leave') }),
   z.object({ t: z.literal('race.restart') }),
   z.object({ t: z.literal('race.steer'), dir: z.union([z.literal(-1), z.literal(1)]) }),
+  z.object({ t: z.literal('race.pedal'), pedal: z.enum(['coast', 'accelerate', 'brake']) }),
+  z.object({ t: z.literal('race.turbo') }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 

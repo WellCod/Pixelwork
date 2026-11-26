@@ -1,5 +1,5 @@
-import { RACE_CONES, RACE_LENGTH, type ClientMsg, type RaceDriver, type RaceLane, type RaceState } from '@pixelwork/shared';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { RACE_CONES, RACE_LENGTH, type ClientMsg, type RaceDriver, type RaceLane, type RacePedal, type RaceState } from '@pixelwork/shared';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ClientWorld } from '../net/client-world.ts';
 import { Modal } from './Modal.tsx';
 import './race.css';
@@ -68,6 +68,12 @@ function paintRace(ctx: CanvasRenderingContext2D, race: RaceState, own: RaceDriv
     const x = center + (beside ? (local ? -11 : 11) * size : 0);
     const dark = local ? '#23567c' : '#79435d';
     const body = local ? '#59d5ee' : '#ff9f74';
+    if (driver.turboActive) {
+      rect('#e383fa', x - 8 * size, y + 2 * size, 5 * size, 10 * size);
+      rect('#e383fa', x + 3 * size, y + 2 * size, 5 * size, 10 * size);
+      rect('#fff0a6', x - 7 * size, y + 2 * size, 3 * size, 5 * size);
+      rect('#fff0a6', x + 4 * size, y + 2 * size, 3 * size, 5 * size);
+    }
     rect('#20273d', x - 15 * size, y - 8 * size, 30 * size, 11 * size);
     rect(dark, x - 12 * size, y - 15 * size, 24 * size, 15 * size);
     rect(driver.hit ? '#f5db91' : body, x - 10 * size, y - 12 * size, 20 * size, 10 * size);
@@ -77,13 +83,38 @@ function paintRace(ctx: CanvasRenderingContext2D, race: RaceState, own: RaceDriv
   }
 }
 
+const pedalKeys = new Map<string, RacePedal>([
+  ['ArrowUp', 'accelerate'], ['KeyW', 'accelerate'], ['ArrowDown', 'brake'], ['KeyS', 'brake'],
+]);
+
 export function RaceWindow({ world, send }: { world: ClientWorld; send: (message: ClientMsg) => void }) {
   const race = useSyncExternalStore((change) => world.subscribe(change), () => world.race);
   const [error, setError] = useState<string | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const held = useRef(new Map<string, RacePedal>());
+  const sentPedal = useRef<RacePedal>('coast');
   const own = race?.drivers.find(({ id }) => id === world.selfId);
   const steering = race?.phase === 'running' || race?.phase === 'countdown';
-  const leave = () => send({ t: 'race.leave' });
+  const running = race?.phase === 'running';
+  const updatePedal = useCallback(() => {
+    const pedals = [...held.current.values()];
+    const pedal = pedals.includes('brake') ? 'brake' : pedals.includes('accelerate') ? 'accelerate' : 'coast';
+    if (pedal === sentPedal.current) return;
+    sentPedal.current = pedal;
+    send({ t: 'race.pedal', pedal });
+  }, [send]);
+  const hold = (source: string, pedal: RacePedal) => {
+    held.current.set(source, pedal);
+    updatePedal();
+  };
+  const release = (source: string) => {
+    if (held.current.delete(source)) updatePedal();
+  };
+  const clear = useCallback(() => {
+    held.current.clear();
+    updatePedal();
+  }, [updatePedal]);
+  const leave = () => { clear(); send({ t: 'race.leave' }); };
 
   useEffect(() => world.subscribe((event) => {
     if (event.type === 'selfStep' || event.type === 'race' || event.type === 'reset') setError(null);
@@ -97,19 +128,48 @@ export function RaceWindow({ world, send }: { world: ClientWorld; send: (message
 
   useEffect(() => {
     if (!steering) return;
-    const arrow = (event: KeyboardEvent) => {
+    const keyDown = (event: KeyboardEvent) => {
+      const pedal = pedalKeys.get(event.code);
+      if (pedal) {
+        event.preventDefault();
+        if (!event.repeat) {
+          held.current.set(event.code, pedal);
+          updatePedal();
+        }
+        return;
+      }
+      if (event.key === 'Shift') {
+        if (!event.repeat) send({ t: 'race.turbo' });
+        return;
+      }
       const dir = event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a' ? -1 :
         event.key === 'ArrowRight' || event.key.toLowerCase() === 'd' ? 1 : 0;
       if (!dir) return;
       event.preventDefault();
       if (!event.repeat) send({ t: 'race.steer', dir });
     };
-    window.addEventListener('keydown', arrow);
-    return () => window.removeEventListener('keydown', arrow);
-  }, [steering, send]);
+    const keyUp = (event: KeyboardEvent) => {
+      if (held.current.delete(event.code)) updatePedal();
+    };
+    const onVisibilityChange = () => { if (document.hidden) clear(); };
+    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keyup', keyUp);
+    window.addEventListener('blur', clear);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keyup', keyUp);
+      window.removeEventListener('blur', clear);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clear();
+    };
+  }, [steering, send, clear, updatePedal]);
 
   if (!race || !own) return error ? <div className="race-error hud-card" role="alert">{error}</div> : null;
   const rival = race.drivers.find(({ id }) => id !== own.id);
+  const ready = running && own.turboReadyInMs === 0;
+  const turboLabel = own.turboActive ? 'Turbo ativo' : own.turboReadyInMs > 0
+    ? `Turbo em ${Math.ceil(own.turboReadyInMs / 1_000)} s` : 'Turbo';
   const status = race.phase === 'countdown' ? String(race.countdown)
     : race.phase === 'waiting' ? 'Aguardando outro jogador no fliperama ao lado'
       : race.phase === 'running' ? null
@@ -122,6 +182,7 @@ export function RaceWindow({ world, send }: { world: ClientWorld; send: (message
       <div className="race-score">
         <span><strong>Você</strong> {Math.min(RACE_LENGTH, Math.floor(own.distance))} / {RACE_LENGTH} m</span>
         {rival && <span><strong>Adversário</strong> {Math.min(RACE_LENGTH, Math.floor(rival.distance))} m</span>}
+        <span className="race-speed" aria-label="Velocidade">{Math.round(own.speed * 3.6)} km/h</span>
       </div>
       <div className="race-track">
         <canvas ref={canvas} width={WIDTH} height={HEIGHT} role="img" aria-label="Pista noturna com três faixas, cones e carros" />
@@ -133,10 +194,35 @@ export function RaceWindow({ world, send }: { world: ClientWorld; send: (message
         {steering && <>
           <button type="button" onClick={() => send({ t: 'race.steer', dir: -1 })}>← Esquerda</button>
           <button type="button" onClick={() => send({ t: 'race.steer', dir: 1 })}>Direita →</button>
+          {(['accelerate', 'brake'] as const).map((pedal) => (
+            <button key={pedal} type="button" className="race-pedal"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                hold(`pointer-${event.pointerId}`, pedal);
+              }}
+              onPointerUp={(event) => release(`pointer-${event.pointerId}`)}
+              onPointerCancel={(event) => release(`pointer-${event.pointerId}`)}
+              onLostPointerCapture={(event) => release(`pointer-${event.pointerId}`)}
+              onKeyDown={(event) => {
+                if (event.key !== ' ' && event.key !== 'Enter') return;
+                event.preventDefault();
+                if (!event.repeat) hold(`button-${pedal}`, pedal);
+              }}
+              onKeyUp={(event) => {
+                if (event.key !== ' ' && event.key !== 'Enter') return;
+                event.preventDefault();
+                release(`button-${pedal}`);
+              }}
+              onBlur={() => release(`button-${pedal}`)}>
+              {pedal === 'accelerate' ? 'Acelerar' : 'Frear'}
+            </button>
+          ))}
+          <button type="button" className="primary" disabled={!ready} onClick={() => send({ t: 'race.turbo' })}>{turboLabel}</button>
         </>}
         <button type="button" onClick={leave}>Sair da corrida</button>
       </div>
-      {steering && <p className="race-hint">Use as setas ou os botões para desviar dos cones.</p>}
+      {steering && <p className="race-hint">Segure ↑ para acelerar ou ↓ para frear. Use ← e → para virar e Shift para o turbo.</p>}
     </Modal>
   );
 }

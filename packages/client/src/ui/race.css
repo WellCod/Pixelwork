@@ -22,6 +22,7 @@
 
 .race-score strong { color: #8de7ef; }
 .race-score span + span strong { color: #ffb487; }
+.race-speed { margin-inline-start: auto; }
 
 .race-track {
   position: relative;
@@ -56,6 +57,11 @@
 
 .race-controls button {
   min-height: 44px;
+}
+
+.race-pedal {
+  touch-action: none;
+  user-select: none;
 }
 
 .race-controls button:not(.primary) {

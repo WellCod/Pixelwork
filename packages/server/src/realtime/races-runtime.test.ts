@@ -48,11 +48,34 @@ it('reserva uma máquina por jogador e compartilha a corrida entre as máquinas 
     expect((await left.bot.next('race.state')).race).toEqual(match);
 
     left.bot.send({ t: 'race.steer', dir: 1 });
+    left.bot.send({ t: 'race.pedal', pedal: 'accelerate' });
     await left.bot.flush();
     server.clock.advance(4_000);
     const moving = await right.bot.next('race.state', ({ race }) =>
       race?.phase === 'running' && race.drivers.some(({ distance }) => distance > 0));
     expect(moving.race?.drivers[0]).toMatchObject({ id: left.id, lane: 1 });
+    expect(moving.race?.drivers[1]).toMatchObject({ id: right.id, speed: 0, distance: 0 });
+
+    left.bot.send({ t: 'race.turbo' });
+    await left.bot.flush();
+    server.clock.advance(800);
+    const boosted = (await right.bot.next('race.state', ({ race }) =>
+      Boolean(race?.drivers.some(({ turboActive, speed }) => turboActive && speed > 110)))).race?.drivers[0];
+    expect(boosted).toMatchObject({ id: left.id, turboActive: true });
+    left.bot.send({ t: 'race.pedal', pedal: 'brake' });
+    await left.bot.flush();
+    server.clock.advance(1_000);
+    const stopped = (await right.bot.next('race.state', ({ race }) =>
+      Boolean(race?.drivers.some(({ id, speed, turboActive, turboReadyInMs }) =>
+        id === left.id && speed === 0 && !turboActive && turboReadyInMs > 0)))).race?.drivers[0];
+    expect(stopped?.turboReadyInMs).toBeGreaterThan(0);
+    left.bot.send({ t: 'race.pedal', pedal: 'coast' });
+    left.bot.send({ t: 'race.turbo' });
+    await left.bot.flush();
+    server.clock.advance(100);
+    expect(await right.bot.next('race.state', ({ race }) => Boolean(race?.drivers[0] &&
+      race.drivers[0].turboReadyInMs > 0 && race.drivers[0].turboReadyInMs < (stopped?.turboReadyInMs ?? 0))))
+      .toMatchObject({ race: { drivers: [{ id: left.id, turboActive: false, speed: 0 }, expect.any(Object)] } });
     right.bot.send({ t: 'race.leave' });
     expect((await right.bot.next('race.state', ({ race }) => race === null)).race).toBeNull();
     expect((await left.bot.next('race.state', ({ race }) => race?.phase === 'finished')).race)
@@ -61,6 +84,8 @@ it('reserva uma máquina por jogador e compartilha a corrida entre as máquinas 
     await left.bot.next('race.state', ({ race }) => race?.phase === 'waiting');
     left.bot.send({ t: 'race.solo' });
     await left.bot.next('race.state', ({ race }) => race?.solo === true);
+    left.bot.send({ t: 'race.pedal', pedal: 'accelerate' });
+    await left.bot.flush();
     server.clock.advance(35_000);
     expect((await left.bot.next('race.state', ({ race }) => race?.phase === 'finished')).race)
       .toMatchObject({ solo: true, winner: left.id, opponentLeft: false });
