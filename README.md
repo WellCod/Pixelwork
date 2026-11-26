@@ -107,6 +107,12 @@ Entre em uma sala de reunião, como a **Sala Aurora**, ou inicie uma chamada pri
 
 Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem a apresentação. Use **Parar de compartilhar** ou saia da sala para encerrar.
 
+#### Ver uma apresentação em tela cheia
+
+1. Na **Sala Aurora** ou em uma **chamada privada**, espere a apresentação aparecer sobre o mapa.
+2. Clique em **Tela cheia** no rodapé do vídeo, ao lado do nome de quem apresenta.
+3. Para voltar ao mapa, clique em **Sair da tela cheia**. Se a apresentação ou a chamada terminar, o mapa volta automaticamente.
+
 ## Corrida 1x1 nos fliperamas
 
 1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
