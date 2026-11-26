@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import type { MediaManager } from '../media/media-manager.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useMedia } from './MediaControls.tsx';
+import { FullscreenIcon, GripIcon, MinimizeIcon, PanelIcon } from './icons.tsx';
 import { useWorld } from './useWorld.ts';
 
 const MOVE_WINDOW: Record<string, [number, number]> = {
@@ -84,6 +85,8 @@ export function RoomPanel({ media, world }: { media: MediaManager; world: Client
 
 function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }) {
   const screenRef = useRef<HTMLElement>(null);
+  const floatingToggle = useRef<HTMLButtonElement>(null);
+  const restoreToggleFocus = useRef(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const [mode, setMode] = useState<'panel' | 'minimized' | 'floating'>('panel');
@@ -94,6 +97,9 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
   const minimized = mode === 'minimized';
   const floating = mode === 'floating' && !fullscreen;
   const { x, y, width } = layout;
+  const title = name ? `Tela de ${name}` : 'Tela compartilhada';
+  const fullscreenLabel = fullscreen ? 'Sair da tela cheia' : 'Tela cheia';
+  const minimizeLabel = minimized ? 'Restaurar apresentação' : 'Minimizar';
 
   useEffect(() => {
     const syncFullscreen = () => setFullscreen(document.fullscreenElement === screenRef.current);
@@ -120,8 +126,15 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     }
   }, [dragging, floating, layout]);
 
+  useLayoutEffect(() => {
+    if (!restoreToggleFocus.current) return;
+    restoreToggleFocus.current = false;
+    floatingToggle.current?.focus({ preventScroll: true });
+  }, [floating]);
+
   function toggleFloating() {
     if (!floating) setLayout(readFloatingLayout() ?? layout);
+    restoreToggleFocus.current = true;
     setMode(floating ? 'panel' : 'floating');
   }
 
@@ -241,38 +254,51 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
       )}
       <Video track={track} />
       <figcaption className="screen-controls">
-        <span>{name ? `Tela de ${name}` : 'Tela compartilhada'}</span>
-        {floating && (
-          <button
-            type="button"
-            className="screen-drag"
-            title="Arraste ou use as setas para mover a apresentação"
-            onPointerDown={startDrag}
-            onPointerMove={moveDrag}
-            onLostPointerCapture={endDrag}
-            onKeyDown={moveWithKeys}
-          >
-            Mover
-          </button>
+        {floating ? (
+          <>
+            <button
+              type="button"
+              className="screen-drag"
+              aria-label="Mover"
+              title="Arraste ou use as setas para mover a apresentação"
+              onPointerDown={startDrag}
+              onPointerMove={moveDrag}
+              onLostPointerCapture={endDrag}
+              onKeyDown={moveWithKeys}
+            >
+              <GripIcon />
+              <span className="screen-title">{title}</span>
+            </button>
+            <button ref={floatingToggle} type="button" className="screen-dock" onClick={toggleFloating}
+              aria-label="Voltar ao painel" title="Voltar ao painel">
+              <PanelIcon />
+              <span>Voltar ao painel</span>
+            </button>
+          </>
+        ) : (
+          <span className="screen-title">{title}</span>
         )}
-        {!minimized && !fullscreen && (
-          <button type="button" onClick={toggleFloating}>
-            {floating ? 'Voltar ao painel' : 'Flutuante'}
+        <div className="screen-actions">
+          {!minimized && !fullscreen && !floating && (
+            <button ref={floatingToggle} type="button" onClick={toggleFloating}>Flutuante</button>
+          )}
+          {floating && (
+            <button type="button" className="screen-reset" onClick={resetFloatingLayout}
+              aria-label="Redefinir janela" title="Voltar à posição e ao tamanho padrão">
+              <span>Redefinir janela</span>
+            </button>
+          )}
+          {!minimized && (
+            <button type="button" aria-label={fullscreenLabel} title={fullscreenLabel}
+              onClick={() => void toggleFullscreen()}>
+              {floating ? <FullscreenIcon /> : fullscreenLabel}
+            </button>
+          )}
+          <button type="button" aria-label={minimizeLabel} title={minimizeLabel} aria-expanded={!minimized}
+            onClick={() => void toggleMinimized()}>
+            {floating ? <MinimizeIcon /> : minimizeLabel}
           </button>
-        )}
-        {floating && (
-          <button type="button" onClick={resetFloatingLayout} title="Voltar à posição e ao tamanho padrão">
-            Redefinir janela
-          </button>
-        )}
-        {!minimized && (
-          <button type="button" onClick={() => void toggleFullscreen()}>
-            {fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
-          </button>
-        )}
-        <button type="button" aria-expanded={!minimized} onClick={() => void toggleMinimized()}>
-          {minimized ? 'Restaurar apresentação' : 'Minimizar'}
-        </button>
+        </div>
         {fullscreenError && <span role="status">Tela cheia indisponível no navegador.</span>}
       </figcaption>
     </figure>

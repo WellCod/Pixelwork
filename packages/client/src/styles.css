@@ -607,6 +607,17 @@ a.button {
   pointer-events: auto;
 }
 
+.screen-title {
+  font-weight: 650;
+}
+
+.screen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 .room-panel .screen[data-minimized='true'] {
   align-self: flex-start;
   max-width: 100%;
@@ -630,7 +641,7 @@ a.button {
   max-width: min(680px, 85%);
   max-height: 100%;
   pointer-events: auto;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-strong);
 }
 
 .room-panel .screen[data-floating='true'] video {
@@ -644,30 +655,99 @@ a.button {
   box-sizing: border-box;
   width: 100%;
   max-width: none;
+  flex-wrap: nowrap;
+  gap: 4px;
   border-radius: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
 }
 
 .screen-drag {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
   cursor: grab;
   touch-action: none;
   user-select: none;
+}
+
+.screen-drag .screen-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screen-drag svg,
+.screen-dock svg {
+  flex-shrink: 0;
+}
+
+.screen-controls .screen-drag,
+.screen-controls .screen-dock {
+  gap: 6px;
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+}
+
+.screen-controls .screen-drag:hover,
+.screen-controls .screen-dock:hover {
+  background: var(--accent-soft);
 }
 
 .screen-drag:active {
   cursor: grabbing;
 }
 
+.room-panel .screen[data-floating='true'] .screen-actions,
+.screen-resize {
+  background: rgb(46 34 47 / 92%);
+  color: var(--on-accent);
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: var(--radius-sm);
+}
+
+.room-panel .screen[data-floating='true'] .screen-actions {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  max-width: calc(100% - 58px);
+  flex-wrap: nowrap;
+  padding: 3px;
+}
+
+.room-panel .screen[data-floating='true'] .screen-actions button {
+  background: transparent;
+  border-color: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+.screen-actions .screen-reset {
+  min-width: 0;
+}
+
+.screen-reset span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-panel .screen[data-floating='true'] .screen-actions button:hover,
+.screen-resize:hover {
+  background: var(--accent);
+}
+
 .screen-resize {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: 6px;
+  bottom: 6px;
   z-index: 1;
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
   padding: 0;
-  border-radius: var(--radius-sm) 0 0 0;
   cursor: nwse-resize;
   touch-action: none;
   user-select: none;

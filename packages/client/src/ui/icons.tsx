@@ -40,6 +40,39 @@ export function ScreenIcon() {
   );
 }
 
+export function GripIcon() {
+  return (
+    <svg {...strokeIconProps} strokeWidth={2}>
+      <path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01" />
+    </svg>
+  );
+}
+
+export function PanelIcon() {
+  return (
+    <svg {...strokeIconProps}>
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+      <path d="M2 6h12M10 6v7.5" />
+    </svg>
+  );
+}
+
+export function FullscreenIcon() {
+  return (
+    <svg {...strokeIconProps}>
+      <path d="M2.5 6V2.5H6m4 0h3.5V6m0 4v3.5H10m-4 0H2.5V10" />
+    </svg>
+  );
+}
+
+export function MinimizeIcon() {
+  return (
+    <svg {...strokeIconProps}>
+      <path d="M4 10.5h8" />
+    </svg>
+  );
+}
+
 export function PhoneIcon() {
   return (
     <svg {...strokeIconProps}>
