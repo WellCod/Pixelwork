@@ -1,11 +1,17 @@
-import { RACE_CONES, RACE_LANES, RACE_LENGTH, type Arcade, type RaceDriver, type RaceState, type ServerMsg, type Tile } from '@pixelwork/shared';
+import {
+  RACE_CONES, RACE_LANES, RACE_LENGTH, RACE_TURBO_MS, RACE_TURBO_RECHARGE_MS,
+  type Arcade, type RaceDriver, type RacePedal, type RaceState, type ServerMsg, type Tile,
+} from '@pixelwork/shared';
 import type { Clock, Scheduler, Timer } from './clock.ts';
 
-interface Driver extends RaceDriver {
+interface Driver extends Omit<RaceDriver, 'turboActive' | 'turboReadyInMs'> {
   cabinet: Arcade;
   lastSteer: number;
   nextCone: number;
   hitUntil: number;
+  pedal: RacePedal;
+  turboUntil: number;
+  turboReadyAt: number;
 }
 
 interface Match extends Omit<RaceState, 'drivers' | 'countdown'> {
@@ -43,6 +49,7 @@ export class RaceRegistry {
     match.drivers.push({
       id, cabinet, lane: 1, distance: 0, speed: 0, hit: false,
       lastSteer: -Infinity, nextCone: 0, hitUntil: 0,
+      pedal: 'coast', turboUntil: 0, turboReadyAt: 0,
     });
     this.matches.set(id, match);
     this.occupied.add(cabinet.key);
@@ -82,7 +89,29 @@ export class RaceRegistry {
 
   reconnect(id: string): void {
     const match = this.matches.get(id);
-    if (match) this.publish(match);
+    if (!match) return;
+    const driver = match.drivers.find((entry) => entry.id === id);
+    if (driver) driver.pedal = 'coast';
+    this.publish(match);
+  }
+
+  pedal(id: string, pedal: RacePedal): void {
+    const match = this.matches.get(id);
+    if (match?.phase !== 'running' && match?.phase !== 'countdown') return;
+    const driver = match.drivers.find((entry) => entry.id === id);
+    if (!driver) return;
+    driver.pedal = pedal;
+    if (pedal === 'brake') driver.turboUntil = 0;
+  }
+
+  turbo(id: string): void {
+    const match = this.matches.get(id);
+    if (match?.phase !== 'running') return;
+    const driver = match.drivers.find((entry) => entry.id === id);
+    const now = this.clock.now();
+    if (!driver || driver.pedal === 'brake' || now < driver.turboReadyAt) return;
+    driver.turboUntil = now + RACE_TURBO_MS;
+    driver.turboReadyAt = driver.turboUntil + RACE_TURBO_RECHARGE_MS;
   }
 
   leave(id: string): void {
@@ -124,6 +153,7 @@ export class RaceRegistry {
       Object.assign(driver, {
         lane: match.drivers.length === 1 ? 1 : index * 2, distance: 0, speed: 0,
         hit: false, nextCone: 0, hitUntil: 0, lastSteer: -Infinity,
+        pedal: 'coast', turboUntil: 0, turboReadyAt: 0,
       });
     });
     match.phase = 'countdown';
@@ -148,12 +178,18 @@ export class RaceRegistry {
       const seconds = Math.max(0, Math.min(200, now - match.lastTick)) / 1_000;
       match.lastTick = now;
       for (const driver of match.drivers) {
-        driver.speed = Math.min(110, driver.speed + 56 * seconds);
+        const boosted = now < driver.turboUntil;
+        const limit = boosted ? 165 : 110;
+        const acceleration = driver.pedal === 'brake' ? -180
+          : boosted ? 125 : driver.speed > limit ? -56 : driver.pedal === 'accelerate' ? 76 : -32;
+        const speed = Math.max(0, driver.speed + acceleration * seconds);
+        driver.speed = driver.speed > limit && acceleration < 0 ? speed : Math.min(limit, speed);
         const next = driver.distance + driver.speed * seconds;
         for (let cone = RACE_CONES[driver.nextCone]; cone && cone.distance <= next; cone = RACE_CONES[driver.nextCone]) {
           driver.nextCone++;
           if (cone.lane === driver.lane) {
-            driver.speed = 28;
+            driver.speed = Math.min(28, driver.speed);
+            driver.turboUntil = 0;
             driver.hitUntil = now + 700;
           }
         }
@@ -172,10 +208,15 @@ export class RaceRegistry {
   }
 
   private publish(match: Match): void {
+    const now = this.clock.now();
     const race: RaceState = {
       phase: match.phase,
       countdown: match.phase === 'countdown' ? Math.max(1, Math.ceil((match.startsAt - this.clock.now()) / 1_000)) : 0,
-      drivers: match.drivers.map(({ id, lane, distance, speed, hit }) => ({ id, lane, distance, speed, hit })),
+      drivers: match.drivers.map(({ id, lane, distance, speed, hit, turboUntil, turboReadyAt }) => ({
+        id, lane, distance, speed, hit,
+        turboActive: match.phase === 'running' && now < turboUntil,
+        turboReadyInMs: Math.max(0, turboReadyAt - now),
+      })),
       winner: match.winner, opponentLeft: match.opponentLeft, solo: match.solo,
     };
     for (const { id } of match.drivers) this.send(id, { t: 'race.state', race });
