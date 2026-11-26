@@ -28,6 +28,7 @@ export class MediaManager {
   micOn = true;
   camOn = false;
   screenOn = false;
+  screenPending = false;
   /** Sala atual: `space:` tem assinatura por proximidade; reunião e chamada, todos com todos. */
   roomName: string | null = null;
   audioBlocked = false;
@@ -58,6 +59,7 @@ export class MediaManager {
     this.roomName = roomName;
     // Tela compartilhada não atravessa a troca de sala.
     this.screenOn = false;
+    this.screenPending = false;
     const previous = this.room;
     this.room = null;
     this.lost = false;
@@ -127,13 +129,22 @@ export class MediaManager {
 
   /** Compartilhar tela só vale em reunião e chamada; na sala do espaço o pedido é ignorado. */
   async setScreenShare(on: boolean): Promise<void> {
-    if (on && (!this.isPrivate || !this.room)) return;
-    this.screenOn = on;
+    const room = this.room;
+    if (!room || !this.connected || !this.isPrivate || this.screenPending || on === this.screenOn) return;
+    this.screenPending = true;
     this.changed();
-    await this.room?.localParticipant.setScreenShareEnabled(on, { audio: true }).catch((error: unknown) => {
-      this.screenOn = false;
-      this.fail(error, 'tela');
-    });
+    try {
+      await room.localParticipant.setScreenShareEnabled(on, { audio: true });
+      // O seletor do navegador pode fechar depois que o usuário já saiu da sala.
+      if (on && this.room !== room) await room.localParticipant.setScreenShareEnabled(false);
+    } catch (error) {
+      if (this.room === room) this.fail(error, 'tela');
+    } finally {
+      if (this.room === room) {
+        this.screenPending = false;
+        this.changed();
+      }
+    }
   }
 
   /** Telas compartilhadas pelos outros na sala atual (só existem em reunião e chamada). */
@@ -240,8 +251,13 @@ export class MediaManager {
       .on(RoomEvent.TrackUnpublished, reapply)
       .on(RoomEvent.TrackMuted, reapply)
       .on(RoomEvent.TrackUnmuted, reapply)
-      .on(RoomEvent.LocalTrackPublished, () => this.changed())
+      .on(RoomEvent.LocalTrackPublished, (publication) => {
+        if (this.room !== room) return;
+        if (publication.source === Track.Source.ScreenShare) this.screenOn = true;
+        this.changed();
+      })
       .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        if (this.room !== room) return;
         // Parar pelo botão nativo do navegador também desliga o estado daqui.
         if (publication.source === Track.Source.ScreenShare) this.screenOn = false;
         this.changed();
@@ -275,6 +291,8 @@ export class MediaManager {
       .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
         if (this.room !== room) return;
         this.room = null;
+        this.screenOn = false;
+        this.screenPending = false;
         // Removido pelo servidor ou sala apagada: um `media.join` novo já vem a caminho.
         const expected =
           reason === DisconnectReason.CLIENT_INITIATED ||
@@ -318,6 +336,7 @@ export function describeMediaError(error: unknown, device = 'microfone'): string
   const deviceText = DEVICES[device] ?? { the: device, none: `${device}: não encontrado.` };
   switch (name) {
     case 'NotAllowedError':
+      if (device === 'tela') return 'Compartilhamento cancelado ou bloqueado pelo navegador.';
       return `Sem permissão para usar ${deviceText.the}. Libere no cadeado da barra de endereço.`;
     case 'NotFoundError':
     case 'OverconstrainedError':
@@ -325,6 +344,7 @@ export function describeMediaError(error: unknown, device = 'microfone'): string
     case 'NotReadableError':
       return `Não deu para abrir ${deviceText.the}: outro programa está usando.`;
     default:
+      if (device === 'tela') return 'Não deu para compartilhar a tela agora.';
       return 'Não deu para conectar o áudio e o vídeo agora.';
   }
 }

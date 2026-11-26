@@ -95,6 +95,12 @@ O firewall precisa deixar entrar TCP 5173 (Vite), TCP 7881 e UDP 7882 (mídia do
 `localhost` ou IP privado continua sendo desenvolvimento: as checagens de produção do `env.ts` valem
 para https em endereço público.
 
+### Compartilhar a tela
+
+Entre em uma sala de reunião, como a **Sala Aurora**, ou inicie uma chamada privada. Clique em **Compartilhar tela** ao lado dos controles de microfone e câmera e escolha o que apresentar no navegador.
+
+Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem a apresentação. Use **Parar de compartilhar** ou saia da sala para encerrar.
+
 ## Corrida 1x1 nos fliperamas
 
 1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
