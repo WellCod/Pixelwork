@@ -32,7 +32,7 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 | Aquário durante a alimentação | Corrida com dois jogadores |
 | --- | --- |
-| ![Arraia e polvo perto dos grãos enquanto o aquário mostra Alimentando](docs/prints/aquario-alimentacao.png) | ![Carros azul e laranja lado a lado na pista, com a distância de cada jogador no placar](docs/prints/corrida-fliperama.png) |
+| ![Arraia e polvo perto dos grãos enquanto o aquário mostra Alimentando](docs/prints/aquario-alimentacao.png) | ![Corrida 1x1 com os carros azul e laranja na pista, botões Acelerar e Frear e turbo ativo no carro azul](docs/prints/corrida-fliperama.png) |
 
 [Como jogar 1x1 nos fliperamas](#corrida-1x1-nos-fliperamas)
 
