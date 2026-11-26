@@ -1,5 +1,5 @@
 import type { RemoteVideoTrack } from 'livekit-client';
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { MediaManager } from '../media/media-manager.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useMedia } from './MediaControls.tsx';
@@ -11,6 +11,20 @@ const MOVE_WINDOW: Record<string, [number, number]> = {
   ArrowUp: [0, -24],
   ArrowDown: [0, 24],
 };
+
+function positionInMap(screen: HTMLElement, left: number, top: number) {
+  const area = screen.offsetParent;
+  if (!area) return;
+  const bounds = area.getBoundingClientRect();
+  // Frações do espaço disponível mantêm a janela no mapa ao redimensionar o navegador.
+  const percent = (offset: number, space: number) => space > 0
+    ? Math.max(0, Math.min(100, (offset / space) * 100))
+    : 0;
+  return {
+    x: percent(left - bounds.left, area.clientWidth - screen.offsetWidth),
+    y: percent(top - bounds.top, area.clientHeight - screen.offsetHeight),
+  };
+}
 
 /** Reunião e chamada: grade com as câmeras de todos e a tela compartilhada em destaque. */
 export function RoomPanel({ media, world }: { media: MediaManager; world: ClientWorld }) {
@@ -46,8 +60,10 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const [mode, setMode] = useState<'panel' | 'minimized' | 'floating'>('panel');
-  const [position, setPosition] = useState({ x: 100, y: 75 });
-  const drag = useRef<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState({ x: 80, y: 65 });
+  const [width, setWidth] = useState(380);
+  const drag = useRef<{ x: number; y: number; resize: DOMRect | null } | null>(null);
+  const resizeAnchor = useRef<DOMRect | null>(null);
   const minimized = mode === 'minimized';
   const floating = mode === 'floating' && !fullscreen;
 
@@ -56,6 +72,16 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     document.addEventListener('fullscreenchange', syncFullscreen);
     return () => document.removeEventListener('fullscreenchange', syncFullscreen);
   }, []);
+
+  useLayoutEffect(() => {
+    const anchor = resizeAnchor.current;
+    const screen = screenRef.current;
+    if (!anchor || !screen) return;
+    resizeAnchor.current = null;
+    // Mede a nova altura após a quebra de linha dos botões para manter o canto superior no lugar.
+    const nextPosition = positionInMap(screen, anchor.left, anchor.top);
+    if (nextPosition) setPosition(nextPosition);
+  }, [width]);
 
   async function toggleFullscreen() {
     const screen = screenRef.current;
@@ -85,40 +111,54 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
 
   function moveWindow(left: number, top: number) {
     const screen = screenRef.current;
-    const area = screen?.offsetParent;
-    if (!screen || !area) return;
-    const bounds = area.getBoundingClientRect();
-    // Frações do espaço disponível mantêm a janela no mapa ao redimensionar.
-    const percent = (offset: number, space: number) => space > 0
-      ? Math.max(0, Math.min(100, (offset / space) * 100))
-      : 0;
-    setPosition({
-      x: percent(left - bounds.left, area.clientWidth - screen.offsetWidth),
-      y: percent(top - bounds.top, area.clientHeight - screen.offsetHeight),
-    });
+    if (!screen) return;
+    const nextPosition = positionInMap(screen, left, top);
+    if (nextPosition) setPosition(nextPosition);
   }
 
-  function startDrag(event: PointerEvent<HTMLButtonElement>) {
+  function resizeWindow(bounds: DOMRect, delta: number) {
+    const area = screenRef.current?.offsetParent;
+    if (!area) return;
+    const maximum = Math.floor(Math.min(680, area.clientWidth * 0.85));
+    const minimum = Math.min(240, maximum);
+    const nextWidth = Math.max(minimum, Math.min(maximum, Math.round(bounds.width + delta)));
+    if (nextWidth === width) return;
+    resizeAnchor.current = bounds;
+    setWidth(nextWidth);
+  }
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>, resize = false) {
     const screen = screenRef.current;
     if (!screen || !event.isPrimary || event.button !== 0) return;
     const bounds = screen.getBoundingClientRect();
-    drag.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    drag.current = resize
+      ? { x: event.clientX, y: event.clientY, resize: bounds }
+      : { x: event.clientX - bounds.left, y: event.clientY - bounds.top, resize: null };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function moveDrag(event: PointerEvent<HTMLButtonElement>) {
-    if (!drag.current || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    moveWindow(event.clientX - drag.current.x, event.clientY - drag.current.y);
+    const gesture = drag.current;
+    if (!gesture || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    const horizontal = event.clientX - gesture.x;
+    const vertical = event.clientY - gesture.y;
+    if (gesture.resize) {
+      const verticalAsWidth = vertical * 16 / 9;
+      resizeWindow(gesture.resize, Math.abs(horizontal) >= Math.abs(verticalAsWidth) ? horizontal : verticalAsWidth);
+    } else {
+      moveWindow(horizontal, vertical);
+    }
   }
 
-  function moveWithKeys(event: KeyboardEvent<HTMLButtonElement>) {
+  function moveWithKeys(event: KeyboardEvent<HTMLButtonElement>, resize = false) {
     const offset = MOVE_WINDOW[event.key];
     const screen = screenRef.current;
     if (!offset || !screen) return;
     event.preventDefault();
     event.stopPropagation();
     const bounds = screen.getBoundingClientRect();
-    moveWindow(bounds.left + offset[0], bounds.top + offset[1]);
+    if (resize) resizeWindow(bounds, offset[0] + offset[1]);
+    else moveWindow(bounds.left + offset[0], bounds.top + offset[1]);
   }
 
   return (
@@ -128,11 +168,24 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
       data-minimized={minimized}
       data-floating={floating}
       style={floating ? {
+        width,
         left: `${position.x}%`,
         top: `${position.y}%`,
         transform: `translate(-${position.x}%, -${position.y}%)`,
       } : undefined}
     >
+      {floating && (
+        <button
+          type="button"
+          className="screen-resize"
+          aria-label="Redimensionar apresentação"
+          title="Arraste o canto ou use as setas para redimensionar"
+          onPointerDown={(event) => startDrag(event, true)}
+          onPointerMove={moveDrag}
+          onLostPointerCapture={() => { drag.current = null; }}
+          onKeyDown={(event) => moveWithKeys(event, true)}
+        />
+      )}
       <Video track={track} />
       <figcaption className="screen-controls">
         <span>{name ? `Tela de ${name}` : 'Tela compartilhada'}</span>
