@@ -123,7 +123,8 @@ Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem
 
 1. Ao receber uma apresentação na **Sala Aurora** ou em uma **chamada privada**, clique em **Flutuante** no rodapé do vídeo para acompanhar a apresentação e o mapa ao mesmo tempo.
 2. Segure **Mover** e arraste a janela pelo mapa com o mouse ou por toque. Pelo teclado, coloque o foco em **Mover** e use as setas.
-3. Clique em **Voltar ao painel** para retomar a visualização normal da mesma apresentação.
+3. Arraste a alça no **canto inferior direito** para fora para ampliar a janela ou para dentro para reduzi-la. Pelo teclado, coloque o foco na alça **Redimensionar apresentação** e use as setas. O vídeo continua rodando durante o ajuste.
+4. Clique em **Voltar ao painel** para retomar a visualização normal da mesma apresentação.
 
 ## Corrida 1x1 nos fliperamas
 
