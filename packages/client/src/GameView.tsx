@@ -172,10 +172,12 @@ export function GameView({ space, map, onStatus, onMapUpdated, editor, onEditorB
         <div className="stage">
           <div ref={gameContainer} className="game" />
           {!editor && <VideoBubbles media={media} world={world} controller={proximityController} positionOf={positionOf} />}
-          <RoomPanel media={media} world={world} />
           {!editor && connectionStatus === 'online' && <WorldActions world={world} targets={targets} project={project} followPath={followPath} send={send} knock={knock} onAquariumOpen={openAquarium} />}
           {!editor && aquariumOpen && <AquariumModal onClose={() => setAquariumOpen(false)} />}
-          <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
+          <div className="stage-media">
+            <MediaControls media={media} onReconnect={() => connection.current?.reconnect()} />
+            <RoomPanel media={media} world={world} />
+          </div>
           {/* Um painel só para os cards: zona, mesa e chamada se empilham em vez de se cobrirem. */}
           <div className="hud">
             <CallUi calls={calls} world={world} />

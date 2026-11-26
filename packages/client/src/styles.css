@@ -419,16 +419,29 @@ a.button {
 
 /* ---- mídia ---- */
 
-.media-controls {
+/* O painel acompanha a altura dos controles, inclusive quando avisos e prévia quebram linha. */
+.stage-media {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  inset: 12px 12px auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  pointer-events: none;
+}
+
+.media-controls {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-self: flex-start;
   gap: var(--gap);
-  max-width: calc(100% - 380px);
+  max-width: calc(100% - 356px);
   z-index: 4;
+}
+
+.media-controls button {
+  pointer-events: auto;
 }
 
 /* Avisos de mídia em cartão: texto solto sobre o mapa fica ilegível. */
@@ -528,11 +541,9 @@ a.button {
 }
 
 .room-panel {
-  position: absolute;
-  top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(720px, calc(100% - 24px));
+  position: relative;
+  align-self: center;
+  width: min(720px, 100%);
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -1358,7 +1369,7 @@ a.button {
   }
 
   .media-controls {
-    max-width: calc(100% - 24px);
+    max-width: 100%;
   }
 
   .media-toggle span {
