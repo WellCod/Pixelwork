@@ -38,6 +38,7 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
   const screenRef = useRef<HTMLElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
+  const [minimized, setMinimized] = useState(false);
 
   useEffect(() => {
     const syncFullscreen = () => setFullscreen(document.fullscreenElement === screenRef.current);
@@ -57,13 +58,32 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     }
   }
 
+  async function toggleMinimized() {
+    setFullscreenError(false);
+    const screen = screenRef.current;
+    if (screen && document.fullscreenElement === screen) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        setFullscreenError(true);
+        return;
+      }
+    }
+    setMinimized(!minimized);
+  }
+
   return (
-    <figure ref={screenRef} className="screen">
+    <figure ref={screenRef} className="screen" data-minimized={minimized}>
       <Video track={track} />
       <figcaption className="screen-controls">
         <span>{name ? `Tela de ${name}` : 'Tela compartilhada'}</span>
-        <button type="button" onClick={() => void toggleFullscreen()}>
-          {fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+        {!minimized && (
+          <button type="button" onClick={() => void toggleFullscreen()}>
+            {fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          </button>
+        )}
+        <button type="button" aria-expanded={!minimized} onClick={() => void toggleMinimized()}>
+          {minimized ? 'Restaurar apresentação' : 'Minimizar'}
         </button>
         {fullscreenError && <span role="status">Tela cheia indisponível no navegador.</span>}
       </figcaption>

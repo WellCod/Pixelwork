@@ -591,6 +591,21 @@ a.button {
   pointer-events: auto;
 }
 
+.room-panel .screen[data-minimized='true'] {
+  align-self: flex-start;
+  max-width: 100%;
+  background: var(--panel);
+}
+
+.room-panel .screen[data-minimized='true'] video {
+  display: none;
+}
+
+.room-panel .screen[data-minimized='true'] .screen-controls {
+  position: static;
+  max-width: 100%;
+}
+
 .room-panel .screen:fullscreen {
   border: 0;
   border-radius: 0;
