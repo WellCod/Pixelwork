@@ -119,6 +119,12 @@ Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem
 2. O vídeo se recolhe para liberar o mapa, e o compartilhamento continua ativo.
 3. Para voltar ao vídeo, clique em **Restaurar apresentação** na barra abaixo dos controles de mídia.
 
+#### Acompanhar uma apresentação em modo flutuante
+
+1. Ao receber uma apresentação na **Sala Aurora** ou em uma **chamada privada**, clique em **Flutuante** no rodapé do vídeo para acompanhar a apresentação e o mapa ao mesmo tempo.
+2. Segure **Mover** e arraste a janela pelo mapa com o mouse ou por toque. Pelo teclado, coloque o foco em **Mover** e use as setas.
+3. Clique em **Voltar ao painel** para retomar a visualização normal da mesma apresentação.
+
 ## Corrida 1x1 nos fliperamas
 
 1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
