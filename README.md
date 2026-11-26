@@ -7,6 +7,7 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 ## O que dá para fazer
 
 - **Explorar e jogar.** Use o teclado ou toque no mapa. No celular, escolha um destino pelo botão **Mapa**. Sente-se nos móveis e jogue pingue-pongue ou pebolim contra outra pessoa ou um bot.
+- **Aquário e fliperamas.** Alimente os animais do recife ou dispute uma corrida de carros nos dois fliperamas.
 - **Conversar e se reunir.** Use chat por proximidade, chamadas 1:1, compartilhamento de tela e salas privadas com pedido de acesso. A recepcionista também traça rotas até salas, mesas e pessoas.
 - **Personalizar e editar.** Monte avatares e mesas com coleções temáticas e reorganize o escritório no editor com desfazer e refazer. Visitantes podem experimentar o editor na demo. Importe e exporte mapas no formato Tiled.
 - **Gerenciar espaços.** Crie coworkings por organização, convide pessoas e defina papéis.
@@ -26,6 +27,14 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 ![Demo do Pixelwork com um trajeto azul entre o visitante e a porta da sala Aurora e o painel Destino · Sala Aurora](docs/prints/rota-recepcao-aurora.png)
 
 [Como pedir uma rota por voz](#pedir-uma-rota-por-voz)
+
+### Aquário e fliperamas
+
+| Aquário durante a alimentação | Corrida com dois jogadores |
+| --- | --- |
+| ![Arraia e polvo perto dos grãos enquanto o aquário mostra Alimentando](docs/prints/aquario-alimentacao.png) | ![Carros azul e laranja lado a lado na pista, com a distância de cada jogador no placar](docs/prints/corrida-fliperama.png) |
+
+[Como jogar 1x1 nos fliperamas](#corrida-1x1-nos-fliperamas)
 
 ### Mapa, personalização e ações
 
@@ -85,6 +94,14 @@ achar o Vite e o LiveKit pelo IP desta. Com o IP desta máquina no lugar de `192
 O firewall precisa deixar entrar TCP 5173 (Vite), TCP 7881 e UDP 7882 (mídia do LiveKit). Https em
 `localhost` ou IP privado continua sendo desenvolvimento: as checagens de produção do `env.ts` valem
 para https em endereço público.
+
+## Corrida 1x1 nos fliperamas
+
+1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
+2. Na área de jogos, cada pessoa vai até um fliperama diferente e escolhe **Jogar corrida**. Quem entra primeiro fica na sala de espera. A contagem regressiva começa quando o segundo jogador entra pela outra máquina.
+3. Usem **←** e **→** ou os botões na tela para desviar dos cones. Vence quem cruzar primeiro a linha dos **1.200 m**.
+
+Para praticar sozinho, escolha **Jogar sozinho** na sala de espera.
 
 ## Recepcionista com voz local
 
