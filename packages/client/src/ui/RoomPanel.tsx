@@ -125,6 +125,11 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
     setMode(floating ? 'panel' : 'floating');
   }
 
+  function resetFloatingLayout() {
+    resizeAnchor.current = null;
+    setLayout(DEFAULT_FLOATING_LAYOUT);
+  }
+
   async function toggleFullscreen() {
     const screen = screenRef.current;
     if (!screen) return;
@@ -253,6 +258,11 @@ function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }
         {!minimized && !fullscreen && (
           <button type="button" onClick={toggleFloating}>
             {floating ? 'Voltar ao painel' : 'Flutuante'}
+          </button>
+        )}
+        {floating && (
+          <button type="button" onClick={resetFloatingLayout} title="Voltar à posição e ao tamanho padrão">
+            Redefinir janela
           </button>
         )}
         {!minimized && (
