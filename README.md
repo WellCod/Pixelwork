@@ -113,6 +113,12 @@ Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem
 2. Clique em **Tela cheia** no rodapé do vídeo, ao lado do nome de quem apresenta.
 3. Para voltar ao mapa, clique em **Sair da tela cheia**. Se a apresentação ou a chamada terminar, o mapa volta automaticamente.
 
+#### Minimizar e restaurar uma apresentação
+
+1. Ao receber uma apresentação na **Sala Aurora** ou em uma **chamada privada**, clique em **Minimizar** no rodapé do vídeo. O botão também funciona em tela cheia.
+2. O vídeo se recolhe para liberar o mapa, e o compartilhamento continua ativo.
+3. Para voltar ao vídeo, clique em **Restaurar apresentação** na barra abaixo dos controles de mídia.
+
 ## Corrida 1x1 nos fliperamas
 
 1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
