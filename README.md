@@ -36,6 +36,12 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 [Como jogar 1x1 nos fliperamas](#corrida-1x1-nos-fliperamas)
 
+### Compartilhamento de tela na Sala Aurora
+
+![Visão de quem recebe na Sala Aurora, com o slide Reunião de equipe sobre o mapa e o nome de quem apresenta no rodapé do vídeo](docs/prints/compartilhamento-aurora.png)
+
+[Como compartilhar a tela](#compartilhar-a-tela)
+
 ### Mapa, personalização e ações
 
 ![Visão geral do coworking com a Sala Aurora, mesas de trabalho, áreas temáticas, lounge, copa, jogos e jardim](docs/prints/coworking.png)
