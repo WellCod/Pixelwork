@@ -38,7 +38,7 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 ### Compartilhamento de tela na Sala Aurora
 
-![Apresentação recebida na Sala Aurora, com o slide Reunião de equipe sobre o mapa e o botão Tela cheia ao lado do nome de quem apresenta](docs/prints/compartilhamento-aurora.png)
+![Apresentação minimizada na visão de quem recebe na Sala Aurora, com o mapa visível e o botão Restaurar apresentação ao lado do nome de quem apresenta](docs/prints/compartilhamento-aurora.png)
 
 [Como compartilhar a tela](#compartilhar-a-tela)
 
