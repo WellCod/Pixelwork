@@ -38,9 +38,9 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 ### Compartilhamento de tela na Sala Aurora
 
-![Janela flutuante reaberta na Sala Aurora com o vídeo sobre o mapa, na posição e no tamanho ajustados anteriormente](docs/prints/compartilhamento-aurora.png)
+![Apresentação flutuante na Sala Aurora na posição e no tamanho padrão, com o vídeo sobre o mapa e o botão Redefinir janela visível](docs/prints/compartilhamento-aurora.png)
 
-Ao reabrir o modo flutuante após reiniciar o compartilhamento, a janela recuperou a posição e o tamanho salvos no navegador.
+Na captura, **Redefinir janela** restaurou a posição e o tamanho padrão sem interromper o vídeo.
 
 [Como compartilhar a tela](#compartilhar-a-tela)
 
@@ -124,9 +124,9 @@ Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem
 #### Acompanhar uma apresentação em modo flutuante
 
 1. Ao receber uma apresentação na **Sala Aurora** ou em uma **chamada privada**, clique em **Flutuante** no rodapé do vídeo para acompanhar a apresentação e o mapa ao mesmo tempo.
-2. Segure **Mover** e arraste a janela pelo mapa com o mouse ou por toque. Pelo teclado, coloque o foco em **Mover** e use as setas.
+2. Arraste a barra de título, marcada com uma alça ao lado do nome de quem apresenta, com o mouse ou por toque. Pelo teclado, coloque o foco em **Mover** e use as setas.
 3. Arraste a alça no **canto inferior direito** para fora para ampliar a janela ou para dentro para reduzi-la. Pelo teclado, coloque o foco na alça **Redimensionar apresentação** e use as setas. O vídeo continua rodando durante o ajuste.
-4. Clique em **Voltar ao painel** para retomar a visualização normal da mesma apresentação.
+4. Clique em **Voltar ao painel**, na barra de título, para retomar a visualização normal da mesma apresentação.
 
 O Pixelwork salva a posição e o tamanho da janela no navegador. Depois de clicar em **Voltar ao painel**, selecione **Flutuante** novamente para recuperar o último ajuste. No mesmo navegador, ele também vale para novas apresentações na Sala Aurora ou em chamadas privadas, inclusive após recarregar a página.
 
