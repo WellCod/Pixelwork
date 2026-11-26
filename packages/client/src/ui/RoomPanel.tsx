@@ -1,5 +1,5 @@
 import type { RemoteVideoTrack } from 'livekit-client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MediaManager } from '../media/media-manager.ts';
 import type { ClientWorld } from '../net/client-world.ts';
 import { useMedia } from './MediaControls.tsx';
@@ -17,10 +17,7 @@ export function RoomPanel({ media, world }: { media: MediaManager; world: Client
   return (
     <div className="room-panel">
       {screens.map(({ identity, track }) => (
-        <figure key={`screen:${identity}`} className="screen">
-          <Video track={track} />
-          <figcaption>Tela de {playerName(identity)}</figcaption>
-        </figure>
+        <SharedScreen key={`screen:${identity}`} track={track} name={playerName(identity)} />
       ))}
       <div className="room-grid">
         {cameras.map((id) => {
@@ -34,6 +31,43 @@ export function RoomPanel({ media, world }: { media: MediaManager; world: Client
         })}
       </div>
     </div>
+  );
+}
+
+function SharedScreen({ track, name }: { track: RemoteVideoTrack; name: string }) {
+  const screenRef = useRef<HTMLElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState(false);
+
+  useEffect(() => {
+    const syncFullscreen = () => setFullscreen(document.fullscreenElement === screenRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  async function toggleFullscreen() {
+    const screen = screenRef.current;
+    if (!screen) return;
+    setFullscreenError(false);
+    try {
+      if (document.fullscreenElement === screen) await document.exitFullscreen();
+      else await screen.requestFullscreen();
+    } catch {
+      setFullscreenError(true);
+    }
+  }
+
+  return (
+    <figure ref={screenRef} className="screen">
+      <Video track={track} />
+      <figcaption className="screen-controls">
+        <span>{name ? `Tela de ${name}` : 'Tela compartilhada'}</span>
+        <button type="button" onClick={() => void toggleFullscreen()}>
+          {fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+        </button>
+        {fullscreenError && <span role="status">Tela cheia indisponível no navegador.</span>}
+      </figcaption>
+    </figure>
   );
 }
 
