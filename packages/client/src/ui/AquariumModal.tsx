@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { paintAquarium, TANK_HEIGHT, TANK_WIDTH } from '../game/aquarium-art.ts';
+import { FEED_DURATION, paintAquarium, startFeeding, TANK_HEIGHT, TANK_WIDTH, type Feeding } from '../game/aquarium-art.ts';
 import { Modal } from './Modal.tsx';
 import './aquarium.css';
 
@@ -7,12 +7,13 @@ export function AquariumModal({ onClose }: { onClose: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const elapsed = useRef(0);
   const [pump, setPump] = useState(true);
+  const [feeding, setFeeding] = useState<Feeding | null>(null);
   const [paused, setPaused] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
     const ctx = canvas.current?.getContext('2d', { alpha: false });
     if (!ctx) return;
-    paintAquarium(ctx, elapsed.current, pump);
+    paintAquarium(ctx, elapsed.current, pump, feeding);
     if (paused) return;
 
     let frame: number;
@@ -22,13 +23,17 @@ export function AquariumModal({ onClose }: { onClose: () => void }) {
       if (delta >= 1000 / 30) {
         elapsed.current += Math.min(delta, 100) / 1000;
         lastTime = now;
-        paintAquarium(ctx, elapsed.current, pump);
+        if (feeding && elapsed.current - feeding.at >= FEED_DURATION) {
+          setFeeding(null);
+          return;
+        }
+        paintAquarium(ctx, elapsed.current, pump, feeding);
       }
       frame = requestAnimationFrame(animate);
     };
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
-  }, [paused, pump]);
+  }, [feeding, paused, pump]);
 
   return (
     <Modal title="Aquário marinho" onClose={onClose} className="aquarium-modal">
@@ -37,6 +42,10 @@ export function AquariumModal({ onClose }: { onClose: () => void }) {
           aria-label="Recife em pixel art com cardume, arraia, águas-vivas, cavalo-marinho, polvo, moluscos, estrelas-do-mar e corais" />
       </div>
       <div className="aquarium-controls">
+        <button type="button" className="aquarium-feed" disabled={paused || feeding !== null}
+          onClick={() => setFeeding(startFeeding(elapsed.current))}>
+          {feeding ? 'Alimentando…' : 'Alimentar'}
+        </button>
         <button type="button" aria-label="Bomba d’água" aria-pressed={pump} onClick={() => setPump(!pump)}>
           Bomba d’água <span aria-hidden="true">{pump ? 'Ligada' : 'Desligada'}</span>
         </button>

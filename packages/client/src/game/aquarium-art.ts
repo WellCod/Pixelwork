@@ -76,6 +76,82 @@ const school = Array.from({ length: 24 }, (_, index) => ({
   scale: index % 6 === 0 ? 2 : 1,
 }));
 
+const food = [
+  { x: 115, drop: 0.15, eat: 2.3, speed: 22 },
+  { x: 143, drop: 0.40, eat: 2.7, speed: 21 },
+  { x: 170, drop: 0.23, eat: 3.3, speed: 22 },
+  { x: 191, drop: 0.66, eat: 3.1, speed: 21 },
+  { x: 222, drop: 0.49, eat: 3.7, speed: 22 },
+  { x: 244, drop: 0.77, eat: 4.1, speed: 20 },
+];
+const rayFood = { x: 160, drop: 0.65, eat: 4.9, speed: 26 };
+const octopusFood = { x: 188, drop: 0.91, eat: 5.7, speed: 27 };
+const grains = [...food, rayFood, octopusFood];
+export const FEED_DURATION = 7.5;
+
+interface Grain { x: number; drop: number; eat: number; speed: number }
+interface FeedingFish { grain: Grain; flip: boolean }
+export interface Feeding { at: number; fish: ReadonlyMap<number, FeedingFish> }
+
+function swimmerX(swimmer: typeof school[number], t: number): number {
+  return ((swimmer.x + t * swimmer.speed) % 360 + 360) % 360 - 20;
+}
+
+function grainAt(grain: Grain, age: number) {
+  const sinking = Math.max(0, Math.min(age, grain.eat) - grain.drop);
+  return { x: grain.x + Math.sin(sinking * 1.5) * 4, y: 10 + sinking * grain.speed };
+}
+
+export function startFeeding(at: number): Feeding {
+  const fish = new Map<number, FeedingFish>();
+  for (const grain of food) {
+    const destination = grainAt(grain, grain.eat);
+    let closest: { index: number; flip: boolean; distance: number } | undefined;
+    for (const [index, swimmer] of school.entries()) {
+      if (fish.has(index)) continue;
+      const x = swimmerX(swimmer, at);
+      const distance = Math.hypot(x - destination.x, swimmer.y - destination.y);
+      if (!closest || distance < closest.distance) {
+        closest = { index, flip: x < destination.x, distance };
+      }
+    }
+    if (closest) fish.set(closest.index, { grain, flip: closest.flip });
+  }
+  return { at, fish };
+}
+
+function feedBlend(grain: Grain, age: number): number {
+  const approach = Math.min(1, Math.max(0, (age - grain.drop) / (grain.eat - grain.drop)));
+  const release = Math.min(1, Math.max(0, (age - grain.eat - 0.22) / 1.4));
+  const ease = (value: number) => value * value * (3 - 2 * value);
+  return ease(approach) * (1 - ease(release));
+}
+
+function mix(from: number, to: number, weight: number): number {
+  return from + (to - from) * weight;
+}
+
+function paintFood(ctx: CanvasRenderingContext2D, age: number): void {
+  for (const grain of grains) {
+    if (age < grain.drop || age > grain.eat + 0.26) continue;
+    const { x, y } = grainAt(grain, age);
+    const left = Math.round(x);
+    const top = Math.round(y);
+    if (age < grain.eat) {
+      ctx.fillStyle = '#72465d';
+      ctx.fillRect(left, top, 4, 4);
+      ctx.fillStyle = '#ffd98e';
+      ctx.fillRect(left, top, 3, 2);
+      continue;
+    }
+    const spread = Math.round((age - grain.eat) * 23);
+    ctx.fillStyle = '#fff0be';
+    ctx.fillRect(left - spread, top - spread, 1, 1);
+    ctx.fillRect(left + spread, top - 1, 1, 1);
+    ctx.fillRect(left + 1, top + spread, 1, 1);
+  }
+}
+
 function waterline(x: number, t: number): number {
   return 9 + Math.round(Math.sin(x * 0.10 + t * 2));
 }
@@ -127,7 +203,8 @@ function paintPump(ctx: CanvasRenderingContext2D, t: number, enabled: boolean): 
   }
 }
 
-export function paintAquarium(ctx: CanvasRenderingContext2D, t: number, pump: boolean): void {
+export function paintAquarium(ctx: CanvasRenderingContext2D, t: number, pump: boolean, feeding: Feeding | null): void {
+  const age = feeding ? t - feeding.at : -1;
   ctx.imageSmoothingEnabled = false;
   water.forEach((color, index) => {
     ctx.fillStyle = color;
@@ -173,24 +250,41 @@ export function paintAquarium(ctx: CanvasRenderingContext2D, t: number, pump: bo
   stamp(ctx, clam, clamColors, 277, 149);
   stamp(ctx, star, starColors, 71, 148, 2);
   stamp(ctx, star, starColors, 182, 151);
-  stamp(ctx, octopus, octopusColors, 212 + Math.sin(t * 0.7) * 5, 132 + Math.sin(t * 1.6) * 2, 2);
+  const octopusBite = grainAt(octopusFood, age);
+  const octopusBlend = feedBlend(octopusFood, age);
+  stamp(ctx, octopus, octopusColors,
+    mix(212 + Math.sin(t * 0.7) * 5, octopusBite.x - 10, octopusBlend),
+    mix(132 + Math.sin(t * 1.6) * 2, octopusBite.y - 6, octopusBlend), 2);
   stamp(ctx, horse, horseColors, 259 + Math.sin(t * 0.9) * 7, 94 + Math.sin(t * 1.2) * 4, 2);
   for (const [index, swimmer] of school.entries()) {
     const { kind, speed, scale } = swimmer;
-    const x = ((swimmer.x + t * speed) % 360 + 360) % 360 - 20;
+    let x = swimmerX(swimmer, t);
+    let y = swimmer.y + Math.sin(t * 2 + index) * 4;
+    let flip = speed > 0;
+    const goal = feeding?.fish.get(index);
+    if (goal) {
+      const blend = feedBlend(goal.grain, age);
+      const bite = grainAt(goal.grain, age);
+      flip = blend > 0.12 ? goal.flip : flip;
+      x = mix(x, bite.x - (goal.flip ? 14 : 1) * scale, blend);
+      y = mix(y, bite.y - 4 * scale, blend);
+    }
     const rows = fish[kind];
     const colors = fishColors[kind];
-    if (rows && colors) stamp(ctx, rows, colors, x, swimmer.y + Math.sin(t * 2 + index) * 4, scale, speed > 0);
+    if (rows && colors) stamp(ctx, rows, colors, x, y, scale, flip);
   }
   stamp(ctx, jelly, jellyColors, 94 + Math.sin(t * 0.5) * 13, 72 + Math.sin(t * 0.9) * 7, 2);
   stamp(ctx, jelly, jellyColors, 218 + Math.sin(t * 0.45) * 14, 35 + Math.sin(t * 0.8) * 8);
 
-  const rayX = 132 + Math.sin(t * 0.32) * 92;
-  const rayY = 88 + Math.cos(t * 0.56) * 12;
+  const rayBite = grainAt(rayFood, age);
+  const rayBlend = feedBlend(rayFood, age);
+  const rayX = mix(132 + Math.sin(t * 0.32) * 92, rayBite.x - 26, rayBlend);
+  const rayY = mix(88 + Math.cos(t * 0.56) * 12 + Math.sin(t * 3.4) * 3, rayBite.y - 13, rayBlend);
   ctx.fillStyle = '#588ac0';
   for (let i = 0; i < 13; i++) {
     ctx.fillRect(Math.round(rayX + 26 + Math.sin(t * 2 - i * 0.33) * i * 0.42), Math.round(rayY + 17 + i), 2, 2);
   }
-  stamp(ctx, ray, rayColors, rayX, rayY + Math.sin(t * 3.4) * 3, 2);
+  stamp(ctx, ray, rayColors, rayX, rayY, 2);
+  paintFood(ctx, age);
   paintPump(ctx, t, pump);
 }

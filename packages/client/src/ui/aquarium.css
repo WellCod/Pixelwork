@@ -44,9 +44,24 @@
   color: #effafa;
 }
 
-.aquarium-controls button:hover,
+.aquarium-controls button:hover:not(:disabled),
 .aquarium-controls button:focus-visible {
   background: #315675;
+}
+
+.aquarium-controls .aquarium-feed:not(:disabled) {
+  border-color: #a27143;
+  background: #f6cf92;
+  color: #38262d;
+}
+
+.aquarium-controls .aquarium-feed:hover:not(:disabled),
+.aquarium-controls .aquarium-feed:focus-visible {
+  background: #ffe2ac;
+}
+
+.aquarium-controls button:disabled {
+  opacity: 0.65;
 }
 
 .aquarium-controls button span {
