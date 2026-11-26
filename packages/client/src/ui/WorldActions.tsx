@@ -62,7 +62,7 @@ export function WorldActions({ world, targets, project, followPath, send, knock,
         const ready = approach.path.length === 0;
         const pending = target.kind === 'door' && knock.pending === target.zoneKey;
         const destination = target.kind === 'seat' ? 'Ir até o assento' : target.kind === 'door' ? 'Ir até a porta'
-          : target.table.game === 'foosball' ? 'Ir ao pebolim' : 'Ir ao pingue-pongue';
+          : target.kind === 'arcade' ? 'Ir ao fliperama' : target.table.game === 'foosball' ? 'Ir ao pebolim' : 'Ir ao pingue-pongue';
         const label = pending ? 'Aguardando…' : ready ? target.label : destination;
         return (
           <ActionMarker

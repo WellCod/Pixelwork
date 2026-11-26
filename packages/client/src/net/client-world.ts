@@ -8,6 +8,7 @@ import {
   type Player,
   type ReceptionDestination,
   type ReceptionPresence,
+  type RaceState,
   type PongDir,
   type PongEvent,
   type ServerMsg,
@@ -40,6 +41,7 @@ export type WorldEvent =
   | { type: 'table'; table: TableState }
   /** Chegou um estado novo da própria partida (`lastGame`). */
   | { type: 'game' }
+  | { type: 'race' }
   | { type: 'gameEvents'; events: PongEvent[] };
 
 /** Estado do coworking no cliente: jogadores conhecidos e predição do próprio avatar. */
@@ -56,6 +58,7 @@ export class ClientWorld {
   readonly tables = new Map<string, TableState>();
   /** Mesa em que o próprio jogador está; a janela do jogo fica aberta enquanto existir. */
   seat: GameSeat | null = null;
+  race: RaceState | null = null;
   /** Último estado da própria partida e a hora local em que chegou. */
   lastGame: (Extract<ServerMsg, { t: 'game.state' }> & { receivedAt: number }) | null = null;
   /** Inputs da raquete ainda sem ack, e a direção que o servidor já aplica. */
@@ -124,6 +127,7 @@ export class ClientWorld {
         this.tables.clear();
         for (const table of message.tables) this.tables.set(table.tableKey, table);
         this.seat = message.game;
+        this.race = null;
         this.lastGame = null;
         // Como o seq do movimento, o do jogo recomeça a cada welcome (o servidor zera o ack).
         this.gameSeq = 0;
@@ -253,6 +257,10 @@ export class ClientWorld {
       case 'game.events':
         if (this.seat?.tableKey === message.tableKey) this.emit({ type: 'gameEvents', events: message.events });
         break;
+      case 'race.state':
+        this.race = message.race;
+        this.emit({ type: 'race' });
+        break;
       default:
         break;
     }
@@ -306,7 +314,7 @@ export class ClientWorld {
 
   private emit(event: WorldEvent): void {
     // O estado da partida chega a 30 Hz e é lido direto pelo desenho do jogo: não re-renderiza a UI.
-    if (event.type !== 'game') this.version++;
+    if (event.type !== 'game' && event.type !== 'race') this.version++;
     for (const listener of this.listeners) listener(event);
   }
 }

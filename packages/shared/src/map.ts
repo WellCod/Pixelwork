@@ -4,6 +4,7 @@ import { furnitureSeatLayout, type FurnitureSeat } from './furniture-seats.ts';
 import { TILE_PX } from './constants.ts';
 import { DIR_DELTA, DIRS, DeskDecor, type Dir } from './protocol.ts';
 import { gameTableLayout, gameTableSides, type CompiledTable } from './tables.ts';
+import type { Arcade } from './racing.ts';
 
 /** Lado máximo do mapa em tiles (100x100). */
 export const MAX_MAP_TILES = 100;
@@ -56,6 +57,7 @@ export interface CompiledMap {
   desks: CompiledDesk[];
   /** Móveis com interação (mesa de pingpong), na ordem da camada `furniture`. */
   tables: CompiledTable[];
+  arcades: Arcade[];
   furnitureSeats: FurnitureSeat[];
   spawn: { x: number; y: number };
   reception?: { x: number; y: number };
@@ -234,6 +236,7 @@ export function compileMap(json: unknown): CompileResult {
 
   // Objetos de tile do Tiled ficam ancorados no canto inferior esquerdo.
   const interactiveTables: (Omit<CompiledTable, 'sides'> & { sideAxis: Parameters<typeof gameTableSides>[1] })[] = [];
+  const cabinets = new Map<string, Omit<Arcade, 'pair' | 'spots'>>();
   const seatLayouts = new Map<string, FurnitureSeat>();
   for (const object of objectsOf(findLayer('furniture') as Json)) {
     const resolved = resolveGid(asNumber(object.gid), tilesetRefs);
@@ -253,6 +256,10 @@ export function compileMap(json: unknown): CompileResult {
     const footprintHeight = Math.max(1, Math.round((objectHeight > 0 ? objectHeight : tileset.tileHeight) / TILE_PX));
     const item = tileset.items[resolved.tile];
     const top = bottom - footprintHeight;
+    if (item === 'arcade') {
+      const key = `arcade@${left},${top}`;
+      cabinets.set(key, { key, x: left, y: top, width: footprintWidth, height: footprintHeight });
+    }
     for (const seat of furnitureSeatLayout(item, left, top, footprintWidth, footprintHeight)) seatLayouts.set(seat.key, seat);
     const layout = gameTableLayout(item);
     if (layout) {
@@ -484,6 +491,22 @@ export function compileMap(json: unknown): CompileResult {
     sides: gameTableSides(table, sideAxis, width, height, walkableAt),
   }));
   const deskChairs = new Set(desks.map((desk) => desk.chairY * width + desk.chairX));
+  const arcadeGroups = new Map<number, (Omit<Arcade, 'pair'>)[]>();
+  for (const cabinet of cabinets.values()) {
+    if (!inside(cabinet.x, cabinet.y)) continue;
+    const zone = zoneIndex[cabinet.y * width + cabinet.x] ?? 0;
+    const canStand = (x: number, y: number) => walkableAt(x, y) && zoneIndex[y * width + x] === zone && !deskChairs.has(y * width + x);
+    const rows = gameTableSides(cabinet, 'y', width, height, canStand);
+    const cols = gameTableSides(cabinet, 'x', width, height, canStand);
+    const positions = rows.right.length ? rows.right : [...cols.left, ...cols.right, ...rows.left];
+    if (!positions.length) continue;
+    const group = arcadeGroups.get(zone) ?? [];
+    group.push({ ...cabinet, spots: positions.map(([x, y]) => ({ x, y })) });
+    arcadeGroups.set(zone, group);
+  }
+  const arcades = [...arcadeGroups.entries()].flatMap(([zone, group]) => group
+    .sort((a, b) => a.x - b.x || a.y - b.y)
+    .map((cabinet, index) => ({ ...cabinet, pair: `${zone}:${Math.floor(index / 2)}` })));
   const furnitureSeats = [...seatLayouts.values()].flatMap((seat) => {
     const seatX = Math.floor(seat.x / TILE_PX);
     const seatY = Math.floor((seat.y - 1) / TILE_PX);
@@ -505,6 +528,7 @@ export function compileMap(json: unknown): CompileResult {
       zones,
       desks,
       tables,
+      arcades,
       furnitureSeats,
       spawn,
       ...(reception ? { reception } : {}),

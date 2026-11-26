@@ -1,5 +1,6 @@
 import type { FoosballState } from './foosball.ts';
 import type { PongEvent, PongPhase, PongSide, PongState } from './pong.ts';
+import type { RaceState } from './racing.ts';
 import { z } from 'zod';
 import {
   ACCESSORY_IDS,
@@ -134,6 +135,11 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('game.leave') }),
   z.object({ t: z.literal('game.kick') }),
   z.object({ t: z.literal('game.input'), seq: Seq, dir: z.union([z.literal(-1), z.literal(0), z.literal(1)]) }),
+  z.object({ t: z.literal('race.join'), cabinet: Key }),
+  z.object({ t: z.literal('race.solo') }),
+  z.object({ t: z.literal('race.leave') }),
+  z.object({ t: z.literal('race.restart') }),
+  z.object({ t: z.literal('race.steer'), dir: z.union([z.literal(-1), z.literal(1)]) }),
 ]);
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
@@ -197,6 +203,7 @@ export type ServerMsg =
   /** Resposta ao `ping`; `ts` é a hora do servidor, para estimar a diferença de relógio. */
   | { t: 'pong'; id: number; ts: number }
   | { t: 'error'; code: string }
+  | { t: 'race.state'; race: RaceState | null }
   /** Estado da partida, 30 vezes por segundo, só para os jogadores. `ack`: último `seq` de input do destinatário. */
   | ({
       t: 'game.state';
