@@ -257,7 +257,7 @@ Restrições (o servidor rejeita com código de erro):
 | `desks`     | objetos   | propriedades `desk_key` e `orientation` (`up`, `down`, `left`, `right`) |
 | `spawn`     | objetos   | exatamente um ponto, em tile caminhável                                  |
 
-- A camada opcional `reception` é do tipo objetos. Aceita até um ponto em um tile caminhável de uma zona aberta. O ponto é compilado em coordenadas de tile. O mapa padrão da demo inclui o ponto perto da entrada.
+- A camada opcional `reception` é do tipo objetos. Aceita até um ponto em um tile caminhável de uma zona aberta. O ponto é compilado em coordenadas de tile. A propriedade booleana opcional `seated` ativa a pose sentada. Na demo, o ponto fica atrás do balcão na ponta direita do corredor central.
 - `zone_key` e `desk_key`: únicos no mapa, `[a-z0-9-]{1,40}`. São estáveis entre edições; é por
   eles que trancas, salas de mídia e atribuições de mesa se referem às zonas e mesas.
 - `type` da zona: `open` ou `meeting`. Zonas não se sobrepõem. Tiles fora de qualquer zona

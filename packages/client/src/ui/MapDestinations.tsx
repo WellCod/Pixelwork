@@ -1,4 +1,4 @@
-import { OPEN_ZONE_KEY, zoneAt, type Dir, type ReceptionDestination } from '@pixelwork/shared';
+import { OPEN_ZONE_KEY, zoneAt, type Dir, type ReceptionDestination, type Tile } from '@pixelwork/shared';
 import { useState } from 'react';
 import { destinationSteps } from '../game/reception-path.ts';
 import type { WorldTargets } from '../game/world-actions.ts';
@@ -7,6 +7,7 @@ import { Modal } from './Modal.tsx';
 import { useWorld } from './useWorld.ts';
 
 const searchable = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').replaceAll('-', ' ').toLocaleLowerCase('pt-BR').trim();
+type MapDestination = ReceptionDestination | (Tile & { kind: 'reception'; label: string });
 
 export function MapDestinations({ world, targets, followPath, online, spaceId }: {
   world: ClientWorld; targets: WorldTargets; followPath: (path: Dir[]) => boolean; online: boolean; spaceId: string;
@@ -21,7 +22,8 @@ export function MapDestinations({ world, targets, followPath, online, spaceId }:
   const close = () => setOpen(false);
 
   const needle = searchable(query);
-  const destinations: ReceptionDestination[] = zones.map(({ key, name }) => ({ kind: 'room', key, label: name }));
+  const destinations: MapDestination[] = zones.map(({ key, name }) => ({ kind: 'room', key, label: name }));
+  if (world.reception) destinations.unshift({ kind: 'reception', label: 'Recepção', x: world.reception.x, y: world.reception.y });
   if (needle) {
     destinations.push(...world.map.desks.map(({ key }) => ({
       kind: 'desk' as const, key, label: key.replaceAll('-', ' '),
@@ -34,13 +36,13 @@ export function MapDestinations({ world, targets, followPath, online, spaceId }:
   }
   const results = destinations.filter(({ label }) => searchable(label).includes(needle));
 
-  const go = (destination: ReceptionDestination) => {
+  const go = (destination: MapDestination) => {
     const route = destinationSteps(world, targets, destination);
     if (!route || (route.length && !followPath(route))) {
       setError(`Não foi possível traçar um caminho até ${destination.label}.`);
       return;
     }
-    if (route.length) world.setDestination(destination);
+    if (route.length && destination.kind !== 'reception') world.setDestination(destination);
     else world.clearReceptionDestination();
     setStatus(route.length ? `Destino: ${destination.label}.` : `Você já está no destino: ${destination.label}.`);
     close();
@@ -83,7 +85,7 @@ export function MapDestinations({ world, targets, followPath, online, spaceId }:
           </label>
           <ul>
             {results.slice(0, 25).map((destination) => {
-              const id = destination.kind === 'person' ? destination.id : destination.key;
+              const id = destination.kind === 'person' ? destination.id : destination.kind === 'reception' ? 'reception' : destination.key;
               const meeting = destination.kind === 'room' && zones.some((zone) => zone.key === id && zone.type === 'meeting');
               const locked = meeting && world.zones.get(id)?.locked;
               return (
