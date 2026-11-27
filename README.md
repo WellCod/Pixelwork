@@ -20,7 +20,7 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 ### Atendimento por voz local
 
-![Avatar da Recepção com o indicador de fala no mapa e o painel de atendimento da IA local aberto](docs/prints/recepcao-voz-local.png)
+![Recepcionista sentada atrás do balcão azul na ponta direita do corredor central, com o indicador de fala e o painel de atendimento por voz local aberto](docs/prints/recepcao-voz-local.png)
 
 ### Rota até a sala Aurora
 
