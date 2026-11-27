@@ -109,19 +109,19 @@ O microfone começa desligado. Depois de ativá-lo, abra **Quem pode ouvir** par
 
 ### Compartilhar a tela
 
-Entre em uma sala de reunião, como a **Sala Aurora**, ou inicie uma chamada privada. Clique em **Compartilhar tela** ao lado dos controles de microfone e câmera e escolha o que apresentar no navegador.
+Entre em uma sala de reunião, como a **Sala Aurora**, ou inicie uma chamada privada. Para ligar, sente-se na cadeira da sua mesa, clique em **Ligar** na lista de pessoas e aguarde a outra pessoa atender. Em seguida, clique em **Compartilhar tela** ao lado dos controles de microfone e câmera e escolha o que apresentar no navegador.
 
 Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem a apresentação. Use **Parar de compartilhar** ou saia da sala para encerrar.
 
 #### Ver uma apresentação em tela cheia
 
 1. Na **Sala Aurora** ou em uma **chamada privada**, espere a apresentação aparecer sobre o mapa.
-2. Clique em **Tela cheia** no rodapé do vídeo, ao lado do nome de quem apresenta.
+2. Clique em **Tela cheia** no rodapé do vídeo. Na janela flutuante, esse controle é o ícone de quatro cantos na barra inferior.
 3. Para voltar ao mapa, clique em **Sair da tela cheia**. Se a apresentação ou a chamada terminar, o mapa volta automaticamente.
 
 #### Minimizar e restaurar uma apresentação
 
-1. Ao receber uma apresentação na **Sala Aurora** ou em uma **chamada privada**, clique em **Minimizar** no rodapé do vídeo. O botão também funciona em tela cheia.
+1. Ao receber uma apresentação na **Sala Aurora** ou em uma **chamada privada**, clique em **Minimizar** no rodapé do vídeo. Na janela flutuante, use o ícone de traço na barra inferior. O botão também funciona em tela cheia.
 2. O vídeo se recolhe para liberar o mapa, e o compartilhamento continua ativo.
 3. Para voltar ao vídeo, clique em **Restaurar apresentação** na barra abaixo dos controles de mídia.
 
@@ -133,6 +133,8 @@ Você pode compartilhar em pé. Só os participantes da reunião ou chamada veem
 4. Clique em **Voltar ao painel**, na barra de título, para retomar a visualização normal da mesma apresentação.
 
 O Pixelwork salva a posição e o tamanho da janela no navegador. Depois de clicar em **Voltar ao painel**, selecione **Flutuante** novamente para recuperar o último ajuste. No mesmo navegador, ele também vale para novas apresentações na Sala Aurora ou em chamadas privadas, inclusive após recarregar a página.
+
+Para restaurar a posição e o tamanho padrão, clique em **Redefinir janela** na barra inferior da janela flutuante. O vídeo continua rodando, e o padrão substitui o ajuste salvo no navegador.
 
 ## Corrida 1x1 nos fliperamas
 
