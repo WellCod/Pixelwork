@@ -32,7 +32,7 @@ export function readReceptionTool(
   directory: ReceptionDirectory,
   input: unknown,
   highlight: (destination: ReceptionDestination | null) => void,
-): unknown {
+) {
   const parsed = Command.safeParse(input);
   if (!parsed.success) return { error: 'invalid_tool' };
   const command = parsed.data;
@@ -86,4 +86,32 @@ export function readReceptionTool(
     rooms: zones.slice(0, MAX_RESULTS).map(({ name }) => display(name)),
     desks: desks.slice(0, MAX_RESULTS).map((desk) => ({ name: display(desk.key), place: display(zoneAt(map, desk.chairX, desk.chairY).name) || 'Área aberta' })),
   };
+}
+
+export function answerReceptionText(text: string, read: (input: unknown) => ReturnType<typeof readReceptionTool>): string {
+  const question = text.trim().replace(/[?.!]+$/, '');
+  const normalized = searchable(question);
+  if (/^(como (entrar|entro|acessar)|bater na porta)/.test(normalized)) {
+    return 'Se a sala estiver trancada, vá até a porta, escolha Bater na porta e aguarde a autorização.';
+  }
+  const online = /^(quem esta online|quem esta aqui|quem esta no escritorio)$/.test(normalized);
+  const place = /^(?:onde (?:fica|est[aá])|localizar)\s+(.+)$/i.exec(question)?.[1];
+  if (online || place) {
+    const query = (place ?? '').replace(/^(?:a|o)\s+/i, '').replace(/^sala\s+/i, '').slice(0, 80);
+    const result = read(online ? { name: 'list_online_people' } : { name: 'locate_place', query });
+    if ('people' in result) {
+      if (!result.people.length) return online ? 'Ninguém está online agora.' : 'Não encontrei essa pessoa online.';
+      const people = result.people.map(({ name, place }) => `${name} · ${place}`).join('\n');
+      return result.count > result.people.length ? `${result.count} pessoas online.\n${people}` : people;
+    }
+    const names = [...(result.rooms ?? []).filter((room) => typeof room === 'string'),
+      ...(result.desks ?? []).map(({ name, place }) => `${name} · ${place}`)];
+    const [first, ...remaining] = names;
+    if (first) return remaining.length ? `Encontrei mais de um destino.\n${names.join('\n')}` : `Encontrei ${first}.`;
+    return online ? 'Ninguém está online agora.' : 'Não encontrei esse destino. Tente o nome exato no mapa.';
+  }
+  if (/^(como funciona|ajuda|oi|ola|jogos)$/.test(normalized)) {
+    return 'Use Mapa para localizar salas, mesas e pessoas. Você pode conversar por proximidade e jogar na área de jogos.';
+  }
+  return 'Posso ajudar com o coworking. Pergunte onde fica uma sala ou mesa, quem está online ou como entrar em uma sala.';
 }

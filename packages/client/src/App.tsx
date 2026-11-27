@@ -2,7 +2,7 @@ import { compileMap, type CompiledMap } from '@pixelwork/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, orgApi, type Me, type SpaceDetail, type SpaceSummary } from './api.ts';
 import { GameView } from './GameView.tsx';
-import { EditorController } from './editor/editor-controller.ts';
+import { EditorController, demoDraftKey } from './editor/editor-controller.ts';
 import type { TiledDoc } from '@pixelwork/shared/editor';
 import type { ConnectionStatus } from './net/connection.ts';
 import { CreateSpaceModal } from './ui/CreateSpaceModal.tsx';
@@ -25,6 +25,28 @@ type State =
 
 /** Chave do localStorage com o último coworking aberto, para reabrir nele no próximo acesso. */
 const STORAGE_KEY = 'pixelwork.space';
+const ROOM_LINK_KEY = 'pixelwork.room-link';
+type RoomLink = { spaceId: string; zoneKey: string };
+
+function roomLink(): RoomLink | null {
+  const params = new URLSearchParams(location.search);
+  const spaceId = params.get('coworking');
+  const zoneKey = params.get('sala');
+  if (spaceId && /^[0-9a-f-]{36}$/i.test(spaceId) && zoneKey && /^[a-z0-9-]{1,80}$/.test(zoneKey)) return { spaceId, zoneKey };
+  return null;
+}
+
+function clearRoomLink(): void {
+  const current = new URL(location.href);
+  current.searchParams.delete('coworking');
+  current.searchParams.delete('sala');
+  history.replaceState(null, '', current);
+  try {
+    sessionStorage.removeItem(ROOM_LINK_KEY);
+  } catch {
+    // O link já foi retirado da URL.
+  }
+}
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connecting: 'Conectando…',
   online: 'Online',
@@ -65,14 +87,33 @@ async function openSpace(spaceId: string): Promise<CurrentSpace> {
   return { space, map: compiled.map };
 }
 
+function openEditor(space: SpaceDetail): EditorController {
+  if (space.role !== 'admin') {
+    try {
+      const saved = sessionStorage.getItem(demoDraftKey(space.id));
+      if (saved) {
+        const draft: unknown = JSON.parse(saved);
+        if (compileMap(draft).ok) return new EditorController(draft as TiledDoc);
+      }
+    } catch {
+      // O editor ainda abre com o mapa compartilhado se o rascunho estiver inacessível.
+    }
+  }
+  return new EditorController(structuredClone(space.map) as TiledDoc);
+}
+
 /**
  * Monta o estado `ready` depois do login. O coworking aberto segue a ordem: o pedido
  * explicitamente (`preferred`), o último lembrado e, por fim, o primeiro da lista.
  */
-async function loadReady(me: Me, preferred: string | null = null, notice = ''): Promise<State> {
+async function loadReady(me: Me, preferred: string | null = null, notice = '', linked = preferred === null ? roomLink() : null): Promise<State> {
   const spaces = await api.spaces();
+  if (linked && !spaces.some((space) => space.id === linked.spaceId)) {
+    notice = 'Este link de sala requer acesso ao coworking.';
+    clearRoomLink();
+  }
   const chosenSpace =
-    spaces.find((space) => space.id === preferred) ??
+    spaces.find((space) => space.id === (preferred ?? linked?.spaceId)) ??
     spaces.find((space) => space.id === rememberedSpaceId()) ??
     spaces[0];
   const current = chosenSpace ? await openSpace(chosenSpace.id) : null;
@@ -111,15 +152,26 @@ export function App() {
   // Na montagem: descobre se o login pelo GitHub está ligado e tenta retomar a sessão.
   // Sem sessão (401) cai no login; `?erro` na URL é o retorno de um OAuth do GitHub que falhou.
   useEffect(() => {
+    try {
+      const link = roomLink();
+      if (link) sessionStorage.setItem(ROOM_LINK_KEY, location.search);
+      else if (location.pathname === '/' && !location.search) {
+        const saved = sessionStorage.getItem(ROOM_LINK_KEY);
+        if (saved?.startsWith('?coworking=') || saved?.startsWith('?sala=')) history.replaceState(null, '', '/' + saved);
+      }
+    } catch {
+      // O link continua funcionando para quem já entrou, mesmo sem armazenamento.
+    }
     orgApi
       .providers()
       .then((providers) => setGithubLoginEnabled(providers.github))
       .catch(() => setGithubLoginEnabled(false));
     const githubError = new URLSearchParams(location.search).has('erro');
+    const linked = roomLink();
     if (githubError) history.replaceState(null, '', location.pathname);
     api
       .me()
-      .then((me) => loadReady(me))
+      .then((me) => loadReady(me, null, '', linked))
       .then(setState)
       .catch((error: unknown) => {
         if (error instanceof ApiError && error.status === 401) {
@@ -169,6 +221,7 @@ export function App() {
   }
 
   const { me, spaces, current } = state;
+  const linked = roomLink();
 
   // Aberto por link de convite: aceita primeiro e só depois entra no coworking do convite.
   if (inviteToken) {
@@ -240,7 +293,7 @@ export function App() {
             disabled={editor !== null}
             onClick={() =>
               setEditor({
-                controller: new EditorController(structuredClone(current.space.map) as TiledDoc),
+                controller: openEditor(current.space),
                 baseVersion: current.space.mapVersion,
               })
             }
@@ -251,7 +304,7 @@ export function App() {
         {current?.space.role === 'admin' && (
           <>
             <button type="button" onClick={() => setOpenModal('map')}>
-              Mapa
+              Gerenciar mapa
             </button>
             <button type="button" onClick={() => setOpenModal('reception')}>
               Recepção
@@ -290,6 +343,11 @@ export function App() {
           key={current.space.id}
           space={current.space}
           map={current.map}
+          linkedZone={linked?.spaceId === current.space.id ? linked.zoneKey : null}
+          onLinkHandled={(notice) => {
+            clearRoomLink();
+            if (notice) setState((previous) => previous.kind === 'ready' ? { ...previous, notice } : previous);
+          }}
           // Removido do coworking: recarrega a lista com aviso. Sessão encerrada: volta ao login.
           onStatus={(nextStatus) => {
             setConnectionStatus(nextStatus);

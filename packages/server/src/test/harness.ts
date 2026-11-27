@@ -47,6 +47,7 @@ export interface TestServerOptions {
   map?: unknown;
   media?: MediaService;
   receptionVoice?: ReceptionVoice;
+  receptionLimits?: NonNullable<AppConfig['receptionistLimits']>;
   github?: GitHubClient;
   rateLimit?: boolean;
 }
@@ -59,7 +60,11 @@ export async function startTestServer(options: TestServerOptions = {}): Promise<
   const clock = new ManualClock();
   const app = buildApp({
     db: databaseHandle.db,
-    config: { ...TEST_CONFIG, receptionistEnabled: options.receptionVoice !== undefined },
+    config: {
+      ...TEST_CONFIG,
+      receptionistEnabled: options.receptionVoice !== undefined,
+      ...(options.receptionLimits ? { receptionistLimits: options.receptionLimits } : {}),
+    },
     clock,
     scheduler: clock,
     rateLimit: options.rateLimit ?? false,

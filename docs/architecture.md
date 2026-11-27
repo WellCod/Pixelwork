@@ -624,11 +624,11 @@ Salas do LiveKit (identidade do participante = id do usuário):
 
 Proximidade (na sala `space:`):
 
-- Função pura no cliente: posições + mapa compilado + conjunto atual -> conjunto de identidades a
-  assinar. Entra a até `PROXIMITY_ENTER_TILES` na mesma zona, sai acima de `PROXIMITY_EXIT_TILES`
-  ou ao mudar de zona.
-- Fazer isso no cliente é aceitável porque a área aberta é visível para todo o coworking por
-  definição. O que precisa de privacidade está em salas separadas.
+- A função compartilhada calcula a audiência usando posições autoritativas no servidor. Entra a até
+  `PROXIMITY_ENTER_TILES` na mesma zona e sai acima de `PROXIMITY_EXIT_TILES` ou ao mudar de zona.
+  Quando a lista muda, `media.audience` informa ao publicador quais identidades o LiveKit pode
+  assinar. O cliente inicia com uma lista vazia e aplica a própria seleção de balões e volume por
+  distância. Nas salas privadas, a lista vem da associação ativa no servidor.
 - Volume atenuado pela distância (1,0 até 1 tile, caindo linearmente até 0,2 no raio de saída).
 - Exceção aprovada (pingpong, seção "Interações com objetos"): o adversário de uma partida em
   andamento conta como perto, mesmo acima do raio. A sala continua a `space:`.
@@ -642,9 +642,9 @@ Decisões da fase 3 (versões fixadas: `livekit-server-sdk` 2.20.0, `livekit-cli
 
 - O grant `canPublishSources` existe e substitui `canPublish`: o token da sala `space:` só libera
   câmera e microfone, então compartilhar tela ali é recusado pelo próprio LiveKit. Validade do
-  token: 2 minutos (era 6 horas). O LiveKit só confere o token na entrada e renova sozinho o de
-  quem segue conectado; com validade curta, um token guardado não serve para voltar a uma sala
-  trancada, a uma chamada encerrada ou ao coworking de que a pessoa foi removida.
+  token emitido pelo app: 2 minutos. No LiveKit self-hosted, remoção não revoga tokens já emitidos
+  ou renovados. As permissões das trilhas são outra barreira: identidades que saem da audiência
+  perdem acesso às publicações do cliente oficial. Nomes de sala e sinalização continuam no SFU.
 - Ao trocar de sala, o servidor tira o participante da anterior pela API do LiveKit, inclusive
   da `space:` (antes ela era poupada, e um cliente modificado podia ficar nela durante uma
   reunião ou chamada). Sair do coworking também remove da `space:`. "Não encontrado" do LiveKit
@@ -841,6 +841,9 @@ Decisões da fase 7 (editor no app, `packages/client/src/editor`):
 - Job de hora em hora: apaga convidados expirados (cascata libera as mesas).
 - Job noturno: restaura o mapa do coworking de demo a partir do template e limpa as atribuições
   de mesa.
+- Visitantes editam uma cópia descartável no `sessionStorage` da aba. Publicar no mapa
+  compartilhado exige papel de administrador. O servidor arquiva as últimas 20 versões e
+  restaura uma versão antiga publicando uma nova com a validação normal.
 - Decisões da fase 8: os dois jobs rodam no processo do servidor (`scheduleJobs`), com relógio e
   agendador injetáveis. O reset é às 03:00 UTC (meia-noite em Brasília) e quem está online recebe
   a troca de mapa ao vivo; o convidado expirado que ainda está online sai do mapa na hora.

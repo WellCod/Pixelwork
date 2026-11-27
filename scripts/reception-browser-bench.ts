@@ -9,6 +9,7 @@ interface AudioBenchmark {
   mic: () => MediaStreamAudioDestinationNode | undefined;
   buffers: AudioBuffer[];
   lastSound: number;
+  firstSound: number;
   questionEnd: number;
   firstReply: number;
   disconnect: () => void;
@@ -92,14 +93,16 @@ try {
       }
       return getUserMedia(constraints);
     };
-    window.receptionBench = { audioContext, mic: () => mic, buffers: [], lastSound: 0, firstReply: 0,
+    window.receptionBench = { audioContext, mic: () => mic, buffers: [], lastSound: 0, firstSound: 0, firstReply: 0,
       questionEnd: Infinity, disconnect: () => undefined };
   });
   await page.goto(origin);
   await page.getByRole('button', { name: 'Entrar como convidado', exact: true }).click();
   const tutorial = page.getByRole('button', { name: 'Entendi', exact: true });
   if (await tutorial.isVisible()) await tutorial.click();
-  await page.waitForFunction(() => window.__pixelwork?.media.connected && window.receptionBench.mic());
+  await page.waitForFunction(() => window.__pixelwork?.media.connected);
+  await page.getByRole('button', { name: 'Ligar microfone', exact: true }).click();
+  await page.waitForFunction(() => window.receptionBench.mic());
   await page.evaluate(async (wavFiles) => {
     const bench = window.receptionBench;
     const audio = bench.audioContext();
@@ -120,6 +123,7 @@ try {
   }, fixtures);
 
   async function startSession() {
+    const requestedAt = await page.evaluate(() => window.receptionBench.audioContext().currentTime);
     await page.getByRole('button', { name: 'Conversar com IA', exact: true }).click();
     await page.waitForFunction(() => window.__pixelwork?.world.receptionSession?.state === 'active', null, { timeout: 30_000 });
     await page.waitForFunction(() => {
@@ -142,11 +146,13 @@ try {
       muted.gain.value = 0;
       remote.connect(probe).connect(muted).connect(audio.destination);
       bench.lastSound = 0;
+      bench.firstSound = 0;
       bench.firstReply = 0;
       bench.questionEnd = Infinity;
       probe.port.onmessage = (event: MessageEvent<unknown>) => {
         const time = event.data;
         if (typeof time !== 'number') return;
+        if (!bench.firstSound) bench.firstSound = time;
         bench.lastSound = time;
         if (time >= bench.questionEnd && !bench.firstReply) bench.firstReply = time;
       };
@@ -156,6 +162,7 @@ try {
       const bench = window.receptionBench;
       return bench.lastSound && bench.audioContext().currentTime - bench.lastSound > 0.60;
     }, null, { timeout: 20_000 });
+    return page.evaluate((start) => Math.round((window.receptionBench.firstSound - start) * 1000), requestedAt);
   }
 
   async function ask(index: number) {
@@ -188,31 +195,41 @@ try {
 
   const measurements: number[] = [];
   const failures: number[] = [];
+  const greetings: number[] = [];
+  const firstTurns: number[] = [];
+  const failedSessions: number[] = [];
   console.log(`Chrome ${browser.version()}, ${turns} turnos`);
   const turnsPerSession = 5;
   for (let offset = 0; offset < turns; offset += turnsPerSession) {
-    await startSession();
     try {
-      await ask(0);
+      greetings.push(await startSession());
+      firstTurns.push(await ask(0));
       for (let index = offset; index < Math.min(turns, offset + turnsPerSession); index++) {
         try {
           const latency = await ask(index % questions.length);
           measurements.push(latency);
-            console.log(`${index + 1}. ${questions[index % questions.length] ?? ''} ${latency} ms`);
+          console.log(`${index + 1}. ${questions[index % questions.length] ?? ''} ${latency} ms`);
         } catch (error) {
           failures.push(index + 1);
           console.error(`${index + 1}. Falha ao medir o turno`, error);
-          break;
         }
       }
+    } catch (error) {
+      failedSessions.push(1 + Math.floor(offset / turnsPerSession));
+      console.error('Falha ao iniciar ou aquecer uma sessão', error);
     } finally {
       await page.evaluate(() => window.receptionBench.disconnect());
-      await page.getByRole('button', { name: 'Encerrar', exact: true }).click();
+      const stop = page.getByRole('button', { name: 'Encerrar', exact: true });
+      if (await stop.isVisible()) {
+        await stop.click();
+        await page.waitForFunction(() => window.__pixelwork?.world.receptionSession?.state === 'ended');
+        await page.getByRole('button', { name: 'Conversar com IA', exact: true }).waitFor();
+      }
     }
   }
   const sorted = [...measurements].sort((a, b) => a - b);
   const percentile = (p: number) => sorted[Math.ceil(sorted.length * p) - 1];
-  console.log(JSON.stringify({ turns, measurements, failures, p50: percentile(0.50), p95: percentile(0.95) }));
+  console.log(JSON.stringify({ turns, measurements, failures, greetings, firstTurns, failedSessions, p50: percentile(0.50), p95: percentile(0.95) }));
   assert.equal(measurements.length, turns, 'A amostra está incompleta.');
 } finally {
   await browser.close();

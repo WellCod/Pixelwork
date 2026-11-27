@@ -8,7 +8,7 @@ import { TileThumb } from '../ui/TileThumb.tsx';
 import { isTyping } from '../input-focus.ts';
 import { label } from '../ui/labels.ts';
 import { categorize } from './categories.ts';
-import { FLOOR_OPTIONS, FURNITURE_OPTIONS, RUG_OPTIONS, WALL_OPTIONS, type EditorController, type Tool } from './editor-controller.ts';
+import { FLOOR_OPTIONS, FURNITURE_OPTIONS, RUG_OPTIONS, WALL_OPTIONS, demoDraftKey, type EditorController, type Tool } from './editor-controller.ts';
 
 const TOOLS: { tool: Tool; label: string; hint: string }[] = [
   { tool: 'select', label: 'Selecionar', hint: 'Clique para selecionar; arraste para mover.' },
@@ -37,12 +37,13 @@ interface Props {
   controller: EditorController;
   spaceId: string;
   baseVersion: number;
+  localDraft: boolean;
   onBaseVersion: (version: number) => void;
   onClose: () => void;
 }
 
 /** Ferramentas, seleção, erros ao vivo e salvar. A edição em si acontece na cena. */
-export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, onClose }: Props) {
+export function EditorPanel({ controller, spaceId, baseVersion, localDraft, onBaseVersion, onClose }: Props) {
   useEditor(controller);
   const [status, setStatus] = useState<{ kind: 'ok' | 'error' | 'stale'; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -77,6 +78,12 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
     setSaving(true);
     setStatus(null);
     try {
+      if (localDraft) {
+        sessionStorage.setItem(demoDraftKey(spaceId), JSON.stringify(controller.doc));
+        controller.markClean();
+        setStatus({ kind: 'ok', text: 'Cópia salva nesta aba.' });
+        return;
+      }
       const validation = await mapApi.validate(spaceId, controller.doc);
       if (validation.errors.length > 0) {
         setStatus({ kind: 'error', text: 'O servidor recusou o mapa: corrija os erros abaixo.' });
@@ -134,10 +141,24 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
     controller.reset(adoptDocument(controller.doc, smallOffice as TiledDoc));
   };
 
+  const restoreDemo = async () => {
+    if (!confirm('Restaurar o mapa original da demo nesta aba?')) return;
+    try {
+      const space = await api.space(spaceId);
+      sessionStorage.removeItem(demoDraftKey(spaceId));
+      controller.reset(space.map as TiledDoc);
+      controller.markClean();
+      setStatus({ kind: 'ok', text: 'Mapa original restaurado nesta aba.' });
+    } catch {
+      setStatus({ kind: 'error', text: 'Não deu para restaurar o mapa original.' });
+    }
+  };
+
   return (
     <aside className="sidebar editor-panel">
       <section>
         <h3>Editar mapa</h3>
+        {localDraft && <p className="muted">Suas alterações ficam na cópia desta aba. O escritório compartilhado continua disponível quando você sai do editor.</p>}
         <div className="tool-grid">
           {TOOLS.map((entry) => (
             <button
@@ -363,8 +384,9 @@ export function EditorPanel({ controller, spaceId, baseVersion, onBaseVersion, o
           </button>
         )}
         <button type="button" className="primary" disabled={saving || errors.length > 0} onClick={() => void save()}>
-          {saving ? 'Salvando…' : 'Salvar mapa'}
+          {saving ? 'Salvando…' : localDraft ? 'Salvar cópia nesta aba' : 'Salvar mapa'}
         </button>
+        {localDraft && <button type="button" onClick={() => void restoreDemo()}>Restaurar mapa da demo</button>}
         <button type="button" onClick={fromTemplate}>
           Começar do modelo
         </button>

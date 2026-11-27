@@ -7,6 +7,7 @@ interface Props {
   sim: NetSim;
   world: ClientWorld;
   stats: () => NetStats | null;
+  onReplay?: () => void;
 }
 
 /** Milissegundos arredondados para exibir; sem medida ainda, um travessão. */
@@ -17,7 +18,7 @@ const formatMs = (value: number | null | undefined) => (value === null || value 
  * confirmados e correções, mais o simulador de latência. Com ele aberto, o mapa mostra um
  * fantasma na posição que o servidor confirmou por último.
  */
-export function NetOverlay({ sim, world, stats }: Props) {
+export function NetOverlay({ sim, world, stats, onReplay }: Props) {
   useSyncExternalStore(
     (onChange) => sim.subscribe(onChange),
     () => sim.version,
@@ -46,9 +47,13 @@ export function NetOverlay({ sim, world, stats }: Props) {
 
   if (!sim.overlay) {
     return (
-      <button type="button" className="net-toggle" title="Overlay de rede (F3)" onClick={() => sim.set({ overlay: true })}>
-        Rede
-      </button>
+      <details className="diagnostics-menu">
+        <summary aria-label="Diagnóstico">Diagnóstico</summary>
+        <div>
+          <button type="button" onClick={() => sim.set({ overlay: true })}>Rede (F3)</button>
+          {onReplay && <button type="button" onClick={onReplay}>Replay</button>}
+        </div>
+      </details>
     );
   }
 

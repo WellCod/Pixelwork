@@ -6,10 +6,10 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 ## O que dá para fazer
 
-- **Explorar e jogar.** Use o teclado ou toque no mapa. No celular, escolha um destino pelo botão **Mapa**. Sente-se nos móveis e jogue pingue-pongue ou pebolim contra outra pessoa ou um bot.
+- **Explorar e jogar.** Use o teclado, toque no mapa ou abra **Mapa** para buscar salas, mesas e pessoas. Sente-se nos móveis e jogue pingue-pongue ou pebolim contra outra pessoa ou um bot.
 - **Aquário e fliperamas.** Alimente os animais do recife ou dispute uma corrida de carros nos dois fliperamas.
 - **Conversar e se reunir.** Use chat por proximidade, chamadas 1:1, compartilhamento de tela e salas privadas com pedido de acesso. A recepcionista também traça rotas até salas, mesas e pessoas.
-- **Personalizar e editar.** Monte avatares e mesas com coleções temáticas e reorganize o escritório no editor com desfazer e refazer. Visitantes podem experimentar o editor na demo. Importe e exporte mapas no formato Tiled.
+- **Personalizar e editar.** Monte avatares e mesas com coleções temáticas e reorganize o escritório no editor com desfazer e refazer. Visitantes da demo editam uma cópia da aba. Administradores podem importar, exportar e restaurar versões publicadas em **Gerenciar mapa**.
 - **Gerenciar espaços.** Crie coworkings por organização, convide pessoas e defina papéis.
 
 ## Telas
@@ -103,6 +103,10 @@ O firewall precisa deixar entrar TCP 5173 (Vite), TCP 7881 e UDP 7882 (mídia do
 `localhost` ou IP privado continua sendo desenvolvimento: as checagens de produção do `env.ts` valem
 para https em endereço público.
 
+O banco de desenvolvimento fica em `127.0.0.1:5432`. Se o contêiner já existia antes dessa configuração, recrie o serviço `postgres` com o mesmo projeto Compose para aplicar o vínculo local.
+
+O microfone começa desligado. Depois de ativá-lo, abra **Quem pode ouvir** para ver a lista de pessoas autorizadas na sala ou por proximidade. Em **Mapa**, busque **Sala Aurora** e use **Copiar link** para enviar um trajeto até a porta. As regras de acesso ao coworking e de entrada na sala continuam valendo.
+
 ### Compartilhar a tela
 
 Entre em uma sala de reunião, como a **Sala Aurora**, ou inicie uma chamada privada. Clique em **Compartilhar tela** ao lado dos controles de microfone e câmera e escolha o que apresentar no navegador.
@@ -140,7 +144,7 @@ Para praticar sozinho, escolha **Jogar sozinho** na sala de espera.
 
 ## Recepcionista com voz local
 
-A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso. Entre como convidado, aproxime-se da **Recepção · IA**, toque em **Conversar com IA** e permita o uso do microfone. Para encerrar a conversa, use **Encerrar** ou afaste-se da recepção.
+A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso. Aproxime-se da **Recepção · IA**, ative o microfone e toque em **Conversar com IA**. Para encerrar, use **Encerrar** ou afaste-se. Com **Perguntar por texto**, você pode digitar “Onde fica a Sala Aurora?” e ver o trajeto usando as mesmas consultas do servidor, inclusive com o microfone desligado ou a voz indisponível.
 
 ### Pedir uma rota por voz
 
@@ -151,13 +155,13 @@ A recepcionista fica perto da entrada na demo quando a instalação e o coworkin
 O Pixelwork supervisiona o processo Python via IPC. A trilha de voz é exclusiva do visitante
 atendido, e o servidor remove a identidade do NPC ao encerrar. A fala do visitante interrompe a
 reprodução. Áudio e transcrições são processados em memória, e os logs guardam contadores de uso.
-Há um atendimento por coworking e um limite global configurável.
+Há um atendimento por coworking, um limite global e uma cota diária por coworking. O servidor reserva a duração máxima de cada sessão na cota do dia UTC. Os contadores de áudio e tokens registram o uso observado separadamente.
 [Spec da recepção](docs/superpowers/specs/2026-11-25-recepcionista-ia-design.md)
 
 ### Preparar a recepção na demo
 
 1. Crie um ambiente Python 3.12 fora da pasta do projeto e instale o SDK livre com `python -m pip install livekit==1.3.0`.
-2. Aplique `pnpm db:migrate` no banco de desenvolvimento. No `.env`, defina `RECEPTIONIST_ENABLED=true` e `RECEPTIONIST_PYTHON` como o caminho absoluto do executável desse ambiente. Os limites de sessões e de duração estão no `.env.example`.
+2. Aplique `pnpm db:migrate` no banco de desenvolvimento. No `.env`, defina `RECEPTIONIST_ENABLED=true` e `RECEPTIONIST_PYTHON` como o caminho absoluto do executável desse ambiente. Os limites de sessões, duração e cota diária estão no `.env.example`.
 3. Entre no coworking como admin, abra **Recepção** e autorize o recurso. A demo restaurada a partir do mapa padrão inclui o ponto. Em outro mapa, adicione no Tiled um ponto em uma camada de objetos chamada `reception`, em área aberta e caminhável.
 
 ### Usar voz local em português
@@ -202,6 +206,10 @@ A medição termina antes da saída física de som.
 | Voz local otimizada | 20 | 0 | 4,48 s | 5,11 s |
 
 O Whisper passou a decodificar com feixe único e sem timestamps, usando até oito threads conforme a máquina. A trilha começa a receber áudio assim que o Piper sintetiza a primeira frase. Neste ensaio, o p50 caiu 18% e o p95 caiu 29%.
+
+Em 26/11/2026, no mesmo PC e com os mesmos modelos, o ensaio no Chrome 157.0.8103.79 mediu 10 turnos aquecidos. O p50 foi **4,09 s** e o p95 **4,62 s**, com 0 falhas. As duas sessões usaram um novo processo de voz e o servidor llama.cpp já em execução. Do clique à saudação, os tempos foram **10,40 s** e **4,37 s**. A primeira pergunta após cada saudação levou **6,23 s** e **4,26 s** até a resposta começar. Foram 0 falhas de inicialização. A amostra de duas sessões registra os valores individuais de início.
+
+O endpoint interno `/metrics` expõe o tempo até o worker ficar pronto e eventos de sessão, como indisponibilidade, tempo limite e cota diária atingida. O benchmark no Chrome ainda mede até a chegada do áudio.
 
 Para reproduzir, execute com a demo de voz ativa.
 
@@ -269,12 +277,17 @@ Na comparação de novembro de 2026 em macOS, com 20 s de medição, o tick méd
 | 25 | 1 ms | 1 ms | 1 ms | 86 B | 10,3 | 3,4% |
 | 50 | 1 ms | 2 ms | 2 ms | 154 B | 10,2 | 5,0% |
 
+Em 27/11/2026, com as listas de audiência da mídia ativas, o ensaio local em Windows 11 Pro
+(Ryzen 7 7735HS, Node 24.14.1) registrou 9.350 ticks em 20 s com 50 bots e 5 s de aquecimento.
+O tick binário teve média de **158 B**, p50 de **7 ms** e p95 de **9 ms**. Incluindo as mensagens
+de controle, a média foi de **161 B** e **12 mensagens por bot/s**. O processo do servidor
+usou **10% de CPU** e **103 MB** de RSS durante o ensaio.
+
 ## Testes
 
 - `pnpm test` roda os unitários e a integração com o Postgres do Compose e um dublê do LiveKit.
   Os testes cobrem regras do mapa e do editor, simulação, reconexão e autorização de mídia.
-- `pnpm e2e` verifica no Chromium se dois visitantes assinam a trilha do outro ao se aproximarem.
-  O CI usa LiveKit em contêiner e dispositivos de mídia simulados.
+- `pnpm e2e` verifica no Chromium o áudio por proximidade e a apresentação na Aurora com dois participantes e um terceiro fora da sala. O CI usa LiveKit em contêiner e captura de mídia simulada.
 - `pnpm typecheck` e `pnpm lint` verificam tipos e estilo.
 
 [Comandos do projeto](CLAUDE.md) · [Detalhes dos testes](docs/architecture.md#14-testes)

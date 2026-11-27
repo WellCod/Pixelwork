@@ -24,8 +24,10 @@ export class MediaManager {
   private expanded: string | null = null;
   private readonly audioElements = new Map<string, HTMLMediaElement[]>();
   private readonly listeners = new Set<() => void>();
+  private audienceRoom: string | null = null;
+  private audience = new Set<string>();
 
-  micOn = true;
+  micOn = false;
   camOn = false;
   screenOn = false;
   screenPending = false;
@@ -48,6 +50,27 @@ export class MediaManager {
   /** Sala de reunião ou chamada (todos com todos), em vez da sala do espaço por proximidade. */
   get isPrivate(): boolean {
     return this.roomName !== null && !this.roomName.startsWith('space:');
+  }
+
+  get audienceIds(): string[] {
+    return this.audienceRoom === this.roomName ? [...this.audience] : [];
+  }
+
+  setAudience(room: string, ids: readonly string[]): void {
+    this.audienceRoom = room;
+    this.audience = new Set(ids);
+    if (room !== this.roomName || !this.room) return;
+    this.applyTrackPermissions(this.room);
+    this.apply();
+  }
+
+  private allows(id: string): boolean {
+    return this.audienceRoom === this.roomName && this.audience.has(id);
+  }
+
+  private applyTrackPermissions(room: Room): void {
+    const ids = this.audienceRoom === this.roomName ? [...this.audience] : [];
+    room.localParticipant.setTrackSubscriptionPermissions(false, ids.map((participantIdentity) => ({ participantIdentity, allowAll: true })));
   }
 
   /**
@@ -82,6 +105,7 @@ export class MediaManager {
       return;
     }
     this.room = room;
+    this.applyTrackPermissions(room);
     this.error = null;
     this.setConnected(true);
     this.audioBlocked = !room.canPlaybackAudio;
@@ -151,6 +175,7 @@ export class MediaManager {
   remoteScreens(): { identity: string; track: RemoteVideoTrack }[] {
     const screens: { identity: string; track: RemoteVideoTrack }[] = [];
     for (const [identity, participant] of this.room?.remoteParticipants ?? []) {
+      if (!this.allows(identity)) continue;
       const track = participant.getTrackPublication(Track.Source.ScreenShare)?.track;
       if (track instanceof RemoteVideoTrack) screens.push({ identity, track });
     }
@@ -201,6 +226,10 @@ export class MediaManager {
     this.generation++;
     const room = this.room;
     this.room = null;
+    this.roomName = null;
+    this.audienceRoom = null;
+    this.audience.clear();
+    this.setConnected(false);
     await room?.disconnect();
   }
 
@@ -228,11 +257,11 @@ export class MediaManager {
   private applyTo(id: string, participant: RemoteParticipant): void {
     if (this.isPrivate) {
       // Reunião e chamada: o servidor já decidiu quem está na sala, então todos com todos.
-      for (const publication of participant.trackPublications.values()) publication.setSubscribed(true);
+      for (const publication of participant.trackPublications.values()) publication.setSubscribed(this.allows(id));
       participant.setVolume(1);
       return;
     }
-    const hearing = this.audible.has(id);
+    const hearing = this.audible.has(id) && this.allows(id);
     participant.getTrackPublication(Track.Source.Microphone)?.setSubscribed(hearing);
     const camera = participant.getTrackPublication(Track.Source.Camera);
     const seeing = hearing && this.visible.has(id);
@@ -247,6 +276,9 @@ export class MediaManager {
     room
       .on(RoomEvent.ParticipantConnected, reapply)
       .on(RoomEvent.ParticipantDisconnected, reapply)
+      .on(RoomEvent.Reconnected, () => {
+        if (this.room === room) this.applyTrackPermissions(room);
+      })
       .on(RoomEvent.TrackPublished, reapply)
       .on(RoomEvent.TrackUnpublished, reapply)
       .on(RoomEvent.TrackMuted, reapply)

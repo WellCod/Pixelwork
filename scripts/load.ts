@@ -14,6 +14,7 @@ const { values: cliArgs } = parseArgs({
     seconds: { type: 'string', default: '30' },
     warmup: { type: 'string', default: '5' },
     port: { type: 'string', default: '3100' },
+    'env-file': { type: 'string', default: '.env' },
   },
 });
 const BOT_COUNT = Number(cliArgs.bots);
@@ -36,7 +37,7 @@ function percentile(sorted: number[], percent: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor((percent / 100) * sorted.length))] ?? NaN;
 }
 
-const server = spawn(process.execPath, ['--import', 'tsx', '--env-file=.env', 'packages/server/src/index.ts'], {
+const server = spawn(process.execPath, ['--import', 'tsx', `--env-file=${cliArgs['env-file']}`, 'packages/server/src/index.ts'], {
   cwd: root,
   env: { ...process.env, PORT: String(PORT), PUBLIC_URL: ORIGIN, LOAD_TEST: 'true' },
   stdio: ['ignore', 'ignore', 'inherit'],

@@ -12,11 +12,12 @@ export function useMedia(media: MediaManager): MediaManager {
 }
 
 /** Microfone, câmera e o aviso de que a câmera aparece para quem está perto. */
-export function MediaControls({ media, onReconnect }: { media: MediaManager; onReconnect: () => void }) {
+export function MediaControls({ media, onReconnect, nameOf }: { media: MediaManager; onReconnect: () => void; nameOf: (id: string) => string }) {
   useMedia(media);
   const preview = useRef<HTMLVideoElement>(null);
   const localVideoTrack = media.localVideo();
   const screenLabel = media.screenOn ? 'Parar de compartilhar' : 'Compartilhar tela';
+  const audience = media.audienceIds;
 
   // Liga a trilha da própria câmera ao <video> da prévia e solta ao trocar de trilha ou desmontar.
   useEffect(() => {
@@ -34,16 +35,22 @@ export function MediaControls({ media, onReconnect }: { media: MediaManager; onR
         type="button"
         className={media.micOn ? 'media-toggle on' : 'media-toggle off'}
         aria-pressed={media.micOn}
+        aria-label={media.micOn ? 'Desligar microfone' : 'Ligar microfone'}
         title={media.micOn ? 'Desligar microfone' : 'Ligar microfone'}
         onClick={() => void media.setMic(!media.micOn)}
       >
         <MicIcon off={!media.micOn} />
         <span>{media.micOn ? 'Microfone' : 'Mudo'}</span>
       </button>
+      {media.connected && media.micOn && <details className="media-audience">
+        <summary>Quem pode ouvir ({audience.length})</summary>
+        {audience.length ? <ul>{audience.map((id) => <li key={id}>{nameOf(id)}</li>)}</ul> : <p>Nenhum participante pode ouvir seu microfone.</p>}
+      </details>}
       <button
         type="button"
         className={media.camOn ? 'media-toggle on' : 'media-toggle off'}
         aria-pressed={media.camOn}
+        aria-label={media.camOn ? 'Desligar câmera' : 'Ligar câmera'}
         title={media.camOn ? 'Desligar câmera' : 'Ligar câmera'}
         onClick={() => void media.setCamera(!media.camOn)}
       >

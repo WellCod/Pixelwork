@@ -848,6 +848,13 @@ a.button {
   font-family: var(--pixel-font);
 }
 
+.zoom-controls .map-destinations > button {
+  width: auto;
+  min-width: 52px;
+  padding-inline: 8px;
+  font-family: inherit;
+}
+
 /* ---- ações e destinos do mapa ---- */
 
 .world-actions {
@@ -880,16 +887,26 @@ a.button {
   background: #edf0ff;
 }
 
-.map-destinations {
-  display: none;
-}
-
 .map-destination-dialog ul {
   margin: 0 0 14px;
   padding: 0;
   display: grid;
   gap: 6px;
   list-style: none;
+}
+
+.map-destination-dialog li {
+  display: flex;
+  gap: 6px;
+}
+
+.map-destination-dialog li button + button {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.map-destination-dialog .fields {
+  margin-bottom: 10px;
 }
 
 .map-destination-dialog li button {
@@ -1612,19 +1629,40 @@ a.button {
 
 /* ---- overlay de netcode ---- */
 
-.net-toggle {
+.diagnostics-menu {
+  position: relative;
+}
+
+.diagnostics-menu summary {
+  cursor: pointer;
+  padding: 5px 9px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.diagnostics-menu > div {
   position: absolute;
-  right: 84px;
-  bottom: 12px;
-  padding: 4px 10px;
-  font-size: 0.8em;
-  font-family: var(--pixel-font);
+  bottom: 100%;
+  display: grid;
+  min-width: max-content;
+  padding: 6px;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.diagnostics-menu > div button {
+  width: auto;
+  padding-inline: 8px;
+  font-family: inherit;
 }
 
 .net-overlay {
   position: absolute;
-  left: 12px;
-  bottom: 44px;
+  right: 0;
+  bottom: calc(100% + 6px);
   width: 240px;
   padding: 8px 12px;
   background: rgb(255 255 255 / 96%);
@@ -1735,14 +1773,46 @@ a.button {
   vertical-align: middle;
 }
 
-.replay-toggle {
-  position: absolute;
-  right: 146px;
-  bottom: 12px;
-  padding: 4px 10px;
-  font-size: 0.8em;
-  font-family: var(--pixel-font);
+.context-actions { display: none; }
+
+.context-actions:has(> .desk-bar, .zone-ui > *) {
+  display: grid;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
+
+.context-actions .zone-card,
+.context-actions .desk-bar {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.media-audience {
+  position: relative;
+  font-size: 0.8em;
+}
+.media-audience summary { cursor: pointer; }
+.media-audience > :is(ul, p) {
+  position: absolute;
+  top: 100%;
+  z-index: 1;
+  width: max-content;
+  max-width: min(220px, 65vw);
+  max-height: 45vh;
+  overflow: auto;
+  margin: 4px 0;
+  padding: 8px 12px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.welcome-destinations { display: flex; flex-wrap: wrap; gap: 6px; }
+.reception-answer { white-space: pre-line; }
 
 .desk-preview {
   position: relative;

@@ -1,4 +1,5 @@
 import rateLimit from '@fastify/rate-limit';
+import { receptionDailyUsage } from '@pixelwork/shared/schema';
 import { sql } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { githubClient, registerGitHubRoutes, type GitHubClient } from './auth/github.ts';
@@ -42,6 +43,12 @@ export interface AppDeps {
 
 /** Limite geral por IP; rotas que criam contas ou gravam muito têm o próprio, mais baixo. */
 export const RATE_LIMIT_PER_MINUTE = 300;
+
+const unavailableReceptionVoice: ReceptionVoice = {
+  ready: () => false,
+  start: () => Promise.reject(new Error('Voz da recepção indisponível')),
+  stop: () => Promise.resolve(),
+};
 
 /** Convite é bearer no caminho: quem lê o log não pode entrar no coworking com ele. */
 export function maskUrl(url: string): string {
@@ -127,8 +134,33 @@ export function buildApp({
     media,
     log: app.log,
     metrics,
-    ...(config.receptionistEnabled && receptionVoice ? {
-      reception: { voice: receptionVoice, capacity: new ReceptionCapacity(config.receptionistLimits?.sessions ?? 2), scheduler, media, log: app.log, durationMs: config.receptionistLimits?.durationMs ?? 120_000 },
+    ...(config.receptionistEnabled ? {
+      reception: {
+        voice: receptionVoice ?? unavailableReceptionVoice,
+        capacity: new ReceptionCapacity(config.receptionistLimits?.sessions ?? 2),
+        scheduler,
+        clock,
+        media,
+        log: app.log,
+        durationMs: config.receptionistLimits?.durationMs ?? 120_000,
+        observe(outcome, seconds) {
+          metrics.receptionSessions.set(outcome, (metrics.receptionSessions.get(outcome) ?? 0) + 1);
+          if (seconds !== undefined) metrics.receptionStartup.observe(seconds);
+        },
+        async reserve(spaceId, milliseconds) {
+          const limit = config.receptionistLimits?.dailyMs ?? 3_600_000;
+          if (milliseconds > limit) return false;
+          const day = new Date(clock.now()).toISOString().slice(0, 10);
+          const total = sql`${receptionDailyUsage.reservedMs} + ${milliseconds}`;
+          const rows = await db.insert(receptionDailyUsage).values({ spaceId, day, reservedMs: milliseconds })
+            .onConflictDoUpdate({
+              target: [receptionDailyUsage.spaceId, receptionDailyUsage.day],
+              set: { reservedMs: total },
+              setWhere: sql`${total} <= ${limit}`,
+            }).returning({ reserved: receptionDailyUsage.reservedMs });
+          return rows.length > 0;
+        },
+      },
     } : {}),
   });
   app.decorate('realtime', gateway);
