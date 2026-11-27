@@ -5,14 +5,15 @@ declare global {
   interface Window {
     __pixelwork?: {
       world: { selfId: string | null; self: { x: number; y: number }; pendingCount: number };
-      media: { connected: boolean; debugState(): Record<string, { audio: boolean; video: boolean }> };
+      media: { connected: boolean; room: object | null; debugState(): Record<string, { audio: boolean; video: boolean }> };
+      connection: { reconnect(): void };
     };
   }
 }
 
 /** Convidado num contexto próprio (cookies separados), já conectado à mídia. */
 async function guest(browser: Browser): Promise<{ page: Page; id: string }> {
-  const page = await (await browser.newContext()).newPage();
+  const page = await (await browser.newContext({ ignoreHTTPSErrors: Boolean(process.env.PIXELWORK_E2E_URL), permissions: ['microphone'] })).newPage();
   await page.goto('/');
   await page.getByRole('button', { name: 'Entrar como convidado' }).click();
   await page.waitForFunction(() => window.__pixelwork?.media.connected === true, null, { timeout: 30_000 });
@@ -41,9 +42,16 @@ async function walk(page: Page, key: string, steps: number): Promise<void> {
 const subscribed = (page: Page, otherId: string) =>
   page.evaluate((id) => window.__pixelwork?.media.debugState()[id]?.audio ?? false, otherId);
 
-test('chegar perto assina o áudio do outro, se afastar desassina', async ({ browser }) => {
+test('áudio por proximidade desassina ao se afastar e volta após reconexão', async ({ browser }, testInfo) => {
+  test.setTimeout(90_000);
   const a = await guest(browser);
   const b = await guest(browser);
+  for (const { page } of [a, b]) {
+    await page.bringToFront();
+    const microphone = page.getByRole('button', { name: 'Ligar microfone', exact: true });
+    await expect(microphone).toHaveAttribute('aria-pressed', 'false');
+    await microphone.click();
+  }
 
   // Os dois nascem no spawn: primeiro precisa haver assinatura, senão o "false" abaixo não prova nada.
   await expect.poll(() => subscribed(a.page, b.id), { timeout: 15_000 }).toBe(true);
@@ -56,4 +64,16 @@ test('chegar perto assina o áudio do outro, se afastar desassina', async ({ bro
   await walk(b.page, 'ArrowRight', 5);
   await expect.poll(() => subscribed(a.page, b.id), { timeout: 15_000 }).toBe(true);
   await expect.poll(() => subscribed(b.page, a.id), { timeout: 15_000 }).toBe(true);
+
+  const previousRoom = await b.page.evaluateHandle(() => window.__pixelwork?.media.room);
+  const started = Date.now();
+  await b.page.evaluate(() => window.__pixelwork?.connection.reconnect());
+  await b.page.waitForFunction((oldRoom) => {
+    const media = window.__pixelwork?.media;
+    return media?.connected && media.room !== oldRoom;
+  }, previousRoom, { timeout: 15_000 });
+  await expect.poll(() => subscribed(b.page, a.id), { timeout: 15_000 }).toBe(true);
+  await expect.poll(() => subscribed(a.page, b.id), { timeout: 15_000 }).toBe(true);
+  testInfo.annotations.push({ type: 'Tempo de reconexão do áudio', description: `${Date.now() - started} ms` });
+  await previousRoom.dispose();
 });

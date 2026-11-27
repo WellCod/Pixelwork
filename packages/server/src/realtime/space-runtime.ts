@@ -16,6 +16,7 @@ import {
   canReachFurnitureSeat,
   chatRecipients,
   encodeTick,
+  nextProximity,
   withAck,
   relocate,
   step,
@@ -91,6 +92,7 @@ interface Member {
   zoneKey: string;
   /** Sala de mídia para a qual o cliente foi mandado por último. */
   mediaRoom: string | null;
+  mediaAudience: ReadonlySet<string> | null;
   activity: Activity;
 }
 
@@ -145,6 +147,8 @@ export class SpaceRuntime {
   private readonly games: GameRegistry;
   private readonly races: RaceRegistry;
   private readonly reception?: ReceptionRuntime;
+  private mediaAudienceDirty = true;
+  private readonly mediaDepartures = new Map<string, Promise<void>>();
 
   constructor(
     readonly spaceId: string,
@@ -156,7 +160,10 @@ export class SpaceRuntime {
   ) {
     if (deps.reception) {
       this.reception = new ReceptionRuntime(spaceId, map, receptionEnabled, deps.reception,
-        (reception) => this.broadcast({ t: 'reception.state', reception }),
+        (reception) => {
+          this.broadcast({ t: 'reception.state', reception });
+          this.updateMediaAudiences();
+        },
         (input, visitor) => readReceptionTool({
           map: this.map,
           online: [...this.members.entries()].flatMap(([id, member]) => {
@@ -298,6 +305,7 @@ export class SpaceRuntime {
         chatBucket: new TokenBucket(clock, CHAT_BURST, CHAT_PER_SECOND),
         zoneKey: zoneAt(this.map, this.map.spawn.x, this.map.spawn.y).key,
         mediaRoom: null,
+        mediaAudience: null,
         activity: 'idle',
       };
       this.members.set(profile.id, member);
@@ -321,6 +329,7 @@ export class SpaceRuntime {
     const reception = this.reception?.presence();
     // Conexão nova sempre recebe a sala atual, mesmo que seja a mesma de antes.
     member.mediaRoom = null;
+    member.mediaAudience = null;
     this.send(connection, {
       t: 'welcome',
       selfId: profile.id,
@@ -407,6 +416,13 @@ export class SpaceRuntime {
       case 'reception.stop':
         this.reception?.stopFor(userId, 'finished');
         break;
+      case 'reception.ask': {
+        const visitor = this.receptionVisitor(userId, connection);
+        if (!visitor || !this.reception) break;
+        if (member.chatBucket.take()) this.reception.ask(visitor, message.text);
+        else visitor.send({ t: 'reception.answer', text: 'Aguarde um instante antes de perguntar novamente.' });
+        break;
+      }
       case 'call.leave': {
         const call = this.callOf(userId);
         // Quem recebe e sai antes de atender está recusando; o resto é saída.
@@ -535,6 +551,10 @@ export class SpaceRuntime {
     if (member?.connection !== connection) return;
     member.connection = null;
     member.queued = [];
+    if (member.mediaRoom) this.removeFromRoom(member.mediaRoom, userId);
+    member.mediaRoom = null;
+    member.mediaAudience = null;
+    this.mediaAudienceDirty = true;
     this.reception?.stopFor(userId, 'left');
     // Desconexão encerra a chamada na hora; a tolerância só vale para a presença no mapa.
     const call = this.callOf(userId);
@@ -564,6 +584,7 @@ export class SpaceRuntime {
       if (player && shortId !== undefined) moves.push([shortId, player.x, player.y, player.dir]);
     }
     this.movedSinceTick.clear();
+    if (moves.length || this.mediaAudienceDirty) this.updateMediaAudiences();
     const tickFrame = encodeTick(0, this.deps.clock.now(), moves);
 
     // Sem movimento e sem ack novo, o cliente não recebe nada neste tick.
@@ -862,6 +883,11 @@ export class SpaceRuntime {
       if (participantConnection) this.send(participantConnection, endedMessage);
       this.refresh(id);
     }
+    if (call.active) {
+      this.deps.media.deleteRoom(callRoom(call.id)).catch((error: unknown) => {
+        this.deps.log.error({ error }, 'falha ao limpar mídia de chamada encerrada');
+      });
+    }
   }
 
   // ---- atividade e mídia ----
@@ -877,6 +903,7 @@ export class SpaceRuntime {
 
   /** Recalcula atividade (avisando todos) e sala de mídia de um jogador. */
   private refresh(userId: string): void {
+    this.mediaAudienceDirty = true;
     const member = this.members.get(userId);
     if (!member) return;
     const activity = this.activityOf(userId);
@@ -910,6 +937,8 @@ export class SpaceRuntime {
     if (room === member.mediaRoom) return;
     const previousRoom = member.mediaRoom;
     member.mediaRoom = room;
+    member.mediaAudience = null;
+    this.mediaAudienceDirty = true;
     this.checkReception(userId);
     if (previousRoom) this.removeFromRoom(previousRoom, userId);
     const connection = member.connection;
@@ -917,16 +946,57 @@ export class SpaceRuntime {
   }
 
   private removeFromRoom(room: string, userId: string): void {
-    this.deps.media.removeParticipant(room, userId).catch((error: unknown) => {
+    const key = `${room}|${userId}`;
+    if (this.mediaDepartures.has(key)) return;
+    const removal = this.deps.media.removeParticipant(room, userId).catch((error: unknown) => {
       // Quem já saiu da sala por conta própria dá "não encontrado" no LiveKit; não muda nada.
       if (!isNotFound(error)) this.deps.log.error({ error, userId, room }, 'falha ao remover da sala de mídia');
+    }).finally(() => {
+      this.mediaDepartures.delete(key);
     });
+    this.mediaDepartures.set(key, removal);
+  }
+
+  private updateMediaAudiences(): void {
+    this.mediaAudienceDirty = false;
+    const groups = new Map<string, { id: string; x: number; y: number; member: Member; connection: Conn }[]>();
+    for (const [id, member] of this.members) {
+      const position = this.world.players.get(id);
+      if (!member.connection || !member.mediaRoom || !position) continue;
+      const group = groups.get(member.mediaRoom) ?? [];
+      group.push({ id, x: position.x, y: position.y, member, connection: member.connection });
+      groups.set(member.mediaRoom, group);
+    }
+    const publicRoom = spaceRoom(this.spaceId);
+    const opponents = new Map<string, string>();
+    for (const table of this.games.states()) {
+      if (table.phase !== 'playing' || !table.left || !table.right || table.left === 'bot' || table.right === 'bot') continue;
+      opponents.set(table.left, table.right);
+      opponents.set(table.right, table.left);
+    }
+    for (const [room, group] of groups) {
+      for (const participant of group) {
+        const { id, member, connection } = participant;
+        const previous = member.mediaAudience;
+        const opponent = opponents.get(id);
+        const ids = room === publicRoom
+          ? nextProximity(this.map, participant, group, previous ?? new Set(), opponent ? new Set([opponent]) : undefined)
+          : new Set(group.filter((other) => other.id !== id).map((other) => other.id));
+        const reception = room === publicRoom ? this.reception?.listenerFor(id) : undefined;
+        if (reception) ids.add(reception);
+        if (previous?.size === ids.size && [...ids].every((peer) => previous.has(peer))) continue;
+        member.mediaAudience = ids;
+        this.send(connection, { t: 'media.audience', room, ids: [...ids] });
+      }
+    }
   }
 
   /** Assina o token da sala (tela só fora da sala aberta) e manda o `media.join`. */
   private async sendMediaJoin(userId: string, connection: Conn, room: string): Promise<void> {
     const sources = room === spaceRoom(this.spaceId) ? SPACE_SOURCES : PRIVATE_SOURCES;
     try {
+      const departing = this.mediaDepartures.get(`${room}|${userId}`);
+      if (departing) await departing;
       const token = await this.deps.media.token(userId, room, sources);
       if (this.deps.metrics) this.deps.metrics.mediaTokens++;
       // A sala pode ter mudado de novo, ou a conexão caído, enquanto o token era assinado.
@@ -1002,6 +1072,7 @@ export class SpaceRuntime {
 
   /** Tira a pessoa do mapa de vez: encerra chamada, batidas e jogo, sai da sala de mídia e avisa todos. */
   private leave(userId: string): void {
+    this.mediaAudienceDirty = true;
     const member = this.members.get(userId);
     if (!member) return;
     const call = this.callOf(userId);

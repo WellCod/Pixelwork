@@ -124,6 +124,7 @@ export const ClientMsg = z.discriminatedUnion('t', [
   z.object({ t: z.literal('call.leave') }),
   z.strictObject({ t: z.literal('reception.start'), consent: z.literal(true) }),
   z.strictObject({ t: z.literal('reception.stop') }),
+  z.strictObject({ t: z.literal('reception.ask'), text: z.string().trim().min(1).max(160) }),
   // Teto folgado em unidades UTF-16 só contra abuso; o limite real (em code points, depois do trim) é conferido no servidor.
   z.object({ t: z.literal('chat.say'), text: z.string().max(CHAT_MAX_CHARS * 4) }),
   z.object({ t: z.literal('ping'), id: z.number().int().nonnegative() }),
@@ -190,9 +191,11 @@ export type ServerMsg =
   | { t: 'zone.state'; zone: ZoneState }
   | { t: 'reception.state'; reception: ReceptionPresence | null }
   | { t: 'reception.destination'; destination: ReceptionDestination | null }
+  | { t: 'reception.answer'; text: string }
+  | { t: 'media.audience'; room: string; ids: string[] }
   | { t: 'reception.session'; state: 'starting' }
   | { t: 'reception.session'; state: 'active'; identity: string }
-  | { t: 'reception.session'; state: 'ended'; reason: 'finished' | 'left' | 'timeout' | 'busy' | 'unavailable' }
+  | { t: 'reception.session'; state: 'ended'; reason: 'finished' | 'left' | 'timeout' | 'busy' | 'unavailable' | 'quota' }
   | { t: 'zone.knockRequest'; requestId: string; zoneKey: string; from: string }
   | { t: 'zone.knockResult'; zoneKey: string; allowed: boolean }
   | { t: 'media.join'; room: string; token: string; url: string }

@@ -37,6 +37,8 @@ export class Metrics {
   readonly tick = new Histogram(TICK_BUCKETS);
   /** Quadro de uma partida de pingpong (30 Hz); mesmos limites do tick. */
   readonly gameFrame = new Histogram(TICK_BUCKETS);
+  readonly receptionStartup = new Histogram([0.25, 0.5, 1, 2, 4, 8, 15, 25]);
+  readonly receptionSessions = new Map<string, number>();
   messagesIn = 0;
   messagesOut = 0;
   bytesOut = 0;
@@ -66,6 +68,21 @@ export class Metrics {
     writeMetric('pixelwork_ws_messages_sent_total', 'counter', 'Mensagens enviadas aos clientes.', this.messagesOut);
     writeMetric('pixelwork_ws_bytes_sent_total', 'counter', 'Bytes enviados aos clientes.', this.bytesOut);
     writeMetric('pixelwork_media_tokens_total', 'counter', 'Tokens do LiveKit emitidos.', this.mediaTokens);
+    lines.push('# HELP pixelwork_reception_sessions_total Eventos de sessão da recepção por voz.',
+      '# TYPE pixelwork_reception_sessions_total counter');
+    for (const [outcome, count] of this.receptionSessions) {
+      lines.push(`pixelwork_reception_sessions_total{outcome="${outcome}"} ${count}`);
+    }
+    lines.push('# HELP pixelwork_reception_startup_seconds Tempo da solicitação até o worker pronto.',
+      '# TYPE pixelwork_reception_startup_seconds histogram');
+    this.receptionStartup.buckets.forEach((limit, i) => {
+      lines.push(`pixelwork_reception_startup_seconds_bucket{le="${limit}"} ${this.receptionStartup.counts[i] ?? 0}`);
+    });
+    lines.push(
+      `pixelwork_reception_startup_seconds_bucket{le="+Inf"} ${this.receptionStartup.count}`,
+      `pixelwork_reception_startup_seconds_sum ${this.receptionStartup.sum}`,
+      `pixelwork_reception_startup_seconds_count ${this.receptionStartup.count}`,
+    );
 
     lines.push(
       '# HELP pixelwork_tick_duration_seconds Duração do tick de um coworking.',

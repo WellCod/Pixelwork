@@ -1,5 +1,5 @@
 import { PROXIMITY_EXIT_TILES, TILE_PX, type Dir } from '@pixelwork/shared';
-import { spaces } from '@pixelwork/shared/schema';
+import { receptionDailyUsage, spaces } from '@pixelwork/shared/schema';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -29,7 +29,10 @@ describe('atendimento local da recepção', () => {
   };
   const media = new FakeMedia();
   beforeAll(async () => {
-    server = await startTestServer({ map: fixture(), media, receptionVoice: voice });
+    server = await startTestServer({
+      map: fixture(), media, receptionVoice: voice,
+      receptionLimits: { sessions: 2, durationMs: 120_000, dailyMs: 120_000 },
+    });
   });
   afterAll(async () => { await server.stop(); });
 
@@ -59,6 +62,9 @@ describe('atendimento local da recepção', () => {
       const started = starts[0];
       if (!started) throw new Error('worker não recebeu lease');
       expect(started.visitorId).toBe(one.id);
+      expect((await first.next('media.audience', ({ ids }) => ids.includes(ready.identity))).ids).toContain(ready.identity);
+      await visitor.flush();
+      expect(visitor.inbox.some((msg) => msg.t === 'media.audience' && msg.ids.includes(ready.identity))).toBe(false);
       expect(started.tool({ name: 'explain_locked_room', query: 'Aurora' })).toMatchObject({ rooms: [{ name: 'Aurora', locked: false }] });
       expect(started.tool({ name: 'list_online_people', spaceId: 'outside' })).toEqual({ error: 'invalid_tool' });
       started.tool({ name: 'locate_place', query: 'Aurora' });
@@ -87,6 +93,28 @@ describe('atendimento local da recepção', () => {
       expect(started.tool({ name: 'list_online_people' })).toEqual({ error: 'invalid_lease' });
     } finally {
       await Promise.all(bots.map((bot) => bot.close()));
+    }
+  });
+
+  it('aplica a cota de voz por coworking e mantém perguntas e rotas por texto', async () => {
+    await server.db.update(spaces).set({ receptionEnabled: true }).where(eq(spaces.id, server.spaceId));
+    await server.db.insert(receptionDailyUsage).values({
+      spaceId: server.spaceId, day: new Date(server.clock.now()).toISOString().slice(0, 10), reservedMs: 120_000,
+    }).onConflictDoNothing();
+    const previousStarts = starts.length;
+    const guest = await loginGuest(server);
+    const bot = await Bot.connect(server, guest);
+    try {
+      await bot.next('media.join');
+      bot.send({ t: 'reception.ask', text: 'Onde fica a Sala Aurora?' });
+      expect((await bot.next('reception.answer')).text).toContain('Aurora');
+      expect((await bot.next('reception.destination', (msg) => msg.destination !== null)).destination)
+        .toEqual({ kind: 'room', key: 'aurora', label: 'Aurora' });
+      bot.send({ t: 'reception.start', consent: true });
+      expect(await bot.next('reception.session', (msg) => msg.state === 'ended')).toMatchObject({ reason: 'quota' });
+      expect(starts).toHaveLength(previousStarts);
+    } finally {
+      await bot.close();
     }
   });
 });

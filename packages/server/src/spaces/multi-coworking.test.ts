@@ -275,6 +275,8 @@ describe('multi-coworking', () => {
       'POST /spaces/:spaceId/map/validate': { map: TEST_MAP },
       'PUT /spaces/:spaceId/map': { map: TEST_MAP, baseVersion: 1 },
       'GET /spaces/:spaceId/map/export': undefined,
+      'GET /spaces/:spaceId/map/history': undefined,
+      'GET /spaces/:spaceId/map/history/:version': undefined,
       'GET /spaces/:spaceId/replay': undefined,
       'GET /spaces/:spaceId/reception': undefined,
       'PUT /spaces/:spaceId/reception': { enabled: true },
@@ -292,7 +294,8 @@ describe('multi-coworking', () => {
         const path = url
           .replace(':spaceId', otherSpaceId)
           .replace(':userId', someone.id)
-          .replace(':deskKey', 'mesa-1');
+          .replace(':deskKey', 'mesa-1')
+          .replace(':version', '1');
         const result = await api(server, outsider, method, path, BODIES[`${method} ${url}`] ?? {});
         expect({ route: `${method} ${url}`, status: result.status }).toEqual({ route: `${method} ${url}`, status: 404 });
       }

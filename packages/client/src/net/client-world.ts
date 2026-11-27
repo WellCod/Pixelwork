@@ -55,6 +55,7 @@ export class ClientWorld {
   reception: ReceptionPresence | null = null;
   receptionDestination: ReceptionDestination | null = null;
   receptionSession: Extract<ServerMsg, { t: 'reception.session' }> | null = null;
+  receptionAnswer = '';
   readonly tables = new Map<string, TableState>();
   /** Mesa em que o próprio jogador está; a janela do jogo fica aberta enquanto existir. */
   seat: GameSeat | null = null;
@@ -93,6 +94,10 @@ export class ClientWorld {
     this.emit({ type: 'receptionDestination' });
   }
 
+  setDestination(destination: ReceptionDestination): void {
+    this.handle({ t: 'reception.destination', destination });
+  }
+
   private checkReceptionPerson(id: string): void {
     if (this.receptionDestination?.kind !== 'person' || this.receptionDestination.id !== id) return;
     const player = this.players.get(id);
@@ -112,6 +117,7 @@ export class ClientWorld {
       case 'welcome': {
         this.reception = message.reception ?? null;
         this.receptionSession = null;
+        this.receptionAnswer = '';
         this.receptionDestination = null;
         this.selfId = message.selfId;
         this.players.clear();
@@ -208,6 +214,10 @@ export class ClientWorld {
         break;
       case 'reception.session':
         this.receptionSession = message;
+        this.emit({ type: 'reception' });
+        break;
+      case 'reception.answer':
+        this.receptionAnswer = message.text;
         this.emit({ type: 'reception' });
         break;
       case 'zone.state':

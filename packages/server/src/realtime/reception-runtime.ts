@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { nextProximity, zoneAt, type CompiledMap, type ServerMsg } from '@pixelwork/shared';
-import type { Scheduler, Timer } from './clock.ts';
+import type { Clock, Scheduler, Timer } from './clock.ts';
 import { spaceRoom, type MediaService } from './media.ts';
+import { answerReceptionText, type readReceptionTool } from './reception-tools.ts';
 
 type Presence = Extract<ServerMsg, { t: 'reception.state' }>['reception'];
 type Session = Extract<ServerMsg, { t: 'reception.session' }>;
+type EndReason = Extract<Session, { state: 'ended' }>['reason'];
 type Destination = Extract<ServerMsg, { t: 'reception.destination' }>;
 
 export interface ReceptionVisitor {
@@ -13,7 +15,7 @@ export interface ReceptionVisitor {
   y: number;
   room: string;
   current: () => boolean;
-  send: (message: Session | Destination) => void;
+  send: (message: Session | Destination | Extract<ServerMsg, { t: 'reception.answer' }>) => void;
 }
 
 export interface ReceptionVoiceRequest {
@@ -23,7 +25,7 @@ export interface ReceptionVoiceRequest {
   visitorId: string;
   token: string;
   tool: (input: unknown) => unknown;
-  ended: () => void;
+  ended: (failed?: boolean) => void;
 }
 
 export interface ReceptionVoice {
@@ -52,15 +54,19 @@ interface Lease {
   abort: AbortController;
   timer: Timer;
   phase: 'starting' | 'active' | 'stopping';
+  requestedAt: number;
 }
 
 export interface ReceptionRuntimeDeps {
   voice: ReceptionVoice;
   capacity: ReceptionCapacity;
   scheduler: Scheduler;
+  clock: Clock;
   media: MediaService;
   log: { error: (details: unknown, message: string) => void };
   durationMs: number;
+  reserve: (spaceId: string, milliseconds: number) => Promise<boolean>;
+  observe: (outcome: 'started' | 'ready' | EndReason, seconds?: number) => void;
 }
 
 export class ReceptionRuntime {
@@ -71,7 +77,7 @@ export class ReceptionRuntime {
     private enabled: boolean,
     private readonly deps: ReceptionRuntimeDeps,
     private readonly publish: (state: Presence) => void,
-    private readonly readTool: (input: unknown, visitor: ReceptionVisitor) => unknown,
+    private readonly readTool: (input: unknown, visitor: ReceptionVisitor) => ReturnType<typeof readReceptionTool>,
   ) {}
 
   presence(): Presence {
@@ -79,6 +85,11 @@ export class ReceptionRuntime {
     if (!this.enabled || !point) return null;
     return { ...point, ...(this.deps.voice.mode ? { voice: this.deps.voice.mode } : {}),
       status: this.lease ? 'busy' : this.deps.voice.ready() ? 'available' : 'unavailable' };
+  }
+
+  listenerFor(visitorId: string): string | undefined {
+    const lease = this.lease;
+    return lease?.visitor.id === visitorId && lease.phase !== 'stopping' ? lease.identity : undefined;
   }
 
   setEnabled(enabled: boolean): void {
@@ -93,32 +104,45 @@ export class ReceptionRuntime {
     this.publish(this.presence());
   }
 
+  ask(visitor: ReceptionVisitor, text: string): void {
+    if (!this.enabled || !this.eligible(visitor, false)) return;
+    visitor.send({ t: 'reception.destination', destination: null });
+    visitor.send({ t: 'reception.answer', text: answerReceptionText(text, (input) => this.readTool(input, visitor)) });
+  }
+
   start(visitor: ReceptionVisitor): void {
     if (this.lease) {
-      if (this.lease.visitor.id !== visitor.id) visitor.send({ t: 'reception.session', state: 'ended', reason: 'busy' });
+      if (this.lease.visitor.id !== visitor.id) this.reject(visitor, 'busy');
       return;
     }
     if (!this.enabled || !this.deps.voice.ready() || !this.map.reception) {
-      visitor.send({ t: 'reception.session', state: 'ended', reason: 'unavailable' });
+      this.reject(visitor, 'unavailable');
       return;
     }
     if (!this.eligible(visitor, false)) {
-      visitor.send({ t: 'reception.session', state: 'ended', reason: 'left' });
+      this.reject(visitor, 'left');
       return;
     }
     const id = randomUUID();
     if (!this.deps.capacity.acquire(id)) {
-      visitor.send({ t: 'reception.session', state: 'ended', reason: 'busy' });
+      this.reject(visitor, 'busy');
       return;
     }
     const lease: Lease = {
       id, identity: `recepcao-${id}`, visitor, abort: new AbortController(), phase: 'starting',
+      requestedAt: this.deps.clock.now(),
       timer: this.deps.scheduler.setTimeout(() => this.stop('timeout'), this.deps.durationMs),
     };
     this.lease = lease;
+    this.deps.observe('started');
     visitor.send({ t: 'reception.session', state: 'starting' });
     this.publish(this.presence());
     void this.open(lease);
+  }
+
+  private reject(visitor: ReceptionVisitor, reason: EndReason): void {
+    this.deps.observe(reason);
+    visitor.send({ t: 'reception.session', state: 'ended', reason });
   }
 
   check(visitor: ReceptionVisitor): void {
@@ -131,13 +155,15 @@ export class ReceptionRuntime {
     if (this.lease?.visitor.id === visitorId) this.stop(reason);
   }
 
-  stop(reason: 'finished' | 'left' | 'timeout' | 'unavailable'): void {
+  stop(reason: EndReason): void {
     const lease = this.lease;
     if (!lease || lease.phase === 'stopping') return;
     lease.phase = 'stopping';
     lease.timer.cancel();
     lease.abort.abort();
+    this.deps.observe(reason);
     if (lease.visitor.current()) lease.visitor.send({ t: 'reception.session', state: 'ended', reason });
+    this.publish(this.presence());
     void this.release(lease);
   }
 
@@ -151,11 +177,17 @@ export class ReceptionRuntime {
 
   private async open(lease: Lease): Promise<void> {
     try {
-      const token = await this.deps.media.token(lease.identity, spaceRoom(this.spaceId), ['microphone']);
+      const reserved = await this.deps.reserve(this.spaceId, this.deps.durationMs);
       if (lease.abort.signal.aborted) return;
+      if (!reserved) {
+        this.stop('quota');
+        return;
+      }
+      const token = await this.deps.media.token(lease.identity, spaceRoom(this.spaceId), ['microphone']);
+      lease.abort.signal.throwIfAborted();
       await this.deps.voice.start({
         id: lease.id, spaceId: this.spaceId, identity: lease.identity, visitorId: lease.visitor.id, token,
-        ended: () => { if (this.lease === lease) this.stop('finished'); },
+        ended: (failed) => { if (this.lease === lease) this.stop(failed ? 'unavailable' : 'finished'); },
         tool: (input) => lease.phase === 'active' && lease.visitor.current() && !lease.abort.signal.aborted
           ? this.readTool(input, lease.visitor) : { error: 'invalid_lease' },
       }, lease.abort.signal);
@@ -165,6 +197,7 @@ export class ReceptionRuntime {
         return;
       }
       lease.phase = 'active';
+      this.deps.observe('ready', (this.deps.clock.now() - lease.requestedAt) / 1000);
       lease.visitor.send({ t: 'reception.session', state: 'active', identity: lease.identity });
     } catch {
       if (this.lease === lease && !lease.abort.signal.aborted) this.stop('unavailable');

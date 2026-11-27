@@ -322,3 +322,4 @@ export class EditorController {
     for (const listener of this.listeners) listener();
   }
 }
+export const demoDraftKey = (spaceId: string) => `pixelwork.demo-draft.${spaceId}`;

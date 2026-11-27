@@ -40,9 +40,8 @@ export const SPACE_SOURCES: readonly MediaSource[] = ['camera', 'microphone'];
 export const PRIVATE_SOURCES: readonly MediaSource[] = ['camera', 'microphone', 'screen_share', 'screen_share_audio'];
 
 /**
- * O LiveKit só confere o token na entrada e renova sozinho o de quem continua conectado. Com
- * validade curta, um token guardado não serve para voltar a uma sala depois de sair dela
- * (reunião trancada, chamada encerrada, membro removido).
+ * A validade curta limita a janela dos tokens emitidos pelo app. No LiveKit self-hosted,
+ * remover o participante não revoga credenciais já emitidas, inclusive as renovadas pelo SFU.
  */
 const TOKEN_TTL = '2m';
 

@@ -22,6 +22,20 @@
       "when": 1795618601452,
       "tag": "0002_modern_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795725433655,
+      "tag": "0003_map_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795725892024,
+      "tag": "0004_reception_budget",
+      "breakpoints": true
     }
   ]
 }

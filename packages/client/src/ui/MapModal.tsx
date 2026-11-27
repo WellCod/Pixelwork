@@ -86,6 +86,34 @@ export function MapModal({ spaceId, baseVersion, onClose }: Props) {
   const [mapCheck, setMapCheck] = useState<MapCheck | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<Awaited<ReturnType<typeof mapApi.history>> | null>(null);
+
+  const loadHistory = async () => {
+    setBusy(true);
+    setFeedback(null);
+    try {
+      setHistory(await mapApi.history(spaceId));
+    } catch {
+      setFeedback({ kind: 'error', text: 'Não foi possível carregar o histórico.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const previewVersion = async (version: number) => {
+    setBusy(true);
+    setMapCheck(null);
+    setFeedback(null);
+    try {
+      const { map } = await mapApi.historicalMap(spaceId, version);
+      setMapCheck({ map, ...await mapApi.validate(spaceId, map) });
+      setFeedback({ kind: 'ok', text: `Versão ${version} carregada para revisão. Salve para publicar como uma nova versão.` });
+    } catch {
+      setFeedback({ kind: 'error', text: 'Não foi possível carregar essa versão.' });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Escolher um arquivo descarta a validação anterior; JSON inválido nem chega ao servidor.
   const pickFile = (event: ChangeEvent<HTMLInputElement>) => {
@@ -135,6 +163,21 @@ export function MapModal({ spaceId, baseVersion, onClose }: Props) {
 
   return (
     <Modal title="Mapa do coworking" onClose={onClose}>
+      <details onToggle={(event) => {
+        if (event.currentTarget.open && history === null && !busy) void loadHistory();
+      }}>
+        <summary>Histórico de versões</summary>
+        {history?.length === 0 && <p>Nenhuma versão registrada.</p>}
+        {history && history.length > 0 && <ul>
+          {history.map(({ version, author, createdAt }) => (
+            <li key={version}>
+              Versão {version}{version === baseVersion ? ' · atual' : ''}{author ? ` · ${author}` : ''}
+              {createdAt && <> · <time dateTime={createdAt}>{new Date(createdAt).toLocaleString('pt-BR')}</time></>}
+              {' '}<button type="button" disabled={busy || version === baseVersion} onClick={() => void previewVersion(version)}>Revisar versão {version}</button>
+            </li>
+          ))}
+        </ul>}
+      </details>
       <div className="fields">
         <label>
           Mapa do Tiled (JSON, tilesets externos do catálogo)

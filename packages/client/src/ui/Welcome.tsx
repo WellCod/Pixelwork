@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { ClientWorld } from '../net/client-world.ts';
+import { useWorld } from './useWorld.ts';
 
 /** Cada modo de entrada apresenta as próprias instruções na primeira visita. */
 function storageKey(): string {
@@ -14,8 +16,10 @@ function welcomeSeen(): boolean {
 }
 
 /** Primeira visita: os comandos que não dá para adivinhar olhando a tela. */
-export function Welcome() {
+export function Welcome({ world, onDestination }: { world: ClientWorld; onDestination: (key: string) => boolean }) {
+  useWorld(world);
   const [open, setOpen] = useState(() => !welcomeSeen());
+  const [feedback, setFeedback] = useState('');
   if (!open) return null;
 
   const dismiss = () => {
@@ -26,10 +30,21 @@ export function Welcome() {
       // Navegação privada: o card volta na próxima visita.
     }
   };
+  const quickActions = [
+    ...(world.reception ? [{ key: 'reception', label: 'Ir à recepção' }] : []),
+    ...world.map.zones.filter(({ key }) => key === 'sala-aurora' || key === 'jogos').map(({ key, name }) => ({ key, label: `Ir para ${name}` })),
+  ];
 
   return (
     <section className="hud-card welcome" aria-label="Como usar">
       <h2>Como usar</h2>
+      {world.selfId && quickActions.length > 0 && <div className="welcome-destinations">
+        {quickActions.map(({ key, label }) => <button key={key} type="button" onClick={() => {
+          if (onDestination(key)) dismiss();
+          else setFeedback('Não foi possível seguir para esse destino agora.');
+        }}>{label}</button>)}
+      </div>}
+      {feedback && <p role="status">{feedback}</p>}
       <ul>
         <li className="keyboard-only">
           Use <kbd>WASD</kbd> ou as setas para andar. Você também pode clicar no chão.

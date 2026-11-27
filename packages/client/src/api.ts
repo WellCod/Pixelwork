@@ -119,6 +119,8 @@ export const receptionApi = {
 };
 
 export const mapApi = {
+  history: (spaceId: string) => request<{ version: number; author: string | null; createdAt: string | null }[]>('GET', spacePath(spaceId, '/map/history')),
+  historicalMap: (spaceId: string, version: number) => request<{ map: unknown }>('GET', spacePath(spaceId, `/map/history/${version}`)),
   validate: (spaceId: string, map: unknown) =>
     request<{ errors: MapError[]; orphanDesks: string[] }>('POST', spacePath(spaceId, '/map/validate'), { map }),
   save: (spaceId: string, map: unknown, baseVersion: number) =>

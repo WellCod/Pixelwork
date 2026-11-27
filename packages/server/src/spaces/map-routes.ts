@@ -1,21 +1,22 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CREDITS, compileMap, type MapError } from '@pixelwork/shared';
-import { deskAssignments, spaces } from '@pixelwork/shared/schema';
-import { and, eq, notInArray, sql } from 'drizzle-orm';
+import { deskAssignments, spaceMapVersions, spaces } from '@pixelwork/shared/schema';
+import { and, desc, eq, lte, notInArray, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { strToU8, zipSync } from 'fflate';
 import { z } from 'zod';
 import type { AuthDeps } from '../auth/routes.ts';
 import { ASSETS_DIR } from '../assets.ts';
 import { parseBody } from '../http.ts';
-import { canEditSpaceMap, requireMember, type SpaceParams } from './access.ts';
+import { requireMember, type SpaceParams } from './access.ts';
 
 /** Contrato do mapa: JSON de até 5 MB (docs/architecture.md, seção 6). */
 export const MAX_MAP_BYTES = 5 * 1024 * 1024;
 
 const ValidateBody = z.object({ map: z.unknown() });
 const SaveBody = z.object({ map: z.unknown(), baseVersion: z.number().int().positive() });
+const MAP_HISTORY_LIMIT = 20;
 
 /** Erro de tamanho no mesmo formato dos erros do compileMap, para a resposta juntar os dois. */
 function sizeErrors(map: unknown): MapError[] {
@@ -46,6 +47,26 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
     return { recording: app.realtime.runtime(access.spaceId)?.recording() ?? null };
   });
 
+  app.get<{ Params: SpaceParams }>('/spaces/:spaceId/map/history', async (request, reply) => {
+    const access = await requireMember(deps, request, reply);
+    if (!access) return reply;
+    if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
+    return db.select({ version: spaceMapVersions.version, author: spaceMapVersions.author, createdAt: spaceMapVersions.createdAt })
+      .from(spaceMapVersions).where(eq(spaceMapVersions.spaceId, access.spaceId))
+      .orderBy(desc(spaceMapVersions.version)).limit(MAP_HISTORY_LIMIT);
+  });
+
+  app.get<{ Params: SpaceParams & { version: string } }>('/spaces/:spaceId/map/history/:version', async (request, reply) => {
+    const access = await requireMember(deps, request, reply);
+    if (!access) return reply;
+    if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
+    const { data: version, success } = z.coerce.number().int().positive().max(2147483647).safeParse(request.params.version);
+    if (!success) return reply.code(404).send({ error: 'not_found' });
+    const [entry] = await db.select({ map: spaceMapVersions.map }).from(spaceMapVersions)
+      .where(and(eq(spaceMapVersions.spaceId, access.spaceId), eq(spaceMapVersions.version, version)));
+    return entry ?? reply.code(404).send({ error: 'not_found' });
+  });
+
   /** Ensaio: erros do mapa e as mesas atribuídas que deixariam de existir. */
   app.post<{ Params: SpaceParams }>(
     '/spaces/:spaceId/map/validate',
@@ -53,7 +74,7 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
     async (request, reply) => {
       const access = await requireMember(deps, request, reply);
       if (!access) return reply;
-      if (!(await canEditSpaceMap(deps, access.membership))) return reply.code(403).send({ error: 'admin_only' });
+      if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
       const body = await parseBody(ValidateBody, request, reply);
       if (!body) return reply;
 
@@ -72,7 +93,7 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
     async (request, reply) => {
       const access = await requireMember(deps, request, reply);
       if (!access) return reply;
-      if (!(await canEditSpaceMap(deps, access.membership))) return reply.code(403).send({ error: 'admin_only' });
+      if (access.membership.role !== 'admin') return reply.code(403).send({ error: 'admin_only' });
       const body = await parseBody(SaveBody, request, reply);
       if (!body) return reply;
 
@@ -85,6 +106,9 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
       // Mapa, versão e atribuições órfãs numa transação só: ou tudo, ou nada. O update só pega
       // se a versão no banco ainda for a que o editor abriu (baseVersion); senão é 409 stale_map.
       const saved = await db.transaction(async (tx) => {
+        const [previous] = await tx.select({ map: spaces.map }).from(spaces)
+          .where(and(eq(spaces.id, spaceId), eq(spaces.mapVersion, body.baseVersion))).for('update');
+        if (!previous) return null;
         const updated = await tx
           .update(spaces)
           .set({ map: body.map, mapVersion: sql`${spaces.mapVersion} + 1` })
@@ -92,6 +116,12 @@ export function registerMapRoutes(app: FastifyInstance, deps: AuthDeps): void {
           .returning({ version: spaces.mapVersion });
         const version = updated[0]?.version;
         if (version === undefined) return null;
+        await tx.insert(spaceMapVersions).values([
+          { spaceId, version: body.baseVersion, map: previous.map },
+          { spaceId, version, map: body.map, author: access.user.displayName, createdAt: new Date(deps.clock.now()) },
+        ]).onConflictDoNothing();
+        await tx.delete(spaceMapVersions).where(and(eq(spaceMapVersions.spaceId, spaceId),
+          lte(spaceMapVersions.version, version - MAP_HISTORY_LIMIT)));
         // Mapa sem mesa nenhuma: o notInArray com lista vazia não serve, então apaga todas.
         const orphans = await tx
           .delete(deskAssignments)

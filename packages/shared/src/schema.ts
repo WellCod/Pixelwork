@@ -111,6 +111,28 @@ export const spaces = pgTable(
   (table) => [unique('spaces_org_slug').on(table.orgId, table.slug)],
 );
 
+export const spaceMapVersions = pgTable(
+  'space_map_versions',
+  {
+    spaceId: uuid('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    map: jsonb('map').notNull(),
+    author: text('author'),
+    createdAt: timestamp('created_at', { withTimezone: true }),
+  },
+  (table) => [primaryKey({ columns: [table.spaceId, table.version] })],
+);
+
+export const receptionDailyUsage = pgTable(
+  'reception_daily_usage',
+  {
+    spaceId: uuid('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+    day: text('day').notNull(),
+    reservedMs: integer('reserved_ms').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.spaceId, table.day] })],
+);
+
 export const spaceMembers = pgTable(
   'space_members',
   {

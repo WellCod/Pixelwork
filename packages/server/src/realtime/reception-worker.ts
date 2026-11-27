@@ -72,10 +72,10 @@ export class LocalReceptionWorker implements ReceptionVoice {
       let ready = false;
       const deadline = setTimeout(() => { stop(); reject(new Error('tempo de conexão da recepção excedido')); }, this.local ? 25_000 : 8_000);
       child.once('error', () => { clearTimeout(deadline); reject(new Error('processo da recepção indisponível')); });
-      child.once('close', () => {
+      child.once('close', (code) => {
         clearTimeout(deadline);
         if (!ready) reject(new Error('a recepção encerrou antes de conectar'));
-        else if (!signal.aborted) request.ended();
+        else if (!signal.aborted) request.ended(code !== 0);
       });
       child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
         buffer += chunk;

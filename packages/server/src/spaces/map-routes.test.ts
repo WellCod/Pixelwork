@@ -89,15 +89,15 @@ describe('mapas: upload, troca ao vivo e export', () => {
       errors: [{ code: 'not_orthogonal' }],
       orphanDesks: [],
     });
-    expect((await api(server, player.guest, 'POST', space('/map/validate'), { map: withoutDesk3 })).json).toEqual({ errors: [], orphanDesks: ['mesa-3'] });
+    expect((await api(server, player.guest, 'POST', space('/map/validate'), { map: withoutDesk3 })).status).toBe(403);
   });
 
-  it('membro da demo pode salvar o mapa sem virar administrador', async () => {
+  it('membro da demo pode abrir o editor sem poder salvar no mapa compartilhado', async () => {
     const guest = await loginGuest(server);
     const before = await version();
     expect((await api(server, guest, 'GET', space(''))).json).toMatchObject({ role: 'member', canEditMap: true });
-    expect((await api(server, guest, 'PUT', space('/map'), { map: MAP_V1, baseVersion: before })).json)
-      .toEqual({ version: before + 1, orphanDesks: [] });
+    expect((await api(server, guest, 'PUT', space('/map'), { map: MAP_V1, baseVersion: before })).status).toBe(403);
+    expect(await version()).toBe(before);
     expect((await api(server, guest, 'GET', space('/replay'))).status).toBe(403);
     expect((await api(server, guest, 'GET', space('/map/export'))).status).toBe(403);
   });
@@ -120,6 +120,23 @@ describe('mapas: upload, troca ao vivo e export', () => {
     expect((await api(server, admin, 'PUT', space('/map'), { map: MAP_V1, baseVersion: current })).status).toBe(200);
     const stale = await api(server, admin, 'PUT', space('/map'), { map: MAP_V1, baseVersion: current });
     expect(stale).toEqual({ status: 409, json: { error: 'stale_map', version: current + 1 } });
+  });
+
+  it('arquiva as versões e permite republicar uma versão antiga como nova', async () => {
+    const before = await version();
+    expect((await api(server, admin, 'PUT', space('/map'), { map: MAP_V1, baseVersion: before })).status).toBe(200);
+    const history = await api(server, admin, 'GET', space('/map/history'));
+    const entries = history.json as { version: number; author: string | null; createdAt: string | null }[];
+    const latest = entries.find((entry) => entry.version === before + 1);
+    expect(typeof latest?.author).toBe('string');
+    expect(typeof latest?.createdAt).toBe('string');
+    expect(entries.some((entry) => entry.version === before)).toBe(true);
+    const older = await api(server, admin, 'GET', space(`/map/history/${before}`));
+    expect(older.status).toBe(200);
+    const { map } = older.json as { map: unknown };
+    expect((await api(server, admin, 'PUT', space('/map'), { map, baseVersion: before + 1 })).json)
+      .toMatchObject({ version: before + 2 });
+    expect((await api(server, await loginGuest(server), 'GET', space('/map/history'))).status).toBe(403);
   });
 
   it('mapa inválido é recusado sem mudar a versão', async () => {
