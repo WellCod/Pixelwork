@@ -2,7 +2,7 @@
 
 Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas personalizáveis e uma recepcionista de IA com voz local em português.
 
-[Como rodar](#como-rodar) · [Telas](#telas) · [Recepcionista com voz local](#recepcionista-com-voz-local) · [Arquitetura](#arquitetura) · [Testes](#testes)
+[Como rodar](#como-rodar) · [Telas](#telas) · [Buscar destinos no mapa](#buscar-destinos-no-mapa) · [Recepcionista com voz local](#recepcionista-com-voz-local) · [Arquitetura](#arquitetura) · [Testes](#testes)
 
 ## O que dá para fazer
 
@@ -26,7 +26,7 @@ Coworking virtual em pixel art 2D com voz e vídeo por proximidade, mapas person
 
 ![Demo do Pixelwork com um trajeto azul entre o visitante e a porta da sala Aurora e o painel Destino · Sala Aurora](docs/prints/rota-recepcao-aurora.png)
 
-[Como pedir uma rota por voz](#pedir-uma-rota-por-voz)
+[Como pedir uma rota por texto](#pedir-uma-rota-por-texto) · [Como pedir uma rota por voz](#pedir-uma-rota-por-voz)
 
 ### Aquário e fliperamas
 
@@ -105,7 +105,7 @@ para https em endereço público.
 
 O banco de desenvolvimento fica em `127.0.0.1:5432`. Se o contêiner já existia antes dessa configuração, recrie o serviço `postgres` com o mesmo projeto Compose para aplicar o vínculo local.
 
-O microfone começa desligado. Depois de ativá-lo, abra **Quem pode ouvir** para ver a lista de pessoas autorizadas na sala ou por proximidade. Em **Mapa**, busque **Sala Aurora** e use **Copiar link** para enviar um trajeto até a porta. As regras de acesso ao coworking e de entrada na sala continuam valendo.
+O microfone começa desligado. Depois de ativá-lo, abra **Quem pode ouvir** para ver a lista de pessoas autorizadas na sala ou por proximidade.
 
 ### Compartilhar a tela
 
@@ -136,6 +136,19 @@ O Pixelwork salva a posição e o tamanho da janela no navegador. Depois de clic
 
 Para restaurar a posição e o tamanho padrão, clique em **Redefinir janela** na barra inferior da janela flutuante. O vídeo continua rodando, e o padrão substitui o ajuste salvo no navegador.
 
+## Buscar destinos no mapa
+
+1. No computador ou no celular, abra **Mapa**, perto dos controles de zoom.
+2. No campo **Buscar sala, mesa ou pessoa**, digite `Aurora`, `mesa-3` ou o nome de alguém online em uma área aberta.
+3. Escolha um resultado para caminhar até ele. Para salas de reunião, o trajeto termina na porta. Se a sala estiver trancada, use **Bater na porta** e aguarde a autorização.
+
+### Copiar o link da Sala Aurora
+
+1. Em **Mapa**, procure por `Aurora` e clique em **Copiar link** ao lado de **Sala Aurora**.
+2. Envie o endereço a alguém com acesso ao mesmo coworking. Ao abrir o link no navegador, a pessoa vê o caminho destacado até a porta. A entrada continua sujeita à tranca da sala.
+
+Se o navegador bloquear a cópia automática, copie o endereço exibido no campo **Link da sala**.
+
 ## Corrida 1x1 nos fliperamas
 
 1. Entrem como convidados no mesmo coworking. Para testar em dois dispositivos, usem [a demo na mesma rede](#testar-com-outra-pessoa-na-rede).
@@ -146,13 +159,19 @@ Para praticar sozinho, escolha **Jogar sozinho** na sala de espera.
 
 ## Recepcionista com voz local
 
-A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso. Aproxime-se da **Recepção · IA**, ative o microfone e toque em **Conversar com IA**. Para encerrar, use **Encerrar** ou afaste-se. Com **Perguntar por texto**, você pode digitar “Onde fica a Sala Aurora?” e ver o trajeto usando as mesmas consultas do servidor, inclusive com o microfone desligado ou a voz indisponível.
+A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso.
+
+### Pedir uma rota por texto
+
+1. Aproxime-se da **Recepção · IA** e escolha **Perguntar por texto**. Você pode manter o microfone desligado.
+2. Em **Sua pergunta**, digite “Onde fica a Sala Aurora?” e clique em **Perguntar**. Você também pode perguntar por uma mesa ou pelo nome de alguém online em uma área aberta.
+3. Quando a recepção localizar o destino, clique em **Ver trajeto no mapa**. Siga a linha azul e use **Limpar trajeto** para removê-la quando quiser.
 
 ### Pedir uma rota por voz
 
-1. Com o atendimento aberto, pergunte **“Onde fica a sala Aurora?”**. Você também pode pedir **“Onde fica a mesa 3?”** ou **“Onde está [nome da pessoa]?”**.
+1. Aproxime-se da **Recepção · IA**, ative o microfone e toque em **Conversar com IA**. Pergunte “Onde fica a Sala Aurora?”. Você também pode pedir “Onde fica a mesa 3?” ou “Onde está [nome da pessoa]?”.
 2. Siga o trajeto azul. O caminho para uma sala de reunião termina na porta. A busca por pessoa destaca quem está online em uma área aberta e fora de chamada.
-3. O trajeto aparece só no seu mapa e continua visível após o atendimento. Use **Limpar trajeto** para removê-lo.
+3. Para encerrar, use **Encerrar** ou afaste-se. O trajeto continua no mapa após o atendimento. Use **Limpar trajeto** para removê-lo.
 
 O Pixelwork supervisiona o processo Python via IPC. A trilha de voz é exclusiva do visitante
 atendido, e o servidor remove a identidade do NPC ao encerrar. A fala do visitante interrompe a
