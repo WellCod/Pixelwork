@@ -3,7 +3,9 @@ import { propertyValue, textProp, type TiledObject } from '@pixelwork/shared/edi
 import * as Phaser from 'phaser';
 import { isTyping, releaseFocus } from '../input-focus.ts';
 import { drawDeskJoins } from '../game/desk-joins.ts';
+import { preloadCharacterLayers } from '../game/avatar-texture.ts';
 import { deskDecorFrame, deskSprites } from '../game/presence.ts';
+import { drawReceptionAvatar } from '../game/reception-avatar.ts';
 import { baseZoom } from '../game/scale.ts';
 import { embedTilesets, resolveGid } from '../game/tiled.ts';
 import type { EditorController } from './editor-controller.ts';
@@ -40,6 +42,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   preload(): void {
+    preloadCharacterLayers(this);
     for (const id of TILESET_IDS) {
       this.load.image(tilesKey(id), tilesetImageUrl(id));
       this.load.spritesheet(sheetKey(id), tilesetImageUrl(id), {
@@ -207,6 +210,7 @@ export class EditorScene extends Phaser.Scene {
           this.drawDesk(object, isSelected('desks', object), desksByKey.get(textProp(object, 'desk_key')));
         }
         else if (layer.name === 'spawn') this.drawSpawn(object, isSelected('spawn', object));
+        else if (layer.name === 'reception') this.drawReception(object);
       }
     }
   }
@@ -283,6 +287,17 @@ export class EditorScene extends Phaser.Scene {
     const marker = this.add.star(spawn.x, spawn.y, 5, 3, 7, 0xfeae34).setDepth(7);
     this.content.push(marker);
     if (selected) this.content.push(this.outline(spawn.x - TILE_PX / 2, spawn.y - TILE_PX / 2, TILE_PX, TILE_PX));
+  }
+
+  private drawReception(point: TiledObject): void {
+    if (!point.point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+    const seated = propertyValue(point, 'seated') === true;
+    const { x, y, sprite, stool } = drawReceptionAvatar(
+      this, Math.floor(point.x / TILE_PX), Math.floor(point.y / TILE_PX), seated, 3.99,
+    );
+    const label = this.text(x, y + (seated ? -31 : 1), 'Recepção').setOrigin(0.5, 0).setDepth(6);
+    this.content.push(sprite, label);
+    if (stool) this.content.push(stool);
   }
 
   private outline(x: number, y: number, width: number, height: number): Phaser.GameObjects.Rectangle {

@@ -7,6 +7,7 @@ import {
   deskGroupLayout,
   addZone,
   gameTableOf,
+  linkedReceptionOf,
   moveObject,
   moveSpawn,
   objectAt,
@@ -113,6 +114,7 @@ export class EditorController {
   deskArrangement: DeskArrangement = 'single';
   deskCount = 3;
   deskPlacementBlocked = false;
+  receptionMoveBlocked = false;
   selection: Selection | null = null;
   version = 0;
   private readonly listeners = new Set<() => void>();
@@ -125,6 +127,7 @@ export class EditorController {
     this.stack = new CommandStack(doc);
     this.baseline = JSON.stringify(doc);
     this.stack.subscribe(() => {
+      this.receptionMoveBlocked = false;
       // Objeto selecionado pode ter sumido num desfazer.
       if (this.selection && !this.selected()) this.selection = null;
       this.changed();
@@ -156,6 +159,7 @@ export class EditorController {
   setTool(tool: Tool): void {
     this.tool = tool;
     this.deskPlacementBlocked = false;
+    this.receptionMoveBlocked = false;
     if (tool !== 'select') this.selection = null;
     this.changed();
   }
@@ -218,6 +222,7 @@ export class EditorController {
         this.stack.execute(moveSpawn(doc, tx, ty));
         break;
       case 'select':
+        this.receptionMoveBlocked = false;
         this.selection = this.pick(tx, ty);
         this.changed();
         break;
@@ -250,7 +255,13 @@ export class EditorController {
   /** Arrastar o objeto selecionado para outro tile. */
   moveSelected(tx: number, ty: number): void {
     if (!this.selection) return;
-    this.stack.execute(moveObject(this.doc, this.selection.layer, this.selection.id, tx, ty));
+    const command = moveObject(this.doc, this.selection.layer, this.selection.id, tx, ty);
+    if (!command && this.selectedReception()) {
+      this.receptionMoveBlocked = true;
+      this.changed();
+      return;
+    }
+    this.stack.execute(command);
   }
 
   // ---- ações do painel ----
@@ -265,6 +276,11 @@ export class EditorController {
   selectedGameTable(): ReturnType<typeof gameTableOf> {
     const object = this.selection?.layer === 'furniture' ? this.selected() : undefined;
     return object ? gameTableOf(this.doc, object) : undefined;
+  }
+
+  selectedReception(): ReturnType<typeof linkedReceptionOf> {
+    const object = this.selection?.layer === 'furniture' ? this.selected() : undefined;
+    return object ? linkedReceptionOf(this.doc, object) : undefined;
   }
 
   rotateSelected(): void {
