@@ -1,7 +1,7 @@
-import { compileMap, findPath, TILE_PX, type MapError } from '@pixelwork/shared';
+import { compileMap, findPath, isWalkable, nextProximity, TILE_PX, type MapError } from '@pixelwork/shared';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { describe, expect, it } from 'vitest';
-import { loadDemoTemplate, loadTemplate } from './demo.ts';
+import { loadDemoTemplate, loadTemplate, withDemoReception } from './demo.ts';
 
 const point = { point: true, x: 3.5 * TILE_PX, y: 3.5 * TILE_PX };
 function documentWith(objects: unknown) {
@@ -20,9 +20,17 @@ describe('marcador de recepção', () => {
   it('compila um ponto em coordenadas de tile e deixa a recepção da demo acessível', () => {
     const result = compileMap(documentWith([point]));
     expect(result.ok && result.map.reception).toEqual({ x: 3, y: 3 });
-    const demo = compileMap(loadDemoTemplate());
+    const template = loadDemoTemplate();
+    const demo = compileMap(template);
     if (!demo.ok || !demo.map.reception) throw new Error('recepção da demo inválida');
+    expect(demo.map.reception).toEqual({ x: 35, y: 12, seated: true });
+    expect(withDemoReception(template)).toEqual(template);
     expect(findPath(demo.map, demo.map.spawn, demo.map.reception)).not.toBeNull();
+    const approach = { id: 'visitante', x: 33, y: 13 };
+    expect(findPath(demo.map, demo.map.spawn, approach)).not.toBeNull();
+    expect(nextProximity(demo.map, approach, [{ ...demo.map.reception, id: 'recepcao' }], new Set())).toEqual(new Set(['recepcao']));
+    expect(isWalkable(demo.map, 34, 13)).toBe(false);
+    expect(isWalkable(demo.map, 34, 12)).toBe(true);
   });
 
   it.each<[unknown, MapError['code']]>([

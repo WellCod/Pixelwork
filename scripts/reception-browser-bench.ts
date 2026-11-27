@@ -98,9 +98,11 @@ try {
   });
   await page.goto(origin);
   await page.getByRole('button', { name: 'Entrar como convidado', exact: true }).click();
-  const tutorial = page.getByRole('button', { name: 'Entendi', exact: true });
-  if (await tutorial.isVisible()) await tutorial.click();
   await page.waitForFunction(() => window.__pixelwork?.media.connected);
+  const goToReception = page.getByRole('button', { name: 'Ir à recepção', exact: true });
+  const tutorial = page.getByRole('button', { name: 'Entendi', exact: true });
+  if (await goToReception.isVisible()) await goToReception.click();
+  else if (await tutorial.isVisible()) await tutorial.click();
   await page.getByRole('button', { name: 'Ligar microfone', exact: true }).click();
   await page.waitForFunction(() => window.receptionBench.mic());
   await page.evaluate(async (wavFiles) => {

@@ -159,7 +159,7 @@ Para praticar sozinho, escolha **Jogar sozinho** na sala de espera.
 
 ## Recepcionista com voz local
 
-A recepcionista fica perto da entrada na demo quando a instalação e o coworking ativam o recurso.
+Na demo, a recepcionista fica sentada atrás do balcão na ponta direita do corredor central quando a instalação e o coworking ativam o recurso. Use **Ir à recepção** no guia inicial ou busque **Recepção** pelo botão **Mapa**.
 
 ### Pedir uma rota por texto
 

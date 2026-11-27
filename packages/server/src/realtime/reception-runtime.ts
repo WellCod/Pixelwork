@@ -83,7 +83,7 @@ export class ReceptionRuntime {
   presence(): Presence {
     const point = this.map.reception;
     if (!this.enabled || !point) return null;
-    return { ...point, ...(this.deps.voice.mode ? { voice: this.deps.voice.mode } : {}),
+    return { x: point.x, y: point.y, ...(this.deps.voice.mode ? { voice: this.deps.voice.mode } : {}),
       status: this.lease ? 'busy' : this.deps.voice.ready() ? 'available' : 'unavailable' };
   }
 

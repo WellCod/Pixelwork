@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DESK_DEFAULT_DECOR_PROPERTY, DeskDecor, TILE_PX } from '@pixelwork/shared';
-import { propertyValue, type TiledDoc } from '@pixelwork/shared/editor';
+import { DESK_DEFAULT_DECOR_PROPERTY, DeskDecor, TILE_PX, compileMap, frameOf, isWalkable } from '@pixelwork/shared';
+import { apply, objectLayer, placeFurniture, propertyValue, type TiledDoc, type TilesetRef } from '@pixelwork/shared/editor';
 import { orgs, spaces } from '@pixelwork/shared/schema';
 import { and, eq } from 'drizzle-orm';
 import type { Db, Tx } from './db.ts';
@@ -37,25 +37,56 @@ export function withDemoDeskDecor(map: TiledDoc): TiledDoc {
   };
 }
 
-/** Mapa usado na criação e no reset da demo. */
-export function loadDemoTemplate(): TiledDoc {
-  const template = withDemoDeskDecor(loadTemplate('small-office') as TiledDoc);
-  const map = withAuroraConferenceTable(withDemoHolidayArea(template));
+/** Monta o balcão na ponta direita do corredor e reaproveita o ponto da recepção ao atualizar a demo. */
+export function withDemoReception(original: TiledDoc): TiledDoc {
+  const seat = { x: 35, y: 12 };
+  const left = seat.x - 1;
+  const bottom = seat.y + 2;
+  const tileset = 'furniture-3x2';
+  const frame = frameOf(tileset, 'reception');
+  const reference = (original.tilesets as TilesetRef[] | undefined)?.find(({ source }) => source === `${tileset}.tsj`);
+  const hasCounter = reference && objectLayer(original, 'furniture').objects.some((object) =>
+    object.gid === reference.firstgid + frame && object.x === left * TILE_PX && object.y === (bottom + 1) * TILE_PX);
+  let map = original;
+  if (!hasCounter) {
+    const compiled = compileMap(map);
+    if (!compiled.ok || [bottom - 1, bottom].some((y) =>
+      [left, left + 1, left + 2].some((x) => !isWalkable(compiled.map, x, y)))) {
+      throw new Error('Espaço do balcão da recepção ocupado.');
+    }
+    const counter = placeFurniture(map, tileset, frame, left, bottom);
+    if (!counter) throw new Error('Balcão da recepção fora dos limites da demo.');
+    map = apply(map, counter).doc;
+  }
   const nextLayerId = map.nextlayerid;
   const nextObjectId = map.nextobjectid;
   if (typeof nextLayerId !== 'number' || nextObjectId === undefined) throw new Error('IDs do mapa padrão ausentes.');
+  const layer = map.layers.find((entry) => entry.name === 'reception');
+  const existing = layer?.type === 'objectgroup' ? layer.objects[0] : undefined;
+  const point = {
+    id: existing?.id ?? nextObjectId, name: 'Recepção', type: '', point: true,
+    x: (seat.x + 0.5) * TILE_PX, y: (seat.y + 0.5) * TILE_PX,
+    width: 0, height: 0, visible: true, rotation: 0,
+    properties: [
+      ...(existing?.properties ?? []).filter(({ name }) => name !== 'seated'),
+      { name: 'seated', type: 'bool', value: true },
+    ],
+  };
   return {
     ...map,
-    nextlayerid: nextLayerId + 1,
-    nextobjectid: nextObjectId + 1,
-    layers: [...map.layers, {
+    nextlayerid: layer ? nextLayerId : nextLayerId + 1,
+    nextobjectid: existing ? nextObjectId : nextObjectId + 1,
+    layers: layer ? map.layers.map((entry) => entry === layer ? { ...entry, objects: [point] } : entry) : [...map.layers, {
       id: nextLayerId, name: 'reception', type: 'objectgroup', draworder: 'topdown', x: 0, y: 0, visible: true, opacity: 1,
-      objects: [{
-        id: nextObjectId, name: 'Recepção', type: '', point: true, x: 18.5 * TILE_PX, y: 12.5 * TILE_PX,
-        width: 0, height: 0, visible: true, rotation: 0,
-      }],
+      objects: [point],
     }],
   };
+}
+
+/** Mapa usado na criação e no reset da demo. */
+export function loadDemoTemplate(): TiledDoc {
+  const template = withDemoDeskDecor(loadTemplate('small-office') as TiledDoc);
+  return withDemoReception(withAuroraConferenceTable(withDemoHolidayArea(template)));
 }
 
 /** Cria a org Demo e o coworking de demonstração; não mexe no que já existe. */

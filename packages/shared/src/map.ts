@@ -60,7 +60,7 @@ export interface CompiledMap {
   arcades: Arcade[];
   furnitureSeats: FurnitureSeat[];
   spawn: { x: number; y: number };
-  reception?: { x: number; y: number };
+  reception?: { x: number; y: number; seated?: true };
   tilesets: TilesetId[];
 }
 
@@ -479,7 +479,7 @@ export function compileMap(json: unknown): CompileResult {
         const tile = { x: Math.floor(x / TILE_PX), y: Math.floor(y / TILE_PX) };
         if (!walkableAt(tile.x, tile.y)) errors.push({ code: 'reception_blocked' });
         else if (zones[zoneIndex[tile.y * width + tile.x] ?? 0]?.type === 'meeting') errors.push({ code: 'reception_in_meeting' });
-        else reception = tile;
+        else reception = property(point, 'seated') === true ? { ...tile, seated: true } : tile;
       }
     }
   }

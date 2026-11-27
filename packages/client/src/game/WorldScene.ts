@@ -544,17 +544,29 @@ export class WorldScene extends Phaser.Scene {
     for (const object of this.receptionObjects) object.destroy();
     this.receptionObjects = [];
     this.receptionRing = undefined;
-    const reception = this.options.world.reception;
+    const { world } = this.options;
+    const reception = world.reception;
     if (!reception) return;
+    const seated = world.map.reception?.seated === true;
     const x = reception.x * TILE_PX + TILE_PX / 2;
-    const y = (reception.y + 1) * TILE_PX;
+    // Aproxima o banco do tampo, mantendo o tile de interação atrás do balcão.
+    const y = (reception.y + 1) * TILE_PX + (seated ? 12 : 0);
     const texture = ensureAvatarTexture(this, RECEPTION_AVATAR);
-    const sprite = this.add.sprite(x, y, texture, idleFrame('down')).setOrigin(0.5, 1).setDepth(y);
+    const sprite = this.add.sprite(x, y, texture, seated ? seatedFrame('down') : idleFrame('down')).setOrigin(0.5, 1).setDepth(y);
     const label = new NamePill(this).set('Recepção · IA', reception.status === 'available' ? 'available' : 'away', false)
-      .setPosition(x, y + 1).setDepth(LABEL_DEPTH);
+      .setPosition(x, seated ? y - 31 : y + 1).setDepth(LABEL_DEPTH);
     const ring = this.add.ellipse(x, y - 1, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setDepth(y - 0.5).setVisible(false);
     this.receptionRing = ring;
     this.receptionObjects = [sprite, label, ring];
+    if (seated) this.receptionObjects.push(this.addStool().setPosition(x, y).setDepth(y - 0.3));
+  }
+
+  /** Banco para a pose sentada sem cadeira desenhada no móvel. */
+  private addStool(): Phaser.GameObjects.Graphics {
+    return this.add.graphics()
+      .fillStyle(0x374e4a).fillRect(-6, -5, 2, 5).fillRect(4, -5, 2, 5)
+      .fillStyle(0x966c6c).fillRoundedRect(-7, -8, 14, 4, 1)
+      .fillStyle(0xe6cba5).fillRect(-6, -8, 12, 2);
   }
 
   private addAvatar(player: Player): void {
@@ -567,10 +579,7 @@ export class WorldScene extends Phaser.Scene {
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(position.dir)).setOrigin(0.5, 1);
     const shadow = this.add.ellipse(0, 0, 12, 5, CONTACT_SHADOW_COLOR, AVATAR_SHADOW_ALPHA);
     // O banco aparece sob o sprite sentado. A sombra do avatar fica abaixo dos pés do banco.
-    const stool = this.add.graphics().setVisible(false)
-      .fillStyle(0x374e4a).fillRect(-6, -5, 2, 5).fillRect(4, -5, 2, 5)
-      .fillStyle(0x966c6c).fillRoundedRect(-7, -8, 14, 4, 1)
-      .fillStyle(0xe6cba5).fillRect(-6, -8, 12, 2);
+    const stool = this.addStool().setVisible(false);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = new NamePill(this).setDepth(LABEL_DEPTH);
     const title = new TitlePill(this).setDepth(LABEL_DEPTH);
