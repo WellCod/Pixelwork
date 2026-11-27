@@ -1,4 +1,5 @@
-import { compileMap, findPath, isWalkable, nextProximity, TILE_PX, type MapError } from '@pixelwork/shared';
+import { compileMap, findPath, frameOf, isWalkable, nextProximity, TILE_PX, type MapError } from '@pixelwork/shared';
+import { CommandStack, linkedReceptionOf, moveObject, objectLayer, removeObject, type TilesetRef } from '@pixelwork/shared/editor';
 import { buildTestMap } from '@pixelwork/shared/testing';
 import { describe, expect, it } from 'vitest';
 import { loadDemoTemplate, loadTemplate, withDemoReception } from './demo.ts';
@@ -31,6 +32,36 @@ describe('marcador de recepção', () => {
     expect(nextProximity(demo.map, approach, [{ ...demo.map.reception, id: 'recepcao' }], new Set())).toEqual(new Set(['recepcao']));
     expect(isWalkable(demo.map, 34, 13)).toBe(false);
     expect(isWalkable(demo.map, 34, 12)).toBe(true);
+  });
+
+  it('move o balcão e a recepcionista sentada juntos, com desfazer e refazer', () => {
+    const template = loadDemoTemplate();
+    const ref = (template.tilesets as TilesetRef[]).find(({ source }) => source === 'furniture-3x2.tsj');
+    if (!ref) throw new Error('tileset da cabine ausente');
+    const counter = objectLayer(template, 'furniture').objects.find(({ gid }) => gid === ref.firstgid + frameOf('furniture-3x2', 'reception'));
+    if (!counter) throw new Error('balcão da recepção ausente');
+    const stack = new CommandStack(template);
+    expect(linkedReceptionOf(template, counter)?.point).toBe(true);
+
+    // A parede da Aurora e o fliperama ao lado não podem receber a cabine.
+    expect(moveObject(stack.doc, 'furniture', counter.id, 34, 12)).toBeNull();
+    expect(moveObject(stack.doc, 'furniture', counter.id, 35, 14)).toBeNull();
+    const move = moveObject(stack.doc, 'furniture', counter.id, 33, 14);
+    expect(move?.kind).toBe('batch');
+    stack.execute(move);
+    const moved = stack.doc;
+    const compiled = compileMap(moved);
+    expect(compiled.ok && compiled.map.reception).toEqual({ x: 34, y: 12, seated: true });
+    expect(objectLayer(moved, 'furniture').objects.find(({ id }) => id === counter.id)?.x).toBe(33 * TILE_PX);
+    stack.undo();
+    expect(stack.doc).toEqual(template);
+    stack.redo();
+    expect(stack.doc).toEqual(moved);
+
+    stack.execute(removeObject(stack.doc, 'furniture', counter.id));
+    expect(objectLayer(stack.doc, 'reception').objects).toHaveLength(0);
+    stack.undo();
+    expect(stack.doc).toEqual(moved);
   });
 
   it.each<[unknown, MapError['code']]>([

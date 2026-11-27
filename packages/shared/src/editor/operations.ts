@@ -12,6 +12,7 @@ import type { Dir } from '../protocol.ts';
 import {
   objectLayer,
   propertyValue,
+  apply,
   type EditorCommand,
   type ObjectLayerName,
   type TiledDoc,
@@ -400,6 +401,22 @@ export function rotateDesk(doc: TiledDoc, id: number): EditorCommand | null {
 
 // ---- comuns ----
 
+const RECEPTION_COUNTER_PROPERTY = 'reception_counter_id';
+
+/** Localiza o NPC do balcão, inclusive em mapas anteriores ao vínculo por ID. */
+export function linkedReceptionOf(doc: TiledDoc, counter: TiledObject): TiledObject | undefined {
+  const ref = (doc.tilesets as TilesetRef[] | undefined)?.find(({ source }) => source === 'furniture-3x2.tsj');
+  if (!ref || ((counter.gid ?? 0) & 0x0fffffff) !== ref.firstgid + frameOf('furniture-3x2', 'reception')) return undefined;
+  const layer = doc.layers.find((candidate) => candidate.name === 'reception');
+  const point = layer?.type === 'objectgroup' ? layer.objects[0] : undefined;
+  if (!point || propertyValue(point, 'seated') !== true) return undefined;
+  const linkedId = propertyValue(point, RECEPTION_COUNTER_PROPERTY);
+  if (linkedId !== undefined) return linkedId === counter.id ? point : undefined;
+  const width = counter.width || TILESETS['furniture-3x2'].tileWidth;
+  const height = counter.height || TILESETS['furniture-3x2'].tileHeight;
+  return point.x === counter.x + width / 2 && point.y === counter.y - height - TILE_PX / 2 ? point : undefined;
+}
+
 /** Move mantendo a chave (zone_key, desk_key): é por ela que trancas e atribuições acham o objeto. */
 export function moveObject(doc: TiledDoc, layer: ObjectLayerName, id: number, tx: number, ty: number): EditorCommand | null {
   const object = findObject(doc, layer, id);
@@ -420,13 +437,41 @@ export function moveObject(doc: TiledDoc, layer: ObjectLayerName, id: number, tx
   if ((layer === 'zones' || layer === 'desks') && !fits(doc, x, y, objectWidth, objectHeight)) return null;
   if (layer === 'furniture' && !fits(doc, x, y - objectHeight, objectWidth, objectHeight)) return null;
   if (x === object.x && y === object.y) return null;
-  return { kind: 'replaceObject', layer, object: { ...object, x, y } };
+  const moved: EditorCommand = { kind: 'replaceObject', layer, object: { ...object, x, y } };
+  const reception = layer === 'furniture' ? linkedReceptionOf(doc, object) : undefined;
+  if (!reception) return moved;
+
+  // O balcão anterior deixa de contar como obstáculo quando as duas pegadas se sobrepõem.
+  const withoutCabin = apply(doc, removeObject(doc, layer, id)).doc;
+  const vacant = compileMap(withoutCabin);
+  if (!vacant.ok) return null;
+  const width = object.width || TILESETS['furniture-3x2'].tileWidth;
+  const height = object.height || TILESETS['furniture-3x2'].tileHeight;
+  if (!fits(doc, x, y - height, width, height)) return null;
+  for (let row = Math.floor((y - height) / TILE_PX); row <= ty; row++) {
+    for (let column = tx; column < Math.ceil((x + width) / TILE_PX); column++) {
+      if (!isWalkable(vacant.map, column, row)) return null;
+    }
+  }
+  const point = {
+    ...reception,
+    x: reception.x + x - object.x,
+    y: reception.y + y - object.y,
+    properties: [
+      ...(reception.properties ?? []).filter(({ name }) => name !== RECEPTION_COUNTER_PROPERTY),
+      { name: RECEPTION_COUNTER_PROPERTY, type: 'int', value: object.id },
+    ],
+  };
+  const command: EditorCommand = { kind: 'batch', commands: [moved, { kind: 'replaceObject', layer: 'reception', object: point }] };
+  return compileMap(apply(doc, command).doc).ok ? command : null;
 }
 
 /** Remove o objeto; o id tem que existir (erro em vez de comando vazio). */
 export function removeObject(doc: TiledDoc, layer: ObjectLayerName, id: number): EditorCommand {
-  findObject(doc, layer, id);
-  return { kind: 'removeObject', layer, id };
+  const object = findObject(doc, layer, id);
+  const remove: EditorCommand = { kind: 'removeObject', layer, id };
+  const reception = layer === 'furniture' ? linkedReceptionOf(doc, object) : undefined;
+  return reception ? { kind: 'batch', commands: [remove, { kind: 'removeObject', layer: 'reception', id: reception.id }] } : remove;
 }
 
 /** Spawn é um ponto só: move o que existe ou cria. */

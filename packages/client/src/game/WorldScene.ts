@@ -13,7 +13,6 @@ import {
   TILE_PX,
   tilesetImageUrl,
   type ClientMsg,
-  type AvatarSpec,
   type CompiledDesk,
   type ContactShadow,
   type Dir,
@@ -27,6 +26,7 @@ import { LABEL_DEPTH, LABEL_FONT, NamePill, TitlePill, chatBubble, deskPlaque, t
 import { createMeetingDoors, type MeetingDoor } from './meeting-doors.ts';
 import { Mover } from './mover.ts';
 import { receptionPath } from './reception-path.ts';
+import { drawReceptionAvatar, drawStool } from './reception-avatar.ts';
 import { drawDeskJoins } from './desk-joins.ts';
 import { deskDecorFrame, deskSprites, isNear, seatedPose } from './presence.ts';
 import { baseZoom, canvasToCss } from './scale.ts';
@@ -70,10 +70,6 @@ interface Avatar {
   chat: Phaser.GameObjects.Container | null;
   chatTimer: Phaser.Time.TimerEvent | null;
 }
-
-const RECEPTION_AVATAR: AvatarSpec = {
-  body: 'base', skin: 'medium', hair: 'bun', hairColor: 'black', outfit: 'cardigan', outfitColor: 'green', accessory: 'glasses',
-};
 
 const AVATAR_SHADOW_ALPHA = 0.18;
 /** Zoom da câmera em múltiplos do zoom base (`baseZoom`): inteiro, para o pixel art não borrar. */
@@ -548,25 +544,13 @@ export class WorldScene extends Phaser.Scene {
     const reception = world.reception;
     if (!reception) return;
     const seated = world.map.reception?.seated === true;
-    const x = reception.x * TILE_PX + TILE_PX / 2;
-    // Aproxima o banco do tampo, mantendo o tile de interação atrás do balcão.
-    const y = (reception.y + 1) * TILE_PX + (seated ? 12 : 0);
-    const texture = ensureAvatarTexture(this, RECEPTION_AVATAR);
-    const sprite = this.add.sprite(x, y, texture, seated ? seatedFrame('down') : idleFrame('down')).setOrigin(0.5, 1).setDepth(y);
+    const { x, y, sprite, stool } = drawReceptionAvatar(this, reception.x, reception.y, seated);
     const label = new NamePill(this).set('Recepção · IA', reception.status === 'available' ? 'available' : 'away', false)
       .setPosition(x, seated ? y - 31 : y + 1).setDepth(LABEL_DEPTH);
     const ring = this.add.ellipse(x, y - 1, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setDepth(y - 0.5).setVisible(false);
     this.receptionRing = ring;
     this.receptionObjects = [sprite, label, ring];
-    if (seated) this.receptionObjects.push(this.addStool().setPosition(x, y).setDepth(y - 0.3));
-  }
-
-  /** Banco para a pose sentada sem cadeira desenhada no móvel. */
-  private addStool(): Phaser.GameObjects.Graphics {
-    return this.add.graphics()
-      .fillStyle(0x374e4a).fillRect(-6, -5, 2, 5).fillRect(4, -5, 2, 5)
-      .fillStyle(0x966c6c).fillRoundedRect(-7, -8, 14, 4, 1)
-      .fillStyle(0xe6cba5).fillRect(-6, -8, 12, 2);
+    if (stool) this.receptionObjects.push(stool);
   }
 
   private addAvatar(player: Player): void {
@@ -579,7 +563,7 @@ export class WorldScene extends Phaser.Scene {
     const sprite = this.add.sprite(0, 0, textureKey, idleFrame(position.dir)).setOrigin(0.5, 1);
     const shadow = this.add.ellipse(0, 0, 12, 5, CONTACT_SHADOW_COLOR, AVATAR_SHADOW_ALPHA);
     // O banco aparece sob o sprite sentado. A sombra do avatar fica abaixo dos pés do banco.
-    const stool = this.addStool().setVisible(false);
+    const stool = drawStool(this).setVisible(false);
     const ring = this.add.ellipse(0, 0, 14, 6, SPEAKING_COLOR, 0.35).setStrokeStyle(1, SPEAKING_COLOR).setVisible(false);
     const label = new NamePill(this).setDepth(LABEL_DEPTH);
     const title = new TitlePill(this).setDepth(LABEL_DEPTH);

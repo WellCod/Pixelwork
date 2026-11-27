@@ -49,6 +49,7 @@ export function EditorPanel({ controller, spaceId, baseVersion, localDraft, onBa
   const [saving, setSaving] = useState(false);
   const errors = controller.errors();
   const selected = controller.selected();
+  const receptionSelected = Boolean(controller.selectedReception());
   const layer = controller.selection?.layer;
 
   useEffect(() => {
@@ -301,6 +302,10 @@ export function EditorPanel({ controller, spaceId, baseVersion, localDraft, onBa
       {selected && (
         <section>
           <h3>Selecionado</h3>
+          {receptionSelected && <p className="muted">Cabine da recepção. Arraste o balcão para mover a recepcionista junto.</p>}
+          {receptionSelected && controller.receptionMoveBlocked && (
+            <p className="error" role="status">Escolha um local livre com espaço para o balcão e a recepcionista em uma área aberta.</p>
+          )}
           {layer === 'zones' && (
             <div className="fields">
               <label>
@@ -346,7 +351,7 @@ export function EditorPanel({ controller, spaceId, baseVersion, localDraft, onBa
           )}
           {layer !== 'spawn' && (
             <button type="button" onClick={() => controller.removeSelected()}>
-              Remover (Delete)
+              {receptionSelected ? 'Remover cabine (Delete)' : 'Remover (Delete)'}
             </button>
           )}
         </section>

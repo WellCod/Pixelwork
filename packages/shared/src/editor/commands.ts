@@ -52,7 +52,7 @@ export interface TiledDoc {
 }
 
 export type TileLayerName = 'floor' | 'walls';
-export type ObjectLayerName = 'furniture' | 'zones' | 'desks' | 'spawn';
+export type ObjectLayerName = 'furniture' | 'zones' | 'desks' | 'spawn' | 'reception';
 
 /** Comando aplicável ao documento; `paint.cells[].i` é o índice do tile (y * width + x). */
 export type EditorCommand =
